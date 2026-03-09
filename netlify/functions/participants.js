@@ -1,4 +1,4 @@
-import { queryDatabase, DB_IDS, corsHeaders, jsonResponse, errorResponse, extractRichText, extractSelect, extractMultiSelect, extractEmail } from "./notion-client.js";
+import { queryDatabase, DB_IDS, corsHeaders, jsonResponse, errorResponse, extractRichText, extractSelect, extractRelation, extractEmail } from "./notion-client.js";
 
 export default async function handler(req) {
   if (req.method === "OPTIONS") return new Response("", { headers: corsHeaders() });
@@ -9,7 +9,7 @@ export default async function handler(req) {
 
     let filter = undefined;
     if (cohort) {
-      filter = { property: "Cohorts", multi_select: { contains: cohort } };
+      filter = { property: "Cohort", relation: { contains: cohort } };
     }
 
     const response = await queryDatabase(DB_IDS.PARTICIPANTS, {
@@ -21,8 +21,8 @@ export default async function handler(req) {
       id: page.id,
       name: extractRichText(page.properties.Name),
       email: extractEmail(page.properties.Email),
-      organization: extractSelect(page.properties.Organization),
-      cohorts: extractMultiSelect(page.properties.Cohorts),
+      organization: extractRichText(page.properties.Company),
+      cohorts: extractRelation(page.properties.Cohort),
     }));
 
     return jsonResponse(participants);

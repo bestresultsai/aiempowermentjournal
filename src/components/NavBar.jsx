@@ -23,10 +23,9 @@ export default function NavBar() {
         </Link>
         <div style={{ width: 1, height: 28, background: "#E2E8F0" }} />
         <span style={{
-          background: "#EFF6FF", color: "#2563EB", padding: "3px 10px",
-          borderRadius: 6, fontSize: 11, fontWeight: 600,
+          color: "#64748B", fontSize: 13, fontWeight: 500,
         }}>
-          Notion Connected
+          AI Empowerment Journal
         </span>
       </div>
 

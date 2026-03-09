@@ -1,4 +1,4 @@
-import { queryDatabase, DB_IDS, corsHeaders, jsonResponse, errorResponse, extractRichText, extractSelect, extractMultiSelect, extractDate } from "./notion-client.js";
+import { queryDatabase, DB_IDS, corsHeaders, jsonResponse, errorResponse, extractRichText, extractSelect, extractRelation, extractDate, extractStatus } from "./notion-client.js";
 
 export default async function handler(req) {
   if (req.method === "OPTIONS") return new Response("", { headers: corsHeaders() });
@@ -11,11 +11,11 @@ export default async function handler(req) {
     const cohorts = response.results.map(page => ({
       id: page.id,
       name: extractRichText(page.properties.Name),
-      program: extractSelect(page.properties.Program),
-      organization: extractSelect(page.properties.Organization),
+      program: extractRelation(page.properties.Program),
+      organization: extractRichText(page.properties.Organization),
       startDate: extractDate(page.properties["Start Date"]),
-      trainers: extractMultiSelect(page.properties.Trainers),
-      status: extractSelect(page.properties.Status),
+      trainer: extractSelect(page.properties.Trainer),
+      status: extractStatus(page.properties.Status),
     }));
 
     return jsonResponse(cohorts);

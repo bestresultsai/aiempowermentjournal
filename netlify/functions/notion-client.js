@@ -41,8 +41,8 @@ export async function createPage(databaseId, properties) {
 
 export const DB_IDS = {
   JOURNAL_ENTRIES: "0d984418-48bd-4f1e-adf0-f71c1f0e1dbb",
-  PARTICIPANTS: "2fb2af88-8f34-8008-ab17-000b19774efc",
-  COHORTS: "2fa2af88-8f34-8020-b8e9-000bde27aaaa",
+  PARTICIPANTS: "2fb2af88-8f34-80ce-a486-d8f8f39bdfab",
+  COHORTS: "2fa2af88-8f34-8036-beb8-e894172c6a89",
   USERS: "937dfd19-8afa-4e07-bdf3-9974f4fb1093",
 };
 
@@ -103,4 +103,12 @@ export function extractNumber(prop) {
 
 export function extractDate(prop) {
   return prop?.date?.start || "";
+}
+
+export function extractRelation(prop) {
+  return prop?.relation?.map(r => r.id) || [];
+}
+
+export function extractStatus(prop) {
+  return prop?.status?.name || "";
 }

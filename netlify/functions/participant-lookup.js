@@ -1,4 +1,4 @@
-import { queryDatabase, DB_IDS, corsHeaders, jsonResponse, errorResponse, extractRichText, extractSelect, extractMultiSelect, extractEmail } from "./notion-client.js";
+import { queryDatabase, DB_IDS, corsHeaders, jsonResponse, errorResponse, extractRichText, extractRelation, extractEmail, notionFetch } from "./notion-client.js";
 
 export default async function handler(req) {
   if (req.method === "OPTIONS") return new Response("", { headers: corsHeaders() });
@@ -21,14 +21,28 @@ export default async function handler(req) {
     }
 
     const page = response.results[0];
+    const cohortRelationIds = extractRelation(page.properties.Cohort);
+
+    // Resolve cohort names from their relation IDs
+    const cohortNames = [];
+    for (const cohortId of cohortRelationIds) {
+      try {
+        const cohortPage = await notionFetch(`/pages/${cohortId}`);
+        const name = cohortPage.properties?.Name?.title?.map(t => t.plain_text).join("") || "";
+        if (name) cohortNames.push(name);
+      } catch (e) {
+        console.error("Error resolving cohort:", cohortId, e);
+      }
+    }
+
     return jsonResponse({
       found: true,
       participant: {
         id: page.id,
         name: extractRichText(page.properties.Name),
         email: extractEmail(page.properties.Email),
-        organization: extractSelect(page.properties.Organization),
-        cohorts: extractMultiSelect(page.properties.Cohorts),
+        organization: extractRichText(page.properties.Company),
+        cohorts: cohortNames,
       },
     });
   } catch (err) {

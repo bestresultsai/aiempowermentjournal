@@ -77,7 +77,7 @@ export default async function handler(req) {
       if (!emailRes.ok) {
         const errText = await emailRes.text();
         console.error("Resend error:", errText);
-        return errorResponse("Failed to send email", 500);
+        return errorResponse(`Failed to send email: ${errText}`, 500);
       }
     } else {
       console.log("Magic link (no Resend key):", magicLink);
