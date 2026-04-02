@@ -28,7 +28,7 @@ export default async function handler(req) {
     for (const cohortId of cohortRelationIds) {
       try {
         const cohortPage = await notionFetch(`/pages/${cohortId}`);
-        const name = cohortPage.properties?.Name?.title?.map(t => t.plain_text).join("") || "";
+        const name = cohortPage.properties?.["Cohort Name"]?.title?.map(t => t.plain_text).join("") || "";
         if (name) cohortNames.push(name);
       } catch (e) {
         console.error("Error resolving cohort:", cohortId, e);
