@@ -6,6 +6,8 @@ import AuthVerify from "./pages/AuthVerify";
 import Journal from "./pages/Journal";
 import JournalResult from "./pages/JournalResult";
 import Dashboard from "./pages/Dashboard";
+import CohortLanding from "./pages/cohort/CohortLanding";
+import SessionDetail from "./pages/cohort/SessionDetail";
 
 export default function App() {
   return (
@@ -18,6 +20,8 @@ export default function App() {
           <Route path="/journal" element={<Journal />} />
           <Route path="/journal/result" element={<JournalResult />} />
           <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/cohort/:slug" element={<CohortLanding />} />
+          <Route path="/cohort/:slug/session/:order" element={<SessionDetail />} />
         </Routes>
       </BrowserRouter>
     </AuthProvider>
