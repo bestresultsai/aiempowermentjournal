@@ -8,8 +8,8 @@ export const BRAND_LOGO_URL =
 
 // Size variants map to the height of the rendered image. The original glyph
 // is a horizontal lockup, so we let the width auto-scale.
-const LOGO_HEIGHTS = { sm: 24, md: 32, lg: 44 };
-const TAGLINE_FONT_SIZES = { sm: 9, md: 10, lg: 11 };
+const LOGO_HEIGHTS = { sm: 36, md: 56, lg: 80 };
+const TAGLINE_FONT_SIZES = { sm: 10, md: 12, lg: 14 };
 
 export default function Logo({ size = "md", dark = false, showTagline = false }) {
   const [errored, setErrored] = useState(false);

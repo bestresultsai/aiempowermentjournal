@@ -26,7 +26,7 @@ export const MOCK_COHORT = {
   programName: "Best Results AI Empowerment Workshop Series 3.0",
   organization: {
     id: "org-iahe",
-    name: "Iowa Association of Health Executives",
+    name: "International Alliance of Healthcare Educators",
     shortName: "IAHE",
   },
   trainer: {
