@@ -22,6 +22,10 @@ export const MOCK_COHORT = {
   id: "cohort-iahe-aiew3-2026q1",
   slug: "iahe-aiew3-2026q1",
   name: "AIEW3 — IAHE Cohort",
+  // The name the Journal Entries DB tags entries with. We filter the cohort
+  // dashboard by this value via /api/entries?cohort=...  In live mode this is
+  // the same as `name` (or a relation to the Cohorts DB).
+  journalCohortName: "IAHE Cohort",
   programCode: "AIEW3",
   programName: "Best Results AI Empowerment Workshop Series 3.0",
   organization: {

@@ -4,13 +4,32 @@ import NavBar from "../../components/NavBar";
 import CohortHero from "../../components/cohort/CohortHero";
 import ProgressRing from "../../components/cohort/ProgressRing";
 import SessionRow from "../../components/cohort/SessionRow";
+import CohortStats from "../../components/cohort/CohortStats";
 import { getCohortBySlug } from "../../lib/cohortApi";
+import { getEntries } from "../../lib/api";
+import { useAuth } from "../../context/AuthContext";
 
 export default function CohortLanding() {
   const { slug } = useParams();
+  const { user } = useAuth();
+
   const { data: cohort, isLoading, error } = useQuery({
     queryKey: ["cohort", slug],
     queryFn: () => getCohortBySlug(slug),
+  });
+
+  // Pull journal entries scoped to this cohort. We use the cohort's
+  // `journalCohortName` (the value the Journal Entries DB tags entries with)
+  // when present, else fall back to `name`.
+  const journalCohortName = cohort?.journalCohortName || cohort?.name;
+  const {
+    data: cohortEntries = [],
+    isLoading: entriesLoading,
+    error: entriesError,
+  } = useQuery({
+    queryKey: ["cohort-entries", journalCohortName],
+    queryFn: () => getEntries({ cohort: journalCohortName }),
+    enabled: !!journalCohortName,
   });
 
   return (
@@ -98,6 +117,14 @@ export default function CohortLanding() {
                 <SessionRow key={s.order} session={s} cohortSlug={cohort.slug} />
               ))}
             </div>
+
+            <CohortStats
+              cohort={cohort}
+              entries={cohortEntries}
+              currentUserEmail={user?.email}
+              loading={entriesLoading}
+              error={entriesError?.message}
+            />
 
             <div
               style={{
