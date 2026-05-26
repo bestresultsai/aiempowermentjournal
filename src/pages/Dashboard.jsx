@@ -76,6 +76,11 @@ export default function Dashboard() {
     );
   }
 
+  // Individual users (the default role) see their own entries + their cohort.
+  const myEntries = entries.filter(e =>
+    !user.email || e.participantEmail?.toLowerCase() === user.email.toLowerCase()
+  );
+
   return (
     <>
       <NavBar />
@@ -87,6 +92,14 @@ export default function Dashboard() {
       )}
       {user.role === "org_leader" && (
         <OrgLeaderDashboard entries={entries} cohorts={cohorts} user={user} />
+      )}
+      {(user.role === "individual" || !["admin", "trainer", "org_leader"].includes(user.role)) && (
+        <IndividualDashboard
+          entries={myEntries}
+          allEntries={entries}
+          cohorts={cohorts}
+          email={user.email}
+        />
       )}
     </>
   );

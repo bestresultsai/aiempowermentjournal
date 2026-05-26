@@ -60,13 +60,12 @@ export default async function handler(req) {
           html: `
             <div style="font-family: 'DM Sans', system-ui, sans-serif; max-width: 500px; margin: 0 auto; padding: 40px 20px;">
               <div style="text-align: center; margin-bottom: 30px;">
-                <span style="font-weight: 800; font-size: 22px; color: #0F172A;">BestResults</span>
-                <span style="display: inline-block; width: 28px; height: 28px; border-radius: 50%; background: #2563EB; color: white; font-weight: 800; font-size: 12px; text-align: center; line-height: 28px; margin-left: 4px;">.AI</span>
+                <img src="https://48031831.fs1.hubspotusercontent-na1.net/hubfs/48031831/Brand/BRAI%20Logo%20Black.png" alt="BestResults.AI" height="36" style="height: 36px; width: auto; display: inline-block;" />
               </div>
               <h2 style="color: #0F172A; font-size: 20px; margin-bottom: 16px;">Hi ${userName},</h2>
-              <p style="color: #64748B; font-size: 15px; line-height: 1.6;">Click the button below to sign in to the AI Empowerment Journal.</p>
+              <p style="color: #64748B; font-size: 15px; line-height: 1.6;">Click the button below to sign in to the BestResults.AI platform.</p>
               <div style="text-align: center; margin: 30px 0;">
-                <a href="${magicLink}" style="display: inline-block; background: #2563EB; color: white; padding: 14px 32px; border-radius: 10px; text-decoration: none; font-weight: 700; font-size: 15px;">Sign In to Journal</a>
+                <a href="${magicLink}" style="display: inline-block; background: #2563EB; color: white; padding: 14px 32px; border-radius: 10px; text-decoration: none; font-weight: 700; font-size: 15px;">Sign In</a>
               </div>
               <p style="color: #94A3B8; font-size: 13px;">This link expires in 30 days. If you didn't request this, you can safely ignore this email.</p>
             </div>

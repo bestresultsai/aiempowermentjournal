@@ -1,0 +1,19 @@
+# macOS clutter
+.DS_Store
+**/.DS_Store
+
+# Editor cruft
+.vscode/
+.idea/
+*.swp
+
+# Build outputs (Netlify rebuilds dist/ from source on each deploy)
+node_modules/
+
+# Local env files — never commit secrets
+.env
+.env.local
+.env.*.local
+
+# Netlify CLI state
+.netlify/

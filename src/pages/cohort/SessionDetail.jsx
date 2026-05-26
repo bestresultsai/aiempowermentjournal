@@ -3,7 +3,9 @@ import { useParams, Link, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import NavBar from "../../components/NavBar";
 import SessionPlayer from "../../components/cohort/SessionPlayer";
-import { getSession, markSessionComplete } from "../../lib/cohortApi";
+import HomeworkSubmission from "../../components/cohort/HomeworkSubmission";
+import { BELT_COLORS } from "../../lib/mockCohort";
+import { getSession, markSessionComplete, submitHomework } from "../../lib/cohortApi";
 
 export default function SessionDetail() {
   const { slug, order } = useParams();
@@ -20,6 +22,15 @@ export default function SessionDetail() {
     mutationFn: (completed) => markSessionComplete(slug, order, completed),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["cohort", slug] }),
   });
+
+  const homework = useMutation({
+    mutationFn: (payload) => submitHomework(slug, order, payload),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["cohort", slug] }),
+  });
+
+  const belt = data?.session?.belt && BELT_COLORS[data.session.belt]
+    ? BELT_COLORS[data.session.belt]
+    : null;
 
   return (
     <div style={{ minHeight: "100vh", background: "#F8FAFC" }}>
@@ -41,8 +52,27 @@ export default function SessionDetail() {
         {data && (
           <>
             <div style={{ marginBottom: 16 }}>
-              <div style={{ fontSize: 12, fontWeight: 700, color: "#64748B", letterSpacing: 0.4, marginBottom: 4 }}>
-                {data.cohort.name.toUpperCase()} · SESSION {data.session.order}
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6, flexWrap: "wrap" }}>
+                {belt && (
+                  <span
+                    style={{
+                      fontSize: 11,
+                      fontWeight: 800,
+                      letterSpacing: 0.5,
+                      textTransform: "uppercase",
+                      background: belt.hex,
+                      color: belt.contrast,
+                      padding: "3px 10px",
+                      borderRadius: 999,
+                      border: belt.hex === "#E5E7EB" ? "1px solid #CBD5E1" : "none",
+                    }}
+                  >
+                    {data.session.belt} Belt
+                  </span>
+                )}
+                <span style={{ fontSize: 12, fontWeight: 700, color: "#64748B", letterSpacing: 0.4 }}>
+                  {data.cohort.name.toUpperCase()} · SESSION {data.session.order}
+                </span>
               </div>
               <h1 style={{ fontSize: 26, fontWeight: 800, color: "#0F172A", margin: "0 0 6px", lineHeight: 1.25 }}>
                 {data.session.title}
@@ -56,16 +86,22 @@ export default function SessionDetail() {
 
             <SessionPlayer session={data.session} />
 
-            <Tabs current={tab} onChange={setTab} />
+            <Tabs current={tab} onChange={setTab} session={data.session} />
 
             <div style={{ background: "#fff", border: "1px solid #E2E8F0", borderRadius: 14, padding: 22, marginBottom: 20 }}>
-              {tab === "overview" && <OverviewPanel session={data.session} />}
+              {tab === "overview"  && <OverviewPanel session={data.session} />}
               {tab === "materials" && <MaterialsPanel session={data.session} />}
+              {tab === "homework"  && (
+                <HomeworkSubmission
+                  session={data.session}
+                  pending={homework.isPending}
+                  onSubmit={(payload) => homework.mutate(payload)}
+                />
+              )}
             </div>
 
             <CompletionFooter
               session={data.session}
-              cohort={data.cohort}
               onMark={(c) => complete.mutate(c)}
               pending={complete.isPending}
               onNext={() => {
@@ -81,10 +117,15 @@ export default function SessionDetail() {
   );
 }
 
-function Tabs({ current, onChange }) {
+function Tabs({ current, onChange, session }) {
   const tabs = [
-    { id: "overview", label: "Overview" },
+    { id: "overview",  label: "Overview" },
     { id: "materials", label: "Materials" },
+    {
+      id: "homework",
+      label: "Homework",
+      badge: session?.homeworkSubmitted ? "✓" : (session?.homework?.prompt ? "•" : null),
+    },
   ];
   return (
     <div style={{ display: "flex", gap: 4, borderBottom: "1px solid #E2E8F0", marginBottom: 14 }}>
@@ -98,9 +139,25 @@ function Tabs({ current, onChange }) {
             color: current === t.id ? "#2563EB" : "#64748B",
             borderBottom: current === t.id ? "2px solid #2563EB" : "2px solid transparent",
             marginBottom: -1,
+            display: "inline-flex", alignItems: "center", gap: 6,
           }}
         >
           {t.label}
+          {t.badge === "✓" && (
+            <span style={{
+              fontSize: 10, fontWeight: 800, background: "#ECFDF5",
+              color: "#047857", padding: "2px 6px", borderRadius: 999,
+              border: "1px solid #A7F3D0",
+            }}>
+              ✓
+            </span>
+          )}
+          {t.badge === "•" && (
+            <span style={{
+              width: 6, height: 6, borderRadius: "50%", background: "#F97316",
+              display: "inline-block",
+            }} />
+          )}
         </button>
       ))}
     </div>
@@ -185,27 +242,19 @@ function CompletionFooter({ session, onMark, pending, onNext }) {
         </div>
         <div style={{ fontSize: 13, color: "#475569" }}>
           {session.completed
-            ? "Nice work. Keep the momentum — open the next session."
+            ? "Nice work. Don't forget to submit your homework if you haven't already."
             : "Mark it complete to update your progress. You can always un-mark it later."}
         </div>
       </div>
       {session.completed ? (
         <>
-          <button
-            onClick={() => onMark(false)}
-            disabled={pending}
-            style={btnSecondary}
-          >
+          <button onClick={() => onMark(false)} disabled={pending} style={btnSecondary}>
             Un-mark
           </button>
           <button onClick={onNext} style={btnPrimary}>Next session →</button>
         </>
       ) : (
-        <button
-          onClick={() => onMark(true)}
-          disabled={pending}
-          style={btnPrimary}
-        >
+        <button onClick={() => onMark(true)} disabled={pending} style={btnPrimary}>
           {pending ? "Saving…" : "Mark complete"}
         </button>
       )}
