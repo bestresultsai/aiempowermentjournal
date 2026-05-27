@@ -15,10 +15,11 @@ import { getCohortBySlug } from "../../lib/cohortApi";
 import { getEntries } from "../../lib/api";
 import { useAuth } from "../../context/AuthContext";
 import { calculateStreakWeeks } from "../../lib/gamification";
+import { DEMO_JOURNAL_ENTRIES } from "../../lib/demoData";
 
 export default function CohortLanding() {
   const { slug } = useParams();
-  const { user } = useAuth();
+  const { user, isDemo } = useAuth();
   const [sessionFilter, setSessionFilter] = useState("all");
 
   const { data: cohort, isLoading, error } = useQuery({
@@ -28,14 +29,20 @@ export default function CohortLanding() {
 
   const journalCohortName = cohort?.journalCohortName || cohort?.name;
   const {
-    data: cohortEntries = [],
+    data: liveEntries = [],
     isLoading: entriesLoading,
     error: entriesError,
   } = useQuery({
     queryKey: ["cohort-entries", journalCohortName],
     queryFn: () => getEntries({ cohort: journalCohortName }),
-    enabled: !!journalCohortName,
+    // In demo mode we don't hit the live Notion endpoint at all — we use the
+    // mock data instead, so the dashboard always populates predictably.
+    enabled: !!journalCohortName && !isDemo,
   });
+
+  // In demo mode, replace live entries with the canned mock set so the dashboard
+  // + streak math + innovation spotlight all light up correctly.
+  const cohortEntries = isDemo ? DEMO_JOURNAL_ENTRIES : liveEntries;
 
   const filteredSessions = (() => {
     if (!cohort?.sessions) return [];

@@ -6,6 +6,26 @@
 //              — 8 belt-ranked sessions (White → Black).
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Dynamic date helper.
+// In the prototype we want the cohort to always feel "mid-program" — a few
+// sessions completed, one up next, several upcoming — regardless of when the
+// page is opened. So we calculate session dates relative to TODAY rather than
+// hardcoding 2026 dates that drift into the past.
+//
+// `weekOffset = 0` = THIS week's Wednesday.
+// `weekOffset = -4` = 4 weeks ago Wednesday.
+// `weekOffset = +3` = 3 weeks from now Wednesday.
+// ---------------------------------------------------------------------------
+function weekdayDate(weekOffset, dayOfWeek = 3 /* Wed */) {
+  const d = new Date();
+  const currentDay = d.getDay();
+  const diff = dayOfWeek - currentDay;
+  d.setDate(d.getDate() + diff + weekOffset * 7);
+  d.setHours(0, 0, 0, 0);
+  return d.toISOString().slice(0, 10);
+}
+
 // Belt color palette. Used as accent on session rows and in the hero.
 export const BELT_COLORS = {
   White:  { hex: "#E5E7EB", text: "#0F172A", contrast: "#0F172A" },
@@ -43,8 +63,10 @@ export const MOCK_COHORT = {
       "https://48031831.fs1.hubspotusercontent-na1.net/hubfs/48031831/Design/Headshots/Mike%20Burkesmith%20Headshot%201X1.png",
     bio: "Feeling stuck on a workflow? Bring it to office hours — we'll turn it into something you'll actually use every week.",
   },
-  startDate: "2026-01-14",
-  endDate: "2026-03-04",
+  // Cohort spans 8 weeks, centered around "now" so the prototype always shows
+  // a realistic mid-cohort state with an upcoming live session.
+  startDate: weekdayDate(-4),
+  endDate: weekdayDate(3),
   meetingDay: "Wednesdays",
   meetingTime: "12:00 PM CT",
   duration: "75 minutes",
@@ -63,7 +85,7 @@ export const MOCK_SESSIONS = [
     title: "White — Full Role Matrices, Prioritized Use Cases, Change Management",
     summary:
       "Set the foundation. Introductions, BRAI Platform overview, expectations, and the Critical Thinking framework for AI-driven decision making. Build your Role Matrix and prioritize use cases by % time saved and ease.",
-    date: "2026-01-14",
+    date: weekdayDate(-4), /* 4 weeks ago — completed */
     durationMinutes: 75,
     videoUrl: "https://player.vimeo.com/video/76979871",
     materials: [
@@ -79,7 +101,7 @@ export const MOCK_SESSIONS = [
     homework: {
       prompt:
         "Build your Role Matrix and pick your top 3 prioritized use cases (by % time saved × ease). Submit it as a Google Doc, Notion page, or paste the content directly below.",
-      dueDate: "2026-01-20",
+      dueDate: weekdayDate(-3, 2), // Tuesday after session 1
       submissionType: "text-or-link",
     },
   },
@@ -89,7 +111,7 @@ export const MOCK_SESSIONS = [
     title: "Yellow — Power AI-Driven Workflows",
     summary:
       "Move from one-off prompts to powerful workflows. Master Comprehensive Context and Prompt Building done by AI, plus AI Self-Enhancement (3 Accelerators).",
-    date: "2026-01-21",
+    date: weekdayDate(-3), /* 3 weeks ago — completed */
     durationMinutes: 75,
     videoUrl: "https://player.vimeo.com/video/76979871",
     materials: [
@@ -104,7 +126,7 @@ export const MOCK_SESSIONS = [
     homework: {
       prompt:
         "Apply one of the Yellow Belt Accelerators to a real workplace task. Share the original prompt, the final prompt after Self-Enhancement, and a 2-sentence reflection on what changed.",
-      dueDate: "2026-01-27",
+      dueDate: weekdayDate(-2, 2),
       submissionType: "text-or-link",
     },
   },
@@ -114,7 +136,7 @@ export const MOCK_SESSIONS = [
     title: "Orange — 100,000 Experts Enhancing Every AI Workflow",
     summary:
       "Stop being a one-person operation. Integrate Expert Advisors into your workflows and learn how to draw out the right context for advanced work (2 Accelerators).",
-    date: "2026-01-28",
+    date: weekdayDate(-2), /* 2 weeks ago — completed */
     durationMinutes: 75,
     videoUrl: "https://player.vimeo.com/video/76979871",
     materials: [
@@ -129,7 +151,7 @@ export const MOCK_SESSIONS = [
     homework: {
       prompt:
         "Run an Expert Advisor session on a real workplace question. Share who was on your panel, the question, and the most surprising insight that came out.",
-      dueDate: "2026-02-03",
+      dueDate: weekdayDate(-1, 2),
       submissionType: "text-or-link",
     },
   },
@@ -139,7 +161,7 @@ export const MOCK_SESSIONS = [
     title: "Green — High-Reliability Repeatable Workflows, Assistants, Agents",
     summary:
       "Build workflows you can trust to run again and again. Apply the Agent Building Templates and Best Practices to design assistants and agents for repeatable, high-stakes work.",
-    date: "2026-02-04",
+    date: weekdayDate(-1), /* last week — completed */
     durationMinutes: 75,
     videoUrl: "https://player.vimeo.com/video/76979871",
     materials: [
@@ -155,7 +177,7 @@ export const MOCK_SESSIONS = [
     homework: {
       prompt:
         "Build a custom assistant or repeatable workflow for one of your prioritized use cases. Share the spec, link to the assistant (or screenshot), and what reliability checks you put in place.",
-      dueDate: "2026-02-10",
+      dueDate: weekdayDate(0, 2),
       submissionType: "text-or-link",
     },
   },
@@ -165,7 +187,7 @@ export const MOCK_SESSIONS = [
     title: "Blue — Professional AI Teams Doing Sophisticated Projects",
     summary:
       "Compose teams of professional AI personas to take on sophisticated projects — true 'insourcing' (Accelerator Collection). Move from individual contributor to AI manager.",
-    date: "2026-02-11",
+    date: weekdayDate(0), /* THIS week — UP NEXT */
     durationMinutes: 75,
     videoUrl: "https://player.vimeo.com/video/76979871",
     materials: [
@@ -180,7 +202,7 @@ export const MOCK_SESSIONS = [
     homework: {
       prompt:
         "Scope a sophisticated project that would normally take a small team. Describe the AI team you'd compose (roles, responsibilities, hand-offs) and what the first hand-off looks like.",
-      dueDate: "2026-02-17",
+      dueDate: weekdayDate(1, 2),
       submissionType: "text-or-link",
     },
   },
@@ -190,7 +212,7 @@ export const MOCK_SESSIONS = [
     title: "Purple — Autonomous Agent Functions",
     summary:
       "Agents that actually do the work. Cover autonomous task execution, deep autonomous research, scheduled/recurring agents, custom personas, connectors, computer/browser controls, persistent workspace context, artifact/doc/app creation, and coding tools.",
-    date: "2026-02-18",
+    date: weekdayDate(1), /* next week — locked */
     durationMinutes: 75,
     videoUrl: "https://player.vimeo.com/video/76979871",
     materials: [
@@ -205,7 +227,7 @@ export const MOCK_SESSIONS = [
     homework: {
       prompt:
         "Set up one autonomous agent that runs without you. Share what it does, what trigger fires it, and what it produced on its first run.",
-      dueDate: "2026-02-24",
+      dueDate: weekdayDate(2, 2),
       submissionType: "text-or-link",
     },
   },
@@ -215,7 +237,7 @@ export const MOCK_SESSIONS = [
     title: "Brown — Agent Quality Assurance and Orchestration",
     summary:
       "Once you have agents working, you need to keep them working. Cover Agent Quality Assurance and Orchestration — the prep for transitioning into a CEO AI OS posture.",
-    date: "2026-02-25",
+    date: weekdayDate(2), /* 2 weeks out — locked */
     durationMinutes: 75,
     videoUrl: "https://player.vimeo.com/video/76979871",
     materials: [
@@ -230,7 +252,7 @@ export const MOCK_SESSIONS = [
     homework: {
       prompt:
         "Document the QA checks and orchestration for one of your live agents. Include the failure modes you're guarding against and the recovery action for each.",
-      dueDate: "2026-03-03",
+      dueDate: weekdayDate(3, 2),
       submissionType: "text-or-link",
     },
   },
@@ -240,7 +262,7 @@ export const MOCK_SESSIONS = [
     title: "Black — Progress, Plans, Getting Future Results",
     summary:
       "Capstone. Reflect on the journey, commit to forward plans, and earn your Black Belt. Custom assistants remember how to behave, agents do the work, scheduled agents do work later, connected agents touch real systems — yours, now.",
-    date: "2026-03-04",
+    date: weekdayDate(3), /* 3 weeks out — capstone, locked */
     durationMinutes: 75,
     videoUrl: "https://player.vimeo.com/video/76979871",
     materials: [
@@ -256,7 +278,7 @@ export const MOCK_SESSIONS = [
     homework: {
       prompt:
         "Capstone. Submit your Black Belt portfolio: 3 deployed workflows, total time saved, and your 90-day plan. Link a Google Doc / Notion page with the full write-up.",
-      dueDate: "2026-03-11",
+      dueDate: weekdayDate(4, 2),
       submissionType: "text-or-link",
     },
   },

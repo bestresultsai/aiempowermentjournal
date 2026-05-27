@@ -1,13 +1,40 @@
 import { createContext, useContext, useState, useEffect } from "react";
 import { getMe } from "../lib/api";
+import {
+  DEMO_USER,
+  isDemoModeActive,
+  activateDemoMode,
+  deactivateDemoMode,
+} from "../lib/demoData";
 
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [isDemo, setIsDemo] = useState(false);
 
   useEffect(() => {
+    // 1) If the URL has `?demo=1`, activate demo mode (persisted in localStorage).
+    try {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("demo") === "1") {
+        activateDemoMode();
+      }
+    } catch {
+      /* ignore — server-side render or no DOM */
+    }
+
+    // 2) If demo mode is active (URL just set it, OR a prior visit set it),
+    //    short-circuit auth with the demo user.
+    if (isDemoModeActive()) {
+      setUser(DEMO_USER);
+      setIsDemo(true);
+      setLoading(false);
+      return;
+    }
+
+    // 3) Otherwise, real magic-link auth flow.
     const token = localStorage.getItem("auth_token");
     if (token) {
       getMe()
@@ -29,11 +56,19 @@ export function AuthProvider({ children }) {
 
   function logout() {
     localStorage.removeItem("auth_token");
+    deactivateDemoMode();
     setUser(null);
+    setIsDemo(false);
+  }
+
+  function exitDemo() {
+    deactivateDemoMode();
+    setUser(null);
+    setIsDemo(false);
   }
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout }}>
+    <AuthContext.Provider value={{ user, loading, isDemo, login, logout, exitDemo }}>
       {children}
     </AuthContext.Provider>
   );
