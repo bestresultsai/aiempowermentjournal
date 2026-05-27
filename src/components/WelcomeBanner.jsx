@@ -1,6 +1,7 @@
-import { Sparkles, Calendar as CalendarIcon } from "lucide-react";
+import { Sparkles, Flame, Calendar as CalendarIcon } from "lucide-react";
 
-export default function WelcomeBanner({ user, subtitle }) {
+// `streak` is the current logging streak in weeks (computed by parent from entries).
+export default function WelcomeBanner({ user, subtitle, streak = 0 }) {
   const firstName = user?.name?.split(" ")[0] || null;
   const today = new Date();
   const hour = today.getHours();
@@ -38,17 +39,28 @@ export default function WelcomeBanner({ user, subtitle }) {
           )}
         </div>
       </div>
-      <div className="hidden md:flex items-center gap-2 text-ink-muted">
-        <CalendarIcon className="w-4 h-4" strokeWidth={2} />
-        <span className="h-eyebrow !text-[10px]">Today</span>
-        <span className="text-[13px] font-heading font-semibold text-ink">
-          {today.toLocaleDateString("en-US", {
-            weekday: "short",
-            month: "short",
-            day: "numeric",
-            year: "numeric",
-          })}
-        </span>
+
+      <div className="flex items-center gap-3 flex-wrap">
+        {streak > 0 && firstName && (
+          <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700">
+            <Flame className="w-3.5 h-3.5" strokeWidth={2.5} />
+            <span className="text-[11px] font-heading font-bold uppercase tracking-wider">
+              Active Streak · {streak} {streak === 1 ? "week" : "weeks"}
+            </span>
+          </div>
+        )}
+        <div className="hidden md:flex items-center gap-2 text-ink-muted">
+          <CalendarIcon className="w-4 h-4" strokeWidth={2} />
+          <span className="h-eyebrow !text-[10px]">Today</span>
+          <span className="text-[13px] font-heading font-semibold text-ink">
+            {today.toLocaleDateString("en-US", {
+              weekday: "short",
+              month: "short",
+              day: "numeric",
+              year: "numeric",
+            })}
+          </span>
+        </div>
       </div>
     </section>
   );

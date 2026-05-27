@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { PartyPopper, ShieldAlert } from "lucide-react";
@@ -7,12 +7,14 @@ import WelcomeBanner from "../../components/WelcomeBanner";
 import CohortHero from "../../components/cohort/CohortHero";
 import FacilitatorCard from "../../components/cohort/FacilitatorCard";
 import NextLiveSessionCard from "../../components/cohort/NextLiveSessionCard";
+import NextMilestoneCard from "../../components/cohort/NextMilestoneCard";
 import SessionRow from "../../components/cohort/SessionRow";
 import CohortStats from "../../components/cohort/CohortStats";
 import JournalGameCard from "../../components/cohort/JournalGameCard";
 import { getCohortBySlug } from "../../lib/cohortApi";
 import { getEntries } from "../../lib/api";
 import { useAuth } from "../../context/AuthContext";
+import { calculateStreakWeeks } from "../../lib/gamification";
 
 export default function CohortLanding() {
   const { slug } = useParams();
@@ -46,12 +48,22 @@ export default function CohortLanding() {
   const upNextOrder = upNextSession?.order;
   const currentBelt = upNextSession?.belt;
 
+  // Compute current user's journal streak (in weeks) for the Welcome banner badge.
+  const userEntries = useMemo(() => {
+    if (!user?.email) return [];
+    return cohortEntries.filter(
+      (e) => e.participantEmail?.toLowerCase() === user.email.toLowerCase()
+    );
+  }, [cohortEntries, user]);
+  const streak = useMemo(() => calculateStreakWeeks(userEntries), [userEntries]);
+
   return (
     <div className="min-h-screen bg-surface-paper">
       <NavBar />
       <main className="max-w-[1180px] mx-auto px-6 lg:px-8 py-8">
         <WelcomeBanner
           user={user}
+          streak={streak}
           subtitle={
             cohort
               ? `You're in the ${cohort.organization?.shortName || cohort.name} cohort. Keep the streak alive.`
@@ -87,6 +99,8 @@ export default function CohortLanding() {
             <div className="animate-fade-in-up delay-300">
               <ProgressBand cohort={cohort} currentBelt={currentBelt} />
             </div>
+
+            <NextMilestoneCard cohort={cohort} />
 
             {cohort.ndaRequired && <NDABanner />}
 
@@ -176,11 +190,11 @@ function ProgressBand({ cohort, currentBelt }) {
               <span
                 key={s.order}
                 className={
-                  "text-center text-[11px] font-heading " +
+                  "text-center text-[11px] font-heading inline-block " +
                   (isCompleted
                     ? "text-emerald-600 font-bold"
                     : isNext
-                      ? "text-brand-600 font-bold"
+                      ? "text-brand-600 font-bold animate-bounce-soft"
                       : "text-ink-subtle font-semibold")
                 }
                 title={s.belt ? `${s.belt} Belt` : `Session ${s.order}`}

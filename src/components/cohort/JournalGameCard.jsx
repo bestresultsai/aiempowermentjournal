@@ -48,8 +48,11 @@ export default function JournalGameCard({ entries = [], currentUserEmail }) {
       <h3 className="font-heading text-[22px] font-extrabold tracking-tight mb-2 text-ink">
         Log one win this week.
       </h3>
-      <p className="text-[13.5px] text-ink-muted leading-relaxed mb-5 max-w-2xl">
+      <p className="text-[13.5px] text-ink-muted leading-relaxed mb-2 max-w-2xl">
         Every workflow you ship compounds. Two minutes now → durable proof you can cite forever.
+      </p>
+      <p className="text-[13px] text-ink-muted leading-relaxed mb-5 max-w-2xl">
+        Each entry feeds your cohort's <strong className="text-ink">aggregate impact dashboard</strong> — hours saved, dollars created, innovations shipped — and gives Mike concrete examples to coach against. You'll also see how your wins stack up next to your peers, so the best ideas spread fast.
       </p>
 
       {/* Gamification strip */}

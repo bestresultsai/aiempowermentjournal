@@ -96,4 +96,25 @@
     background-size: 200% 100%;
     animation: brai-shimmer 1.4s ease-in-out infinite;
   }
+
+  /* Soft bounce — used on the "up next" session number in the progress scale.
+   * Gentler than Tailwind's default animate-bounce so it doesn't compete with
+   * the rest of the page for attention. */
+  @keyframes brai-bounce-soft {
+    0%, 100% { transform: translateY(0); }
+    50%      { transform: translateY(-3px); }
+  }
+  .animate-bounce-soft {
+    animation: brai-bounce-soft 1.6s ease-in-out infinite;
+  }
+
+  /* Ambient pulse — a slow breathing dot on the Next Live Session card so it
+   * always reads as "alive," even when the session isn't actively in progress. */
+  @keyframes brai-ambient-pulse {
+    0%, 100% { opacity: 0.55; transform: scale(1); }
+    50%      { opacity: 1;    transform: scale(1.15); }
+  }
+  .animate-ambient-pulse {
+    animation: brai-ambient-pulse 1.8s ease-in-out infinite;
+  }
 }

@@ -12,7 +12,10 @@ export default function CohortHero({ cohort }) {
   const meetingDay = cohort.meetingDay || "";
 
   return (
-    <div className="relative overflow-hidden rounded-3xl bg-ink p-9 lg:p-12 text-white h-full">
+    <div
+      className="relative overflow-hidden rounded-3xl p-9 lg:p-12 text-white h-full"
+      style={{ background: "linear-gradient(135deg, #1E3A8A 0%, #2563EB 100%)" }}
+    >
       <div className="absolute inset-0 grain opacity-40" />
       <div className="relative">
         <div className="inline-flex items-center gap-2 text-[11px] font-heading font-semibold tracking-[0.18em] uppercase text-white/70 mb-6">

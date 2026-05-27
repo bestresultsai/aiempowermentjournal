@@ -1,9 +1,10 @@
 import { Link } from "react-router-dom";
-import { Check, Lock, ChevronRight, ArrowRight } from "lucide-react";
+import { Check, Lock, ChevronRight, ArrowRight, CheckCircle2 } from "lucide-react";
 import { BELT_COLORS } from "../../lib/mockCohort";
 
 // A single row in the cohort's curriculum list.
-// Uses the belt color as an accent ONLY on the number badge, keeping the row calm.
+// Belt color + session NUMBER always shown on the left badge (never replaced).
+// Status (check, chevron, lock) lives on the right.
 export default function SessionRow({ session, cohortSlug, emphasized, meetingTime }) {
   const status = session.completed
     ? "completed"
@@ -32,14 +33,16 @@ export default function SessionRow({ session, cohortSlug, emphasized, meetingTim
         (emphasized
           ? "relative overflow-hidden rounded-2xl border-2 border-brand-500 bg-surface-card shadow-lift"
           : isCompleted
-            ? "rounded-2xl border border-soft bg-surface-soft/40 hover:bg-surface-soft/70 opacity-75 hover:opacity-100"
+            ? "rounded-2xl border border-soft bg-surface-soft/40 hover:bg-surface-soft/70 opacity-80 hover:opacity-100"
             : "rounded-2xl border border-soft bg-surface-card hover:shadow-lift hover:-translate-y-0.5 hover:border-brand-500/40")
       }
     >
       {emphasized && <div className="absolute inset-y-0 left-0 w-1.5 bg-brand-500" />}
       <div className="flex items-center gap-5 p-5">
+        {/* LEFT — belt-colored NUMBER badge (always shows the order, never replaced) */}
         <BeltBadge belt={belt} session={session} emphasized={emphasized} muted={isCompleted} />
 
+        {/* MIDDLE — labels, status pills, title, summary */}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1 flex-wrap">
             <span
@@ -79,15 +82,19 @@ export default function SessionRow({ session, cohortSlug, emphasized, meetingTim
           </p>
         </div>
 
+        {/* RIGHT — status indicator (varies per state) */}
         {emphasized ? (
           <span className="hidden md:inline-flex items-center gap-1.5 px-4 py-2 bg-ink text-white text-[13px] font-heading font-semibold rounded-lg group-hover:bg-brand-700 transition-colors duration-200 shrink-0">
             Open
             <ArrowRight className="w-3.5 h-3.5 transition-transform duration-200 group-hover:translate-x-0.5" strokeWidth={2.5} />
           </span>
         ) : isCompleted ? (
-          <span className="text-ink-subtle group-hover:text-ink transition-colors text-[13px] font-heading font-semibold shrink-0">
-            Review
-          </span>
+          <div className="inline-flex items-center gap-2 shrink-0">
+            <CheckCircle2 className="w-5 h-5 text-emerald-600" strokeWidth={2} />
+            <span className="hidden sm:inline text-ink-subtle group-hover:text-ink transition-colors text-[13px] font-heading font-semibold">
+              Review
+            </span>
+          </div>
         ) : (
           <ChevronRight className="w-5 h-5 text-ink-subtle group-hover:text-brand-600 group-hover:translate-x-0.5 transition-all duration-200 shrink-0" strokeWidth={2.5} />
         )}
@@ -99,6 +106,7 @@ export default function SessionRow({ session, cohortSlug, emphasized, meetingTim
 function LockedRow({ session, belt, beltLabel, fmtDate }) {
   return (
     <article className="flex items-center gap-5 bg-surface-card/60 border border-soft rounded-2xl p-5 cursor-not-allowed opacity-70">
+      {/* LEFT — number always present, just dimmed */}
       <div
         className="w-14 h-14 rounded-xl flex items-center justify-center font-heading font-extrabold text-[18px] shrink-0 opacity-40"
         style={{
@@ -126,22 +134,23 @@ function LockedRow({ session, belt, beltLabel, fmtDate }) {
   );
 }
 
+// Belt-color badge that ALWAYS shows the session number.
+// Completed sessions get a muted belt color (not a green check anymore — the
+// check now lives on the right side of the row for clearer status separation).
 function BeltBadge({ belt, session, emphasized, muted }) {
-  const bg = session.completed
-    ? muted ? "#D1FAE5" : "#22C55E"
-    : belt?.hex || "#EFF6FF";
-  const fg = session.completed
-    ? muted ? "#047857" : "#FFFFFF"
-    : belt?.contrast || "#2563EB";
-  const border = belt?.hex === "#E5E7EB" && !session.completed ? "1px solid #D4D4D4" : "none";
+  const bg = belt?.hex || "#EFF6FF";
+  const fg = belt?.contrast || "#2563EB";
+  const border = belt?.hex === "#E5E7EB" ? "1px solid #D4D4D4" : "none";
   return (
     <div
-      className={"rounded-xl flex items-center justify-center font-heading font-extrabold shrink-0 transition-transform duration-200 group-hover:scale-105 " + (emphasized ? "w-14 h-14 text-[20px]" : "w-14 h-14 text-[18px]")}
+      className={
+        "rounded-xl flex items-center justify-center font-heading font-extrabold shrink-0 transition-transform duration-200 group-hover:scale-105 " +
+        (emphasized ? "w-14 h-14 text-[20px]" : "w-14 h-14 text-[18px]") +
+        (muted ? " opacity-60" : "")
+      }
       style={{ background: bg, color: fg, border }}
     >
-      {session.completed
-        ? <Check className="w-6 h-6" strokeWidth={3} />
-        : session.order}
+      {session.order}
     </div>
   );
 }

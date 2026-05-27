@@ -41,7 +41,7 @@ export const MOCK_COHORT = {
     email: "mike@bestresults.ai",
     headshotUrl:
       "https://48031831.fs1.hubspotusercontent-na1.net/hubfs/48031831/Design/Headshots/Mike%20Burkesmith%20Headshot%201X1.png",
-    bio: "Bring me your hardest workplace problem. We'll turn it into a workflow you'll never want to give back.",
+    bio: "Feeling stuck on a workflow? Bring it to office hours — we'll turn it into something you'll actually use every week.",
   },
   startDate: "2026-01-14",
   endDate: "2026-03-04",

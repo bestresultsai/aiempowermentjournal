@@ -80,6 +80,13 @@ export default function NextLiveSessionCard({ cohort }) {
           <div className="text-[11px] font-heading font-semibold uppercase tracking-wider opacity-80">
             {countdown.unit}
           </div>
+          {/* Ambient pulse — slow breathing dot signals the session is live-ish. */}
+          {!isLiveNow && (
+            <span
+              className="mt-2 inline-block w-1.5 h-1.5 rounded-full bg-current animate-ambient-pulse"
+              aria-hidden="true"
+            />
+          )}
         </div>
 
         {/* Details + actions */}
