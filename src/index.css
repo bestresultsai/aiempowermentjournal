@@ -1,13 +1,40 @@
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html, body {
+    background: #FAFAF7;
+    color: #0A0A0A;
+  }
+
+  body {
+    font-family: "Proxima Nova", "proxima-nova", Mulish, -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    min-width: 320px;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: "Inter", ui-sans-serif, system-ui, sans-serif;
+    letter-spacing: -0.015em;
+  }
 }
 
-body {
-  font-family: 'DM Sans', system-ui, -apple-system, sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  background: #F8FAFC;
-  min-width: 320px;
+@layer components {
+  /* Eyebrow label used above section headings. */
+  .h-eyebrow {
+    font-family: "Inter", ui-sans-serif, system-ui, sans-serif;
+    font-weight: 600;
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: #5B5B5B;
+  }
+
+  /* Subtle dot grain — used on dark hero blocks. */
+  .grain {
+    background-image: radial-gradient(rgba(0,0,0,0.025) 1px, transparent 1px);
+    background-size: 3px 3px;
+  }
 }

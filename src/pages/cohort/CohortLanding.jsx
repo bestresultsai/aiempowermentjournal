@@ -1,26 +1,30 @@
+import { useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import NavBar from "../../components/NavBar";
 import CohortHero from "../../components/cohort/CohortHero";
-import ProgressRing from "../../components/cohort/ProgressRing";
 import SessionRow from "../../components/cohort/SessionRow";
 import CohortStats from "../../components/cohort/CohortStats";
 import { getCohortBySlug } from "../../lib/cohortApi";
 import { getEntries } from "../../lib/api";
 import { useAuth } from "../../context/AuthContext";
+import { BELT_COLORS } from "../../lib/mockCohort";
+
+const BELT_SHORT = {
+  White: "W", Yellow: "Y", Orange: "O", Green: "G",
+  Blue: "B", Purple: "P", Brown: "Br", Black: "Bk",
+};
 
 export default function CohortLanding() {
   const { slug } = useParams();
   const { user } = useAuth();
+  const [sessionFilter, setSessionFilter] = useState("all"); // all | next | completed
 
   const { data: cohort, isLoading, error } = useQuery({
     queryKey: ["cohort", slug],
     queryFn: () => getCohortBySlug(slug),
   });
 
-  // Pull journal entries scoped to this cohort. We use the cohort's
-  // `journalCohortName` (the value the Journal Entries DB tags entries with)
-  // when present, else fall back to `name`.
   const journalCohortName = cohort?.journalCohortName || cohort?.name;
   const {
     data: cohortEntries = [],
@@ -32,91 +36,57 @@ export default function CohortLanding() {
     enabled: !!journalCohortName,
   });
 
+  // Filtered session list
+  const filteredSessions = (() => {
+    if (!cohort?.sessions) return [];
+    if (sessionFilter === "completed") return cohort.sessions.filter((s) => s.completed);
+    if (sessionFilter === "next") return cohort.sessions.filter((s) => s.unlocked && !s.completed);
+    return cohort.sessions;
+  })();
+
+  // Identify the "Up Next" session for emphasis
+  const upNextOrder = cohort?.sessions?.find((s) => s.unlocked && !s.completed)?.order;
+
+  // Current belt label (for the progress bar caption)
+  const currentBelt = cohort?.sessions?.find((s) => s.unlocked && !s.completed)?.belt;
+
   return (
-    <div style={{ minHeight: "100vh", background: "#F8FAFC" }}>
+    <div className="min-h-screen bg-surface-paper">
       <NavBar />
-      <div style={{ maxWidth: 960, margin: "0 auto", padding: "24px 20px 60px" }}>
+      <main className="max-w-[1180px] mx-auto px-6 lg:px-8 py-10">
         {isLoading && <SkeletonHero />}
         {error && <ErrorPanel message={error.message} />}
+
         {cohort && (
           <>
             <CohortHero cohort={cohort} />
 
-            <div
-              style={{
-                display: "flex",
-                gap: 16,
-                alignItems: "center",
-                background: "#fff",
-                border: "1px solid #E2E8F0",
-                borderRadius: 14,
-                padding: "18px 20px",
-                marginBottom: 24,
-              }}
-            >
-              <ProgressRing
-                completed={cohort.progress.completed}
-                total={cohort.progress.total}
-              />
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 13, fontWeight: 600, color: "#64748B", marginBottom: 4 }}>
-                  Your Progress
-                </div>
-                <div style={{ fontSize: 18, fontWeight: 800, color: "#0F172A", marginBottom: 4 }}>
-                  {cohort.progress.completed === 0
-                    ? "Ready to begin"
-                    : cohort.progress.completed === cohort.progress.total
-                      ? "Program complete 🎉"
-                      : `${cohort.progress.completed} of ${cohort.progress.total} sessions complete`}
-                </div>
-                <div style={{ fontSize: 13, color: "#64748B", lineHeight: 1.5 }}>
-                  Open a session to watch the recording, grab materials, and mark it complete.
-                </div>
-              </div>
-              <Link
-                to="/journal"
-                style={{
-                  background: "#2563EB",
-                  color: "#fff",
-                  padding: "10px 18px",
-                  borderRadius: 10,
-                  textDecoration: "none",
-                  fontSize: 13,
-                  fontWeight: 700,
-                  whiteSpace: "nowrap",
-                  flexShrink: 0,
-                }}
-              >
-                Log a Journal Entry
-              </Link>
-            </div>
+            <ProgressBand cohort={cohort} currentBelt={currentBelt} />
 
-            {cohort.ndaRequired && (
-              <div
-                style={{
-                  background: "#FEF3C7",
-                  border: "1px solid #FCD34D",
-                  borderRadius: 12,
-                  padding: "12px 16px",
-                  fontSize: 13,
-                  color: "#854D0E",
-                  marginBottom: 24,
-                  lineHeight: 1.5,
-                }}
-              >
-                <strong>NDA Reminder.</strong> All program content, recordings, and materials
-                are restricted by the NDA you signed. Please do not share outside your cohort.
-              </div>
-            )}
+            {cohort.ndaRequired && <NDABanner />}
 
-            <h2 style={{ fontSize: 20, fontWeight: 800, color: "#0F172A", margin: "8px 0 16px" }}>
-              Your AI Empowerment Journey
-            </h2>
-            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              {cohort.sessions.map((s) => (
-                <SessionRow key={s.order} session={s} cohortSlug={cohort.slug} />
-              ))}
-            </div>
+            <section className="mt-12">
+              <div className="flex items-baseline justify-between mb-6 flex-wrap gap-3">
+                <div>
+                  <div className="h-eyebrow mb-1">Curriculum</div>
+                  <h2 className="font-heading text-[28px] font-extrabold tracking-tight">
+                    Your AI Empowerment Journey
+                  </h2>
+                </div>
+                <FilterTabs current={sessionFilter} onChange={setSessionFilter} />
+              </div>
+
+              <div className="space-y-2.5">
+                {filteredSessions.map((s) => (
+                  <SessionRow
+                    key={s.order}
+                    session={s}
+                    cohortSlug={cohort.slug}
+                    emphasized={s.order === upNextOrder && sessionFilter !== "completed"}
+                  />
+                ))}
+              </div>
+            </section>
 
             <CohortStats
               cohort={cohort}
@@ -126,77 +96,172 @@ export default function CohortLanding() {
               error={entriesError?.message}
             />
 
-            <div
-              style={{
-                marginTop: 32,
-                background: "#fff",
-                border: "1px solid #E2E8F0",
-                borderRadius: 14,
-                padding: "20px 22px",
-                display: "flex",
-                gap: 16,
-                alignItems: "center",
-              }}
-            >
-              <div style={{ fontSize: 28 }}>🎯</div>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 15, fontWeight: 800, color: "#0F172A", marginBottom: 4 }}>
-                  AI Coaching Opportunities
-                </div>
-                <div style={{ fontSize: 13, color: "#64748B", lineHeight: 1.5 }}>
-                  {cohort.coachingNote}
-                </div>
-              </div>
-              <button
-                style={{
-                  background: "#fff",
-                  color: "#2563EB",
-                  border: "1.5px solid #BFDBFE",
-                  padding: "10px 18px",
-                  borderRadius: 10,
-                  fontSize: 13,
-                  fontWeight: 700,
-                  cursor: "pointer",
-                }}
-                onClick={() => alert("Coaching booking — coming in a later phase.")}
-              >
-                Book Coaching
-              </button>
-            </div>
+            <BottomCTAStrip />
           </>
         )}
-      </div>
+      </main>
     </div>
+  );
+}
+
+function ProgressBand({ cohort, currentBelt }) {
+  const completed = cohort.progress?.completed ?? 0;
+  const total = cohort.progress?.total ?? cohort.sessions?.length ?? 8;
+  const pct = total > 0 ? Math.round((completed / total) * 100) : 0;
+  const headline =
+    completed === 0
+      ? "Ready to begin"
+      : completed === total
+        ? "Program complete 🎉"
+        : currentBelt
+          ? `${completed} of ${total} sessions complete · ${currentBelt} Belt up next`
+          : `${completed} of ${total} sessions complete`;
+
+  return (
+    <section className="mt-6 grid lg:grid-cols-[1fr_auto] gap-5 items-center rounded-2xl border border-soft bg-surface-card p-6 shadow-card">
+      <div>
+        <div className="flex items-end justify-between mb-2 gap-4">
+          <div>
+            <div className="h-eyebrow mb-1">Your Progress</div>
+            <div className="font-heading text-[18px] font-bold">{headline}</div>
+          </div>
+          <div className="font-heading text-[34px] font-extrabold tracking-tight leading-none">
+            {pct}<span className="text-ink-subtle text-[18px] font-medium">%</span>
+          </div>
+        </div>
+        <div className="relative h-2 rounded-full bg-surface-soft overflow-hidden">
+          <div
+            className="absolute inset-y-0 left-0 bg-gradient-to-r from-brand-500 to-brand-700 rounded-full transition-all duration-500"
+            style={{ width: `${pct}%` }}
+          />
+        </div>
+        <div className="grid grid-cols-8 gap-1 mt-2">
+          {(cohort.sessions || []).map((s) => (
+            <span
+              key={s.order}
+              className={
+                "text-center text-[10px] font-heading " +
+                (s.completed
+                  ? "text-emerald-600 font-bold"
+                  : s.belt === currentBelt
+                    ? "text-brand-600 font-bold"
+                    : "text-ink-subtle")
+              }
+            >
+              {BELT_SHORT[s.belt] || s.order}
+            </span>
+          ))}
+        </div>
+      </div>
+      <Link
+        to="/journal"
+        className="px-5 py-3 bg-ink text-white text-[13.5px] font-heading font-semibold rounded-xl flex items-center gap-2 hover:bg-brand-700 transition shrink-0"
+      >
+        ✎ Log a Journal Entry
+      </Link>
+    </section>
+  );
+}
+
+function FilterTabs({ current, onChange }) {
+  const tabs = [
+    { key: "all",       label: "All" },
+    { key: "next",      label: "Up Next" },
+    { key: "completed", label: "Completed" },
+  ];
+  return (
+    <div className="flex items-center gap-1 text-[13px]">
+      {tabs.map((t) => (
+        <button
+          key={t.key}
+          onClick={() => onChange(t.key)}
+          className={
+            "px-3 py-1.5 rounded-lg font-heading font-medium transition " +
+            (current === t.key
+              ? "bg-ink text-white"
+              : "text-ink-muted hover:bg-ink/5 hover:text-ink")
+          }
+        >
+          {t.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function NDABanner() {
+  return (
+    <div className="mt-6 rounded-2xl bg-amber-50/60 border border-amber-200/70 p-4 text-[13px] text-amber-900 leading-relaxed">
+      <strong className="font-heading font-bold">NDA Reminder.</strong>{" "}
+      All program content, recordings, and materials are restricted by the NDA you signed.
+      Please do not share outside your cohort.
+    </div>
+  );
+}
+
+function BottomCTAStrip() {
+  return (
+    <section className="mt-16 grid md:grid-cols-2 gap-4">
+      <div className="rounded-3xl bg-ink text-white p-7 relative overflow-hidden">
+        <div className="absolute inset-0 grain opacity-50" />
+        <div className="relative">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-10 h-10 rounded-xl bg-brand-500/20 backdrop-blur flex items-center justify-center text-brand-500 text-[18px]">
+              💬
+            </div>
+            <span className="h-eyebrow !text-white/60">Office Hours</span>
+          </div>
+          <h3 className="font-heading text-[22px] font-extrabold tracking-tight mb-2">
+            Stuck? Bring it to your trainer.
+          </h3>
+          <p className="text-[13.5px] text-white/70 leading-relaxed mb-5">
+            Friday 1:1s, 25 minutes, your AI problem. Book the slot that works.
+          </p>
+          <button
+            className="inline-flex items-center gap-2 px-4 py-2 bg-white text-ink rounded-lg text-[13px] font-heading font-semibold hover:bg-surface-paper transition"
+            onClick={() => alert("Coaching booking — coming in a later phase.")}
+          >
+            See open slots →
+          </button>
+        </div>
+      </div>
+
+      <div className="rounded-3xl border-2 border-dashed border-soft p-7 flex flex-col justify-between">
+        <div>
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-10 h-10 rounded-xl bg-brand-50 flex items-center justify-center text-brand-600 text-[18px]">
+              ✎
+            </div>
+            <span className="h-eyebrow">Capture an AI Win</span>
+          </div>
+          <h3 className="font-heading text-[22px] font-extrabold tracking-tight mb-2">
+            Log one entry this week.
+          </h3>
+          <p className="text-[13.5px] text-ink-muted leading-relaxed mb-5">
+            Every workflow you ship compounds. Two minutes now → durable proof you can cite forever.
+          </p>
+        </div>
+        <Link
+          to="/journal"
+          className="self-start inline-flex items-center gap-2 px-4 py-2 bg-ink text-white rounded-lg text-[13px] font-heading font-semibold hover:bg-brand-700 transition"
+        >
+          + New Journal Entry →
+        </Link>
+      </div>
+    </section>
   );
 }
 
 function SkeletonHero() {
   return (
-    <div
-      style={{
-        height: 220,
-        background: "#E2E8F0",
-        borderRadius: 16,
-        marginBottom: 24,
-        animation: "pulse 1.4s ease-in-out infinite",
-      }}
-    />
+    <div className="h-[280px] bg-surface-soft rounded-3xl mb-6 animate-pulse" />
   );
 }
 
 function ErrorPanel({ message }) {
   return (
-    <div
-      style={{
-        background: "#FEE2E2",
-        border: "1px solid #FCA5A5",
-        color: "#991B1B",
-        padding: "16px 18px",
-        borderRadius: 12,
-        fontSize: 14,
-      }}
-    >
-      <strong>Couldn't load cohort.</strong> {message}
+    <div className="bg-rose-50 border border-rose-200 text-rose-800 px-5 py-4 rounded-2xl text-[14px]">
+      <strong className="font-heading font-bold">Couldn't load cohort.</strong> {message}
     </div>
   );
 }

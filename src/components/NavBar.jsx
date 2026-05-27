@@ -1,10 +1,10 @@
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { MOCK_COHORT } from "../lib/mockCohort";
 import Logo from "./Logo";
 
-// Mock-mode: every signed-in user's "My Cohort" link points to the prototype cohort.
-// Live mode: derive the slug from the user's first assignedCohorts entry via the Cohorts DB.
+// Mock mode: every signed-in user's "My Cohort" link points to the prototype cohort.
+// Live mode: derive the slug from the user's first assignedCohorts entry.
 function cohortSlugForUser(user) {
   if (!user) return null;
   return MOCK_COHORT.slug;
@@ -13,137 +13,87 @@ function cohortSlugForUser(user) {
 export default function NavBar() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const { pathname } = useLocation();
+  const cohortSlug = cohortSlugForUser(user);
 
   function handleLogout() {
     logout();
     navigate("/");
   }
 
-  const cohortSlug = cohortSlugForUser(user);
+  const initials = (user?.name || "?")
+    .split(" ").filter(Boolean).slice(0, 2)
+    .map((w) => w[0]).join("").toUpperCase();
 
   return (
-    <nav
-      style={{
-        background: "#fff",
-        borderBottom: "1px solid #E2E8F0",
-        padding: "10px 20px",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        position: "sticky",
-        top: 0,
-        zIndex: 50,
-      }}
-    >
-      <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-        <Link to={user ? "/dashboard" : "/"} style={{ textDecoration: "none" }}>
-          <Logo size="sm" />
-        </Link>
-        <div style={{ width: 1, height: 28, background: "#E2E8F0" }} />
-        <span style={{ color: "#64748B", fontSize: 13, fontWeight: 500 }}>
-          BestResults.AI Platform
-        </span>
-      </div>
-
-      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-        {user && cohortSlug && (
-          <Link to={`/cohort/${cohortSlug}`} style={navLink}>
-            My Cohort
+    <header className="sticky top-0 z-40 backdrop-blur-md bg-surface-paper/85 border-b border-soft">
+      <div className="max-w-[1180px] mx-auto px-6 lg:px-8 h-16 flex items-center justify-between">
+        <div className="flex items-center gap-6">
+          <Link to={user ? "/dashboard" : "/"} className="flex items-center">
+            <Logo size="sm" />
           </Link>
-        )}
-        {user && (
-          <Link to="/dashboard" style={navLink}>
-            Dashboard
-          </Link>
-        )}
-        <Link
-          to="/journal"
-          style={{
-            textDecoration: "none",
-            color: "#2563EB",
-            fontSize: 13,
-            fontWeight: 600,
-            padding: "6px 14px",
-            borderRadius: 8,
-            border: "1px solid #BFDBFE",
-            background: "#EFF6FF",
-          }}
-        >
-          + New Entry
-        </Link>
+          {user && (
+            <nav className="hidden md:flex items-center gap-1 text-[14px]">
+              <NavLink to={cohortSlug ? `/cohort/${cohortSlug}` : "/dashboard"} active={pathname.startsWith("/cohort")}>
+                My Cohort
+              </NavLink>
+              <NavLink to="/dashboard" active={pathname === "/dashboard"}>
+                Dashboard
+              </NavLink>
+              <NavLink to="/journal" active={pathname.startsWith("/journal")}>
+                Journal
+              </NavLink>
+            </nav>
+          )}
+        </div>
 
-        {user ? (
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-              padding: "4px 12px",
-              borderRadius: 8,
-              background: "#F8FAFC",
-              marginLeft: 4,
-            }}
-          >
-            <div
-              style={{
-                width: 28,
-                height: 28,
-                borderRadius: "50%",
-                background: "#2563EB",
-                color: "#fff",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontSize: 12,
-                fontWeight: 700,
-              }}
-            >
-              {user.name?.charAt(0)?.toUpperCase() || "U"}
-            </div>
-            <span style={{ fontSize: 12, color: "#64748B", fontWeight: 500 }}>
-              {user.name?.split(" ")[0]}
-            </span>
-            <button
-              onClick={handleLogout}
-              style={{
-                background: "none",
-                border: "none",
-                color: "#94A3B8",
-                cursor: "pointer",
-                fontSize: 12,
-                padding: "2px 4px",
-              }}
-            >
-              Logout
-            </button>
-          </div>
-        ) : (
+        <div className="flex items-center gap-3">
           <Link
-            to="/login"
-            style={{
-              textDecoration: "none",
-              color: "#fff",
-              fontSize: 13,
-              fontWeight: 600,
-              padding: "6px 16px",
-              borderRadius: 8,
-              background: "#2563EB",
-              marginLeft: 4,
-            }}
+            to="/journal"
+            className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white border border-soft text-[13px] font-medium text-ink hover:bg-surface-soft transition"
           >
-            Sign In
+            <span className="text-brand-600 font-bold">+</span> New Entry
           </Link>
-        )}
+
+          {user ? (
+            <div className="flex items-center gap-2.5 pl-3 border-l border-soft">
+              <div className="w-8 h-8 rounded-full bg-brand-700 text-white flex items-center justify-center text-[12px] font-semibold font-heading">
+                {initials}
+              </div>
+              <span className="hidden sm:block text-[13px] font-medium text-ink">
+                {user.name?.split(" ")[0]}
+              </span>
+              <button
+                onClick={handleLogout}
+                className="text-[12px] text-ink-subtle hover:text-ink px-1 transition"
+              >
+                Logout
+              </button>
+            </div>
+          ) : (
+            <Link
+              to="/login"
+              className="inline-flex items-center px-4 py-1.5 rounded-lg bg-ink text-white text-[13px] font-semibold hover:bg-brand-700 transition"
+            >
+              Sign In
+            </Link>
+          )}
+        </div>
       </div>
-    </nav>
+    </header>
   );
 }
 
-const navLink = {
-  textDecoration: "none",
-  color: "#0F172A",
-  fontSize: 13,
-  fontWeight: 600,
-  padding: "6px 10px",
-  borderRadius: 8,
-};
+function NavLink({ to, active, children }) {
+  return (
+    <Link
+      to={to}
+      className={
+        "px-3 py-1.5 rounded-lg font-heading font-medium transition " +
+        (active ? "text-ink bg-ink/5" : "text-ink-muted hover:bg-ink/5 hover:text-ink")
+      }
+    >
+      {children}
+    </Link>
+  );
+}
