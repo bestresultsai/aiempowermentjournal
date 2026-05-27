@@ -18,7 +18,7 @@ export default function SessionRow({ session, cohortSlug, emphasized, meetingTim
     ? date.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })
     : "Date TBD";
   // Surface the session time (cohort meets at the same time each week, default 12 PM CT).
-  const fmtDateTime = meetingTime ? `${fmtDateTime} · ${meetingTime}` : fmtDate;
+  const fmtDateTime = meetingTime ? `${fmtDate} · ${meetingTime}` : fmtDate;
 
   if (status === "locked") return <LockedRow session={session} belt={belt} beltLabel={beltLabel} fmtDate={fmtDateTime} />;
 
@@ -116,7 +116,7 @@ function LockedRow({ session, belt, beltLabel, fmtDate }) {
             {beltLabel}
           </span>
           <span className="w-1 h-1 rounded-full bg-ink-subtle" />
-          <span className="text-[11px] font-heading font-semibold text-ink-muted">{fmtDateTime}</span>
+          <span className="text-[11px] font-heading font-semibold text-ink-muted">{fmtDate}</span>
           <Pill className="bg-surface-soft text-ink-muted border-soft">LOCKED</Pill>
         </div>
         <h3 className="font-heading text-[16px] font-bold text-ink-muted">{session.title}</h3>
