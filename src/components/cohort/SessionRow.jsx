@@ -142,9 +142,9 @@ function LockedRow({ session, belt, beltLabel, fmtDate }) {
 function BeltBadge({ belt, session, emphasized, muted }) {
   const bg = belt?.gradient || belt?.hex || "#EFF6FF";
   const fg = belt?.contrast || "#2563EB";
-  // White belt's gradient is light grays, so it needs a thin border on a white card.
-  const needsBorder = belt && (belt.hex === "#E5E7EB" || belt.contrast === "#0F172A" || belt.contrast === "#0A0A0A");
-  const border = needsBorder ? "1px solid rgba(15,23,42,0.10)" : "none";
+  // Light belts (White today, a future Gray belt) need a subtle outline to
+  // separate them from the page background.
+  const border = belt?.needsBorder ? "1px solid rgba(15,23,42,0.10)" : "none";
   return (
     <div
       className={

@@ -64,7 +64,7 @@ export default function SessionDetail() {
                       color: belt.contrast,
                       padding: "3px 10px",
                       borderRadius: 999,
-                      border: belt.hex === "#E5E7EB" ? "1px solid #CBD5E1" : "none",
+                      border: belt.needsBorder ? "1px solid rgba(15,23,42,0.10)" : "none",
                     }}
                   >
                     {data.session.belt} Belt

@@ -31,19 +31,29 @@ function weekdayDate(weekOffset, dayOfWeek = 3 /* Wed */) {
 export const HERO_GRADIENT = "linear-gradient(135deg, #1E3A8A 0%, #2563EB 100%)";
 
 // Belt color palette. Used as accent on session rows and in the hero.
-// Each belt also defines a `gradient` — a deep→light pair that's used on any
-// "belt-themed" surface (Next Milestone card, Next Live countdown, session
-// number badges). Picking one palette per belt keeps the system consistent
-// regardless of which session is up next.
+// Each belt defines:
+//   `hex`         — solid base color (legacy reference + small accents)
+//   `contrast`    — text/icon color readable on top of the gradient
+//   `gradient`    — deep→light pair used on Next Live countdown,
+//                   curriculum number badges, and the Next Milestone card
+//   `needsBorder` — true for very light belts (White, future Gray) so the
+//                   badge gets a thin outline against light card backgrounds
+//
+// Picking one palette per belt keeps the system consistent regardless of
+// which session is up next.
 export const BELT_COLORS = {
-  White:  { hex: "#E5E7EB", text: "#0F172A", contrast: "#0F172A", gradient: "linear-gradient(135deg, #4B5563 0%, #9CA3AF 100%)" },
-  Yellow: { hex: "#FACC15", text: "#0F172A", contrast: "#0F172A", gradient: "linear-gradient(135deg, #B45309 0%, #F59E0B 100%)" },
-  Orange: { hex: "#F97316", text: "#FFFFFF", contrast: "#FFFFFF", gradient: "linear-gradient(135deg, #7C2D12 0%, #F97316 100%)" },
-  Green:  { hex: "#22C55E", text: "#FFFFFF", contrast: "#FFFFFF", gradient: "linear-gradient(135deg, #14532D 0%, #22C55E 100%)" },
-  Blue:   { hex: "#3B82F6", text: "#FFFFFF", contrast: "#FFFFFF", gradient: "linear-gradient(135deg, #1E3A8A 0%, #3B82F6 100%)" },
-  Purple: { hex: "#A855F7", text: "#FFFFFF", contrast: "#FFFFFF", gradient: "linear-gradient(135deg, #4C1D95 0%, #A855F7 100%)" },
-  Brown:  { hex: "#92400E", text: "#FFFFFF", contrast: "#FFFFFF", gradient: "linear-gradient(135deg, #451A03 0%, #B45309 100%)" },
-  Black:  { hex: "#0F172A", text: "#FFFFFF", contrast: "#FFFFFF", gradient: "linear-gradient(135deg, #0A0A0A 0%, #374151 100%)" },
+  // Near-white. Needs a border to read on the warm off-white page background.
+  White:  { hex: "#FFFFFF", text: "#0A0A0A", contrast: "#0A0A0A", needsBorder: true,  gradient: "linear-gradient(135deg, #E5E7EB 0%, #FFFFFF 100%)" },
+  // Saturated yellow — clearly distinguishable from amber/orange.
+  Yellow: { hex: "#FACC15", text: "#0A0A0A", contrast: "#0A0A0A", needsBorder: false, gradient: "linear-gradient(135deg, #EAB308 0%, #FDE047 100%)" },
+  // Orange family — bright orange end, deep-orange start (NOT brown).
+  Orange: { hex: "#F97316", text: "#FFFFFF", contrast: "#FFFFFF", needsBorder: false, gradient: "linear-gradient(135deg, #C2410C 0%, #FB923C 100%)" },
+  Green:  { hex: "#22C55E", text: "#FFFFFF", contrast: "#FFFFFF", needsBorder: false, gradient: "linear-gradient(135deg, #14532D 0%, #22C55E 100%)" },
+  Blue:   { hex: "#3B82F6", text: "#FFFFFF", contrast: "#FFFFFF", needsBorder: false, gradient: "linear-gradient(135deg, #1E3A8A 0%, #3B82F6 100%)" },
+  Purple: { hex: "#A855F7", text: "#FFFFFF", contrast: "#FFFFFF", needsBorder: false, gradient: "linear-gradient(135deg, #4C1D95 0%, #A855F7 100%)" },
+  // True coffee/chocolate brown — desaturated, no orange in it.
+  Brown:  { hex: "#78350F", text: "#FFFFFF", contrast: "#FFFFFF", needsBorder: false, gradient: "linear-gradient(135deg, #3F2317 0%, #78350F 100%)" },
+  Black:  { hex: "#0A0A0A", text: "#FFFFFF", contrast: "#FFFFFF", needsBorder: false, gradient: "linear-gradient(135deg, #0A0A0A 0%, #374151 100%)" },
 };
 
 export const MOCK_COHORT = {

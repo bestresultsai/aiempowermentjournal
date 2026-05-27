@@ -59,7 +59,7 @@ export default function NextLiveSessionCard({ cohort }) {
           style={{
             background: belt?.gradient || belt?.hex || "#2563EB",
             color: belt?.contrast || "#fff",
-            border: belt?.hex === "#E5E7EB" ? "1px solid #D4D4D4" : "none",
+            border: belt?.needsBorder ? "1px solid rgba(15,23,42,0.10)" : "none",
           }}
         >
           <div className="flex items-center gap-2 lg:flex-col lg:gap-1">
