@@ -23,13 +23,22 @@ export default function FacilitatorCard({ facilitator, coachingNote }) {
         </div>
       </div>
 
-      {facilitator.bio && (
-        <blockquote className="text-[14px] text-ink leading-relaxed mb-5 italic font-heading font-medium border-l-2 border-brand-500 pl-4">
-          "{facilitator.bio}"
-        </blockquote>
+      {(facilitator.coachingHeadline || facilitator.coachingBody) && (
+        <div className="mb-5">
+          {facilitator.coachingHeadline && (
+            <h4 className="font-heading text-[16px] font-bold text-ink leading-snug mb-1">
+              {facilitator.coachingHeadline}
+            </h4>
+          )}
+          {facilitator.coachingBody && (
+            <p className="text-[13.5px] text-ink-muted leading-relaxed">
+              {facilitator.coachingBody}
+            </p>
+          )}
+        </div>
       )}
 
-      {coachingNote && !facilitator.bio && (
+      {coachingNote && !facilitator.coachingHeadline && !facilitator.coachingBody && (
         <p className="text-[13.5px] text-ink-muted leading-relaxed mb-5">
           {coachingNote}
         </p>

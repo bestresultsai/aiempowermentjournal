@@ -27,15 +27,19 @@ function weekdayDate(weekOffset, dayOfWeek = 3 /* Wed */) {
 }
 
 // Belt color palette. Used as accent on session rows and in the hero.
+// Each belt also defines a `gradient` — a deep→light pair that's used on any
+// "belt-themed" surface (e.g. Next Milestone card background). Picking one
+// palette per belt keeps the system consistent regardless of which session is
+// up next.
 export const BELT_COLORS = {
-  White:  { hex: "#E5E7EB", text: "#0F172A", contrast: "#0F172A" },
-  Yellow: { hex: "#FACC15", text: "#0F172A", contrast: "#0F172A" },
-  Orange: { hex: "#F97316", text: "#FFFFFF", contrast: "#FFFFFF" },
-  Green:  { hex: "#22C55E", text: "#FFFFFF", contrast: "#FFFFFF" },
-  Blue:   { hex: "#3B82F6", text: "#FFFFFF", contrast: "#FFFFFF" },
-  Purple: { hex: "#A855F7", text: "#FFFFFF", contrast: "#FFFFFF" },
-  Brown:  { hex: "#92400E", text: "#FFFFFF", contrast: "#FFFFFF" },
-  Black:  { hex: "#0F172A", text: "#FFFFFF", contrast: "#FFFFFF" },
+  White:  { hex: "#E5E7EB", text: "#0F172A", contrast: "#0F172A", gradient: "linear-gradient(135deg, #4B5563 0%, #9CA3AF 100%)" },
+  Yellow: { hex: "#FACC15", text: "#0F172A", contrast: "#0F172A", gradient: "linear-gradient(135deg, #B45309 0%, #F59E0B 100%)" },
+  Orange: { hex: "#F97316", text: "#FFFFFF", contrast: "#FFFFFF", gradient: "linear-gradient(135deg, #7C2D12 0%, #F97316 100%)" },
+  Green:  { hex: "#22C55E", text: "#FFFFFF", contrast: "#FFFFFF", gradient: "linear-gradient(135deg, #14532D 0%, #22C55E 100%)" },
+  Blue:   { hex: "#3B82F6", text: "#FFFFFF", contrast: "#FFFFFF", gradient: "linear-gradient(135deg, #1E3A8A 0%, #3B82F6 100%)" },
+  Purple: { hex: "#A855F7", text: "#FFFFFF", contrast: "#FFFFFF", gradient: "linear-gradient(135deg, #4C1D95 0%, #A855F7 100%)" },
+  Brown:  { hex: "#92400E", text: "#FFFFFF", contrast: "#FFFFFF", gradient: "linear-gradient(135deg, #451A03 0%, #B45309 100%)" },
+  Black:  { hex: "#0F172A", text: "#FFFFFF", contrast: "#FFFFFF", gradient: "linear-gradient(135deg, #0A0A0A 0%, #374151 100%)" },
 };
 
 export const MOCK_COHORT = {
@@ -61,7 +65,10 @@ export const MOCK_COHORT = {
     email: "mike@bestresults.ai",
     headshotUrl:
       "https://48031831.fs1.hubspotusercontent-na1.net/hubfs/48031831/Design/Headshots/Mike%20Burkesmith%20Headshot%201X1.png",
-    bio: "Feeling stuck on a workflow? Bring it to office hours — we'll turn it into something you'll actually use every week.",
+    // Coaching hook displayed in the facilitator card. NOT styled as a quote —
+    // it's a direct invitation to book a 1:1.
+    coachingHeadline: "Feeling stuck?",
+    coachingBody: "Bring your hardest workflow to office hours — we'll turn it into something you'll actually use every week.",
   },
   // Cohort spans 8 weeks, centered around "now" so the prototype always shows
   // a realistic mid-cohort state with an upcoming live session.
