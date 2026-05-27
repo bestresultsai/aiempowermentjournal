@@ -20,6 +20,10 @@ export default function SessionRow({ session, cohortSlug, emphasized }) {
 
   if (status === "locked") return <LockedRow session={session} belt={belt} beltLabel={beltLabel} fmtDate={fmtDate} />;
 
+  // Completed rows read as "done" — muted, calm. The check icon stays prominent
+  // so participants can still scan their wins. They remain clickable for review.
+  const isCompleted = status === "completed";
+
   return (
     <Link
       to={`/cohort/${cohortSlug}/session/${session.order}`}
@@ -27,20 +31,27 @@ export default function SessionRow({ session, cohortSlug, emphasized }) {
         "group block " +
         (emphasized
           ? "relative overflow-hidden rounded-2xl border-2 border-brand-500 bg-surface-card shadow-lift"
-          : "rounded-2xl border border-soft bg-surface-card hover:shadow-lift hover:-translate-y-0.5 transition")
+          : isCompleted
+            ? "rounded-2xl border border-soft bg-surface-soft/40 hover:bg-surface-soft/70 transition opacity-75 hover:opacity-100"
+            : "rounded-2xl border border-soft bg-surface-card hover:shadow-lift hover:-translate-y-0.5 transition")
       }
     >
       {emphasized && <div className="absolute inset-y-0 left-0 w-1.5 bg-brand-500" />}
       <div className="flex items-center gap-5 p-5">
-        <BeltBadge belt={belt} session={session} emphasized={emphasized} />
+        <BeltBadge belt={belt} session={session} emphasized={emphasized} muted={isCompleted} />
 
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1 flex-wrap">
-            <span className={"text-[11px] font-heading font-semibold tracking-wider uppercase " + (emphasized ? "text-brand-600" : "text-ink-muted")}>
+            <span
+              className={
+                "text-[11px] font-heading font-semibold tracking-wider uppercase " +
+                (emphasized ? "text-brand-600" : isCompleted ? "text-ink-subtle" : "text-ink-muted")
+              }
+            >
               {beltLabel}
             </span>
             <span className="w-1 h-1 rounded-full bg-ink-subtle" />
-            <span className="text-[11px] font-heading font-semibold text-ink-muted">{fmtDate}</span>
+            <span className={"text-[11px] font-heading font-semibold " + (isCompleted ? "text-ink-subtle" : "text-ink-muted")}>{fmtDate}</span>
             <StatusPill status={status} emphasized={emphasized} />
             {session.homeworkSubmitted ? (
               <Pill className="bg-emerald-50 text-emerald-700 border-emerald-200">HW ✓</Pill>
@@ -48,10 +59,20 @@ export default function SessionRow({ session, cohortSlug, emphasized }) {
               <Pill className="bg-amber-50 text-amber-700 border-amber-200">HW DUE</Pill>
             ) : null}
           </div>
-          <h3 className={"font-heading font-bold text-ink leading-snug " + (emphasized ? "text-[18px]" : "text-[16px]")}>
+          <h3
+            className={
+              "font-heading font-bold leading-snug " +
+              (emphasized ? "text-[18px] text-ink" : isCompleted ? "text-[16px] text-ink-muted" : "text-[16px] text-ink")
+            }
+          >
             {session.title}
           </h3>
-          <p className={"text-[13px] text-ink-muted mt-1 leading-relaxed " + (emphasized ? "line-clamp-2" : "line-clamp-1")}>
+          <p
+            className={
+              "text-[13px] mt-1 leading-relaxed " +
+              (emphasized ? "line-clamp-2 text-ink-muted" : isCompleted ? "line-clamp-1 text-ink-subtle" : "line-clamp-1 text-ink-muted")
+            }
+          >
             {session.summary}
           </p>
         </div>
@@ -59,6 +80,10 @@ export default function SessionRow({ session, cohortSlug, emphasized }) {
         {emphasized ? (
           <span className="hidden md:inline-flex items-center gap-1.5 px-4 py-2 bg-ink text-white text-[13px] font-heading font-semibold rounded-lg group-hover:bg-brand-700 transition shrink-0">
             Open →
+          </span>
+        ) : isCompleted ? (
+          <span className="text-ink-subtle group-hover:text-ink transition text-[13px] font-heading font-semibold shrink-0">
+            Review
           </span>
         ) : (
           <span className="text-ink-subtle group-hover:text-brand-600 group-hover:translate-x-0.5 transition text-[18px] shrink-0">
@@ -100,12 +125,16 @@ function LockedRow({ session, belt, beltLabel, fmtDate }) {
   );
 }
 
-function BeltBadge({ belt, session, emphasized }) {
-  const completedBg = "#22C55E";
-  const completedFg = "#ffffff";
-  const bg = session.completed ? completedBg : belt?.hex || "#EFF6FF";
-  const fg = session.completed ? completedFg : belt?.contrast || "#2563EB";
-  const border = belt?.hex === "#E5E7EB" ? "1px solid #D4D4D4" : "none";
+function BeltBadge({ belt, session, emphasized, muted }) {
+  // Completed sessions get a muted gray-green badge (subdued) so the row reads
+  // as "done" rather than competing with the active "Up Next" session.
+  const bg = session.completed
+    ? muted ? "#D1FAE5" : "#22C55E"
+    : belt?.hex || "#EFF6FF";
+  const fg = session.completed
+    ? muted ? "#047857" : "#FFFFFF"
+    : belt?.contrast || "#2563EB";
+  const border = belt?.hex === "#E5E7EB" && !session.completed ? "1px solid #D4D4D4" : "none";
   return (
     <div
       className={"rounded-xl flex items-center justify-center font-heading font-extrabold shrink-0 " + (emphasized ? "w-14 h-14 text-[20px]" : "w-14 h-14 text-[18px]")}

@@ -2,18 +2,14 @@ import { useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import NavBar from "../../components/NavBar";
+import WelcomeBanner from "../../components/WelcomeBanner";
 import CohortHero from "../../components/cohort/CohortHero";
 import SessionRow from "../../components/cohort/SessionRow";
 import CohortStats from "../../components/cohort/CohortStats";
+import JournalGameCard from "../../components/cohort/JournalGameCard";
 import { getCohortBySlug } from "../../lib/cohortApi";
 import { getEntries } from "../../lib/api";
 import { useAuth } from "../../context/AuthContext";
-import { BELT_COLORS } from "../../lib/mockCohort";
-
-const BELT_SHORT = {
-  White: "W", Yellow: "Y", Orange: "O", Green: "G",
-  Blue: "B", Purple: "P", Brown: "Br", Black: "Bk",
-};
 
 export default function CohortLanding() {
   const { slug } = useParams();
@@ -36,30 +32,42 @@ export default function CohortLanding() {
     enabled: !!journalCohortName,
   });
 
-  // Filtered session list
   const filteredSessions = (() => {
     if (!cohort?.sessions) return [];
     if (sessionFilter === "completed") return cohort.sessions.filter((s) => s.completed);
-    if (sessionFilter === "next") return cohort.sessions.filter((s) => s.unlocked && !s.completed);
+    if (sessionFilter === "next")      return cohort.sessions.filter((s) => s.unlocked && !s.completed);
     return cohort.sessions;
   })();
 
-  // Identify the "Up Next" session for emphasis
-  const upNextOrder = cohort?.sessions?.find((s) => s.unlocked && !s.completed)?.order;
-
-  // Current belt label (for the progress bar caption)
-  const currentBelt = cohort?.sessions?.find((s) => s.unlocked && !s.completed)?.belt;
+  const upNextSession = cohort?.sessions?.find((s) => s.unlocked && !s.completed);
+  const upNextOrder = upNextSession?.order;
+  const currentBelt = upNextSession?.belt;
 
   return (
     <div className="min-h-screen bg-surface-paper">
       <NavBar />
-      <main className="max-w-[1180px] mx-auto px-6 lg:px-8 py-10">
+      <main className="max-w-[1180px] mx-auto px-6 lg:px-8 py-8">
+        <WelcomeBanner
+          user={user}
+          subtitle={
+            cohort
+              ? `You're in the ${cohort.organization?.shortName || cohort.name} cohort. Keep the streak alive.`
+              : undefined
+          }
+        />
+
         {isLoading && <SkeletonHero />}
         {error && <ErrorPanel message={error.message} />}
 
         {cohort && (
           <>
             <CohortHero cohort={cohort} />
+
+            {/* CTAs sit right under the hero, per design feedback */}
+            <CTAStrip
+              entries={cohortEntries}
+              currentUserEmail={user?.email}
+            />
 
             <ProgressBand cohort={cohort} currentBelt={currentBelt} />
 
@@ -95,14 +103,53 @@ export default function CohortLanding() {
               loading={entriesLoading}
               error={entriesError?.message}
             />
-
-            <BottomCTAStrip />
           </>
         )}
       </main>
     </div>
   );
 }
+
+// ---- CTA strip (Coaching + gamified Journal) ----
+
+function CTAStrip({ entries, currentUserEmail }) {
+  return (
+    <section className="mt-6 grid md:grid-cols-2 gap-4">
+      <CoachingCard />
+      <JournalGameCard entries={entries} currentUserEmail={currentUserEmail} />
+    </section>
+  );
+}
+
+function CoachingCard() {
+  return (
+    <div className="rounded-3xl bg-ink text-white p-7 relative overflow-hidden flex flex-col">
+      <div className="absolute inset-0 grain opacity-50" />
+      <div className="relative flex-1 flex flex-col">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-10 h-10 rounded-xl bg-brand-500/20 backdrop-blur flex items-center justify-center text-brand-500 text-[18px]">
+            💬
+          </div>
+          <span className="h-eyebrow !text-white/60">1:1 Coaching</span>
+        </div>
+        <h3 className="font-heading text-[22px] font-extrabold tracking-tight mb-2">
+          Stuck? Bring it to your trainer.
+        </h3>
+        <p className="text-[13.5px] text-white/70 leading-relaxed mb-5">
+          Friday 1:1s, 25 minutes, your AI problem. Book the slot that works for you.
+        </p>
+        <button
+          className="self-start inline-flex items-center gap-2 px-4 py-2.5 bg-white text-ink rounded-xl text-[14px] font-heading font-semibold hover:bg-surface-paper transition mt-auto"
+          onClick={() => alert("Coaching booking — coming in a later phase.")}
+        >
+          Schedule a 1:1 →
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ---- Progress band ----
 
 function ProgressBand({ cohort, currentBelt }) {
   const completed = cohort.progress?.completed ?? 0;
@@ -116,6 +163,8 @@ function ProgressBand({ cohort, currentBelt }) {
         : currentBelt
           ? `${completed} of ${total} sessions complete · ${currentBelt} Belt up next`
           : `${completed} of ${total} sessions complete`;
+
+  const upNextOrder = cohort.sessions?.find((s) => s.unlocked && !s.completed)?.order;
 
   return (
     <section className="mt-6 grid lg:grid-cols-[1fr_auto] gap-5 items-center rounded-2xl border border-soft bg-surface-card p-6 shadow-card">
@@ -135,33 +184,35 @@ function ProgressBand({ cohort, currentBelt }) {
             style={{ width: `${pct}%` }}
           />
         </div>
+        {/* Session number scale (1–8) — replaces belt letters per design feedback */}
         <div className="grid grid-cols-8 gap-1 mt-2">
-          {(cohort.sessions || []).map((s) => (
-            <span
-              key={s.order}
-              className={
-                "text-center text-[10px] font-heading " +
-                (s.completed
-                  ? "text-emerald-600 font-bold"
-                  : s.belt === currentBelt
-                    ? "text-brand-600 font-bold"
-                    : "text-ink-subtle")
-              }
-            >
-              {BELT_SHORT[s.belt] || s.order}
-            </span>
-          ))}
+          {(cohort.sessions || []).map((s) => {
+            const isCompleted = s.completed;
+            const isNext = s.order === upNextOrder;
+            return (
+              <span
+                key={s.order}
+                className={
+                  "text-center text-[11px] font-heading " +
+                  (isCompleted
+                    ? "text-emerald-600 font-bold"
+                    : isNext
+                      ? "text-brand-600 font-bold"
+                      : "text-ink-subtle font-semibold")
+                }
+                title={s.belt ? `${s.belt} Belt` : `Session ${s.order}`}
+              >
+                {s.order}
+              </span>
+            );
+          })}
         </div>
       </div>
-      <Link
-        to="/journal"
-        className="px-5 py-3 bg-ink text-white text-[13.5px] font-heading font-semibold rounded-xl flex items-center gap-2 hover:bg-brand-700 transition shrink-0"
-      >
-        ✎ Log a Journal Entry
-      </Link>
     </section>
   );
 }
+
+// ---- Other small pieces ----
 
 function FilterTabs({ current, onChange }) {
   const tabs = [
@@ -199,63 +250,8 @@ function NDABanner() {
   );
 }
 
-function BottomCTAStrip() {
-  return (
-    <section className="mt-16 grid md:grid-cols-2 gap-4">
-      <div className="rounded-3xl bg-ink text-white p-7 relative overflow-hidden">
-        <div className="absolute inset-0 grain opacity-50" />
-        <div className="relative">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-10 h-10 rounded-xl bg-brand-500/20 backdrop-blur flex items-center justify-center text-brand-500 text-[18px]">
-              💬
-            </div>
-            <span className="h-eyebrow !text-white/60">Office Hours</span>
-          </div>
-          <h3 className="font-heading text-[22px] font-extrabold tracking-tight mb-2">
-            Stuck? Bring it to your trainer.
-          </h3>
-          <p className="text-[13.5px] text-white/70 leading-relaxed mb-5">
-            Friday 1:1s, 25 minutes, your AI problem. Book the slot that works.
-          </p>
-          <button
-            className="inline-flex items-center gap-2 px-4 py-2 bg-white text-ink rounded-lg text-[13px] font-heading font-semibold hover:bg-surface-paper transition"
-            onClick={() => alert("Coaching booking — coming in a later phase.")}
-          >
-            See open slots →
-          </button>
-        </div>
-      </div>
-
-      <div className="rounded-3xl border-2 border-dashed border-soft p-7 flex flex-col justify-between">
-        <div>
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-10 h-10 rounded-xl bg-brand-50 flex items-center justify-center text-brand-600 text-[18px]">
-              ✎
-            </div>
-            <span className="h-eyebrow">Capture an AI Win</span>
-          </div>
-          <h3 className="font-heading text-[22px] font-extrabold tracking-tight mb-2">
-            Log one entry this week.
-          </h3>
-          <p className="text-[13.5px] text-ink-muted leading-relaxed mb-5">
-            Every workflow you ship compounds. Two minutes now → durable proof you can cite forever.
-          </p>
-        </div>
-        <Link
-          to="/journal"
-          className="self-start inline-flex items-center gap-2 px-4 py-2 bg-ink text-white rounded-lg text-[13px] font-heading font-semibold hover:bg-brand-700 transition"
-        >
-          + New Journal Entry →
-        </Link>
-      </div>
-    </section>
-  );
-}
-
 function SkeletonHero() {
-  return (
-    <div className="h-[280px] bg-surface-soft rounded-3xl mb-6 animate-pulse" />
-  );
+  return <div className="h-[280px] bg-surface-soft rounded-3xl mb-6 animate-pulse" />;
 }
 
 function ErrorPanel({ message }) {
