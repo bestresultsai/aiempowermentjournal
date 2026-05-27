@@ -33,12 +33,15 @@ export const MOCK_COHORT = {
     name: "International Alliance of Healthcare Educators",
     shortName: "IAHE",
   },
+  // `trainer` retained as the data field name (it's a public API used by Notion
+  // schema + Netlify functions). The UI labels everything as "Facilitator".
   trainer: {
     name: "Mike Burkesmith",
-    title: "Lead Trainer, BestResults.AI",
+    title: "Lead Facilitator, BestResults.AI",
     email: "mike@bestresults.ai",
     headshotUrl:
       "https://48031831.fs1.hubspotusercontent-na1.net/hubfs/48031831/Design/Headshots/Mike%20Burkesmith%20Headshot%201X1.png",
+    bio: "Bring me your hardest workplace problem. We'll turn it into a workflow you'll never want to give back.",
   },
   startDate: "2026-01-14",
   endDate: "2026-03-04",

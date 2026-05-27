@@ -1,9 +1,11 @@
 import { useState } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import NavBar from "../../components/NavBar";
 import WelcomeBanner from "../../components/WelcomeBanner";
 import CohortHero from "../../components/cohort/CohortHero";
+import FacilitatorCard from "../../components/cohort/FacilitatorCard";
+import NextLiveSessionCard from "../../components/cohort/NextLiveSessionCard";
 import SessionRow from "../../components/cohort/SessionRow";
 import CohortStats from "../../components/cohort/CohortStats";
 import JournalGameCard from "../../components/cohort/JournalGameCard";
@@ -14,7 +16,7 @@ import { useAuth } from "../../context/AuthContext";
 export default function CohortLanding() {
   const { slug } = useParams();
   const { user } = useAuth();
-  const [sessionFilter, setSessionFilter] = useState("all"); // all | next | completed
+  const [sessionFilter, setSessionFilter] = useState("all");
 
   const { data: cohort, isLoading, error } = useQuery({
     queryKey: ["cohort", slug],
@@ -61,14 +63,24 @@ export default function CohortLanding() {
 
         {cohort && (
           <>
-            <CohortHero cohort={cohort} />
+            {/* Row 1 — Hero (left, 60%) + Facilitator card (right, 40%) */}
+            <section className="grid lg:grid-cols-[1.4fr_1fr] gap-4 items-stretch">
+              <CohortHero cohort={cohort} />
+              <FacilitatorCard
+                facilitator={cohort.trainer}
+                coachingNote={cohort.coachingNote}
+              />
+            </section>
 
-            {/* CTAs sit right under the hero, per design feedback */}
-            <CTAStrip
-              entries={cohortEntries}
-              currentUserEmail={user?.email}
-            />
+            {/* Row 2 — Next Live Session (full width, prominent) */}
+            <NextLiveSessionCard cohort={cohort} />
 
+            {/* Row 3 — Gamified Journal CTA (full width, like the progress band) */}
+            <div className="mt-6">
+              <JournalGameCard entries={cohortEntries} currentUserEmail={user?.email} />
+            </div>
+
+            {/* Row 4 — Progress */}
             <ProgressBand cohort={cohort} currentBelt={currentBelt} />
 
             {cohort.ndaRequired && <NDABanner />}
@@ -90,6 +102,7 @@ export default function CohortLanding() {
                     key={s.order}
                     session={s}
                     cohortSlug={cohort.slug}
+                    meetingTime={cohort.meetingTime}
                     emphasized={s.order === upNextOrder && sessionFilter !== "completed"}
                   />
                 ))}
@@ -106,45 +119,6 @@ export default function CohortLanding() {
           </>
         )}
       </main>
-    </div>
-  );
-}
-
-// ---- CTA strip (Coaching + gamified Journal) ----
-
-function CTAStrip({ entries, currentUserEmail }) {
-  return (
-    <section className="mt-6 grid md:grid-cols-2 gap-4">
-      <CoachingCard />
-      <JournalGameCard entries={entries} currentUserEmail={currentUserEmail} />
-    </section>
-  );
-}
-
-function CoachingCard() {
-  return (
-    <div className="rounded-3xl bg-ink text-white p-7 relative overflow-hidden flex flex-col">
-      <div className="absolute inset-0 grain opacity-50" />
-      <div className="relative flex-1 flex flex-col">
-        <div className="flex items-center gap-3 mb-4">
-          <div className="w-10 h-10 rounded-xl bg-brand-500/20 backdrop-blur flex items-center justify-center text-brand-500 text-[18px]">
-            💬
-          </div>
-          <span className="h-eyebrow !text-white/60">1:1 Coaching</span>
-        </div>
-        <h3 className="font-heading text-[22px] font-extrabold tracking-tight mb-2">
-          Stuck? Bring it to your trainer.
-        </h3>
-        <p className="text-[13.5px] text-white/70 leading-relaxed mb-5">
-          Friday 1:1s, 25 minutes, your AI problem. Book the slot that works for you.
-        </p>
-        <button
-          className="self-start inline-flex items-center gap-2 px-4 py-2.5 bg-white text-ink rounded-xl text-[14px] font-heading font-semibold hover:bg-surface-paper transition mt-auto"
-          onClick={() => alert("Coaching booking — coming in a later phase.")}
-        >
-          Schedule a 1:1 →
-        </button>
-      </div>
     </div>
   );
 }
@@ -167,7 +141,7 @@ function ProgressBand({ cohort, currentBelt }) {
   const upNextOrder = cohort.sessions?.find((s) => s.unlocked && !s.completed)?.order;
 
   return (
-    <section className="mt-6 grid lg:grid-cols-[1fr_auto] gap-5 items-center rounded-2xl border border-soft bg-surface-card p-6 shadow-card">
+    <section className="mt-6 rounded-2xl border border-soft bg-surface-card p-6 shadow-card">
       <div>
         <div className="flex items-end justify-between mb-2 gap-4">
           <div>
@@ -184,7 +158,6 @@ function ProgressBand({ cohort, currentBelt }) {
             style={{ width: `${pct}%` }}
           />
         </div>
-        {/* Session number scale (1–8) — replaces belt letters per design feedback */}
         <div className="grid grid-cols-8 gap-1 mt-2">
           {(cohort.sessions || []).map((s) => {
             const isCompleted = s.completed;
@@ -212,7 +185,7 @@ function ProgressBand({ cohort, currentBelt }) {
   );
 }
 
-// ---- Other small pieces ----
+// ---- Small pieces ----
 
 function FilterTabs({ current, onChange }) {
   const tabs = [

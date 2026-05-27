@@ -5,8 +5,8 @@ import { useState } from "react";
 export const BRAND_LOGO_URL =
   "https://48031831.fs1.hubspotusercontent-na1.net/hubfs/48031831/Brand/BRAI%20Logo%20Black.png";
 
-const LOGO_HEIGHTS = { sm: 28, md: 40, lg: 56 };
-const TAGLINE_FONT_SIZES = { sm: 10, md: 11, lg: 12 };
+const LOGO_HEIGHTS = { sm: 36, md: 64, lg: 112 };
+const TAGLINE_FONT_SIZES = { sm: 10, md: 12, lg: 15 };
 
 export default function Logo({ size = "md", dark = false, showTagline = false }) {
   const [errored, setErrored] = useState(false);

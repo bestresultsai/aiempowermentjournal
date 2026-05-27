@@ -3,7 +3,7 @@ import { BELT_COLORS } from "../../lib/mockCohort";
 
 // A single row in the cohort's curriculum list.
 // Uses the belt color as an accent ONLY on the number badge, keeping the row itself calm.
-export default function SessionRow({ session, cohortSlug, emphasized }) {
+export default function SessionRow({ session, cohortSlug, emphasized, meetingTime }) {
   const status = session.completed
     ? "completed"
     : session.unlocked
@@ -17,8 +17,10 @@ export default function SessionRow({ session, cohortSlug, emphasized }) {
   const fmtDate = date
     ? date.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })
     : "Date TBD";
+  // Surface the session time (cohort meets at the same time each week, default 12 PM CT).
+  const fmtDateTime = meetingTime ? `${fmtDateTime} · ${meetingTime}` : fmtDate;
 
-  if (status === "locked") return <LockedRow session={session} belt={belt} beltLabel={beltLabel} fmtDate={fmtDate} />;
+  if (status === "locked") return <LockedRow session={session} belt={belt} beltLabel={beltLabel} fmtDate={fmtDateTime} />;
 
   // Completed rows read as "done" — muted, calm. The check icon stays prominent
   // so participants can still scan their wins. They remain clickable for review.
@@ -51,7 +53,7 @@ export default function SessionRow({ session, cohortSlug, emphasized }) {
               {beltLabel}
             </span>
             <span className="w-1 h-1 rounded-full bg-ink-subtle" />
-            <span className={"text-[11px] font-heading font-semibold " + (isCompleted ? "text-ink-subtle" : "text-ink-muted")}>{fmtDate}</span>
+            <span className={"text-[11px] font-heading font-semibold " + (isCompleted ? "text-ink-subtle" : "text-ink-muted")}>{fmtDateTime}</span>
             <StatusPill status={status} emphasized={emphasized} />
             {session.homeworkSubmitted ? (
               <Pill className="bg-emerald-50 text-emerald-700 border-emerald-200">HW ✓</Pill>
@@ -114,7 +116,7 @@ function LockedRow({ session, belt, beltLabel, fmtDate }) {
             {beltLabel}
           </span>
           <span className="w-1 h-1 rounded-full bg-ink-subtle" />
-          <span className="text-[11px] font-heading font-semibold text-ink-muted">{fmtDate}</span>
+          <span className="text-[11px] font-heading font-semibold text-ink-muted">{fmtDateTime}</span>
           <Pill className="bg-surface-soft text-ink-muted border-soft">LOCKED</Pill>
         </div>
         <h3 className="font-heading text-[16px] font-bold text-ink-muted">{session.title}</h3>

@@ -25,10 +25,10 @@ export default function NavBar() {
 
   return (
     <header className="sticky top-0 z-40 backdrop-blur-md bg-surface-paper/90 border-b border-soft">
-      <div className="max-w-[1180px] mx-auto px-6 lg:px-8 h-24 flex items-center justify-between">
-        <div className="flex items-center gap-8">
+      <div className="max-w-[1180px] mx-auto px-6 lg:px-8 h-36 flex items-center justify-between">
+        <div className="flex items-center gap-10">
           <Link to={user ? "/dashboard" : "/"} className="flex items-center">
-            {/* lg = 56px logo height */}
+            {/* lg = 112px logo height (2× the previous size) */}
             <Logo size="lg" />
           </Link>
           {user && (
