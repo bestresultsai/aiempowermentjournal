@@ -1,13 +1,7 @@
-// Cohort-scoped impact dashboard. Same shape as AdminDashboard, scoped to one cohort.
-//
-// Props:
-//   cohort           – the cohort object (for the header + display name)
-//   entries          – journal entries already filtered to this cohort
-//   currentUserEmail – optional; used to show "you contributed X of Y" callout
-//   loading          – boolean while entries are being fetched
-//   error            – error message if fetching failed
-
 import { useMemo } from "react";
+import {
+  FileText, Timer, TrendingUp, DollarSign, Sparkles,
+} from "lucide-react";
 import {
   calcAggregateMetrics,
   formatCurrency,
@@ -40,7 +34,7 @@ export default function CohortStats({ cohort, entries = [], currentUserEmail, lo
   }, [entries, currentUserEmail]);
 
   return (
-    <section className="mt-16">
+    <section className="mt-16 animate-fade-in-up delay-600">
       <div className="flex items-end justify-between mb-6 flex-wrap gap-3">
         <div>
           <div className="h-eyebrow mb-1">Cohort Impact</div>
@@ -56,7 +50,13 @@ export default function CohortStats({ cohort, entries = [], currentUserEmail, lo
         </div>
       </div>
 
-      {loading && <div className="text-ink-muted text-[14px] py-6">Loading cohort entries…</div>}
+      {loading && (
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <div key={i} className="h-[112px] rounded-2xl animate-shimmer" />
+          ))}
+        </div>
+      )}
 
       {error && (
         <div className="bg-rose-50 text-rose-700 border border-rose-200 p-4 rounded-xl mb-4 text-[14px]">
@@ -66,7 +66,9 @@ export default function CohortStats({ cohort, entries = [], currentUserEmail, lo
 
       {!loading && !error && entries.length === 0 && (
         <div className="rounded-2xl border border-dashed border-soft bg-surface-card p-8 text-center">
-          <div className="text-[28px] mb-2">📊</div>
+          <div className="inline-flex w-12 h-12 rounded-2xl bg-surface-soft items-center justify-center mb-3">
+            <FileText className="w-6 h-6 text-ink-subtle" strokeWidth={2} />
+          </div>
           <h3 className="font-heading font-bold text-[16px] text-ink mb-1">
             No journal entries yet for this cohort.
           </h3>
@@ -80,81 +82,26 @@ export default function CohortStats({ cohort, entries = [], currentUserEmail, lo
         <>
           {/* Metric cards */}
           <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
-            <MetricTile
-              icon="📝"
-              label="Total Entries"
-              value={metrics.totalEntries}
-              accent="bg-surface-soft"
-            />
-            <MetricTile
-              icon="⏱"
-              label="Time Saved"
-              value={
-                <>
-                  {formatHours(metrics.totalTimeSaved)}
-                  <span className="text-ink-muted text-[15px] font-medium ml-0.5">h</span>
-                </>
-              }
-              accent="bg-brand-50 text-brand-600"
-            />
-            <MetricTile
-              icon="📈"
-              label="Avg Efficiency"
-              value={
-                <>
-                  {formatPercent(metrics.avgEfficiency)?.replace("%", "") || "0"}
-                  <span className="text-ink-muted text-[15px] font-medium ml-0.5">%</span>
-                </>
-              }
-              accent="bg-violet-50 text-violet-600"
-            />
-            <MetricTile
-              icon="$"
-              label="Annual Value"
-              value={formatCurrency(metrics.totalAnnualValue)}
-              accent="bg-emerald-50 text-emerald-600"
-            />
-            <MetricTile
-              icon="✨"
-              label="Innovations"
-              value={metrics.totalInnovations}
-              accent="bg-amber-50 text-amber-600"
-            />
+            <MetricTile icon={FileText}   label="Total Entries"  value={metrics.totalEntries} accent="bg-surface-soft text-ink" />
+            <MetricTile icon={Timer}      label="Time Saved"     value={<>{formatHours(metrics.totalTimeSaved)}<span className="text-ink-muted text-[15px] font-medium ml-0.5">h</span></>} accent="bg-brand-50 text-brand-600" />
+            <MetricTile icon={TrendingUp} label="Avg Efficiency" value={<>{formatPercent(metrics.avgEfficiency)?.replace("%", "") || "0"}<span className="text-ink-muted text-[15px] font-medium ml-0.5">%</span></>} accent="bg-violet-50 text-violet-600" />
+            <MetricTile icon={DollarSign} label="Annual Value"   value={formatCurrency(metrics.totalAnnualValue)} accent="bg-emerald-50 text-emerald-600" />
+            <MetricTile icon={Sparkles}   label="Innovations"    value={metrics.totalInnovations} accent="bg-amber-50 text-amber-600" />
           </div>
 
-          {/* Two columns: Quality bars + Participants */}
+          {/* Quality + Participants */}
           <div className="grid lg:grid-cols-2 gap-4">
-            {/* Quality outcomes */}
-            <div className="rounded-2xl bg-surface-card border border-soft p-6 shadow-card">
+            <div className="rounded-2xl bg-surface-card border border-soft p-6 shadow-card transition-shadow duration-300 hover:shadow-lift">
               <div className="flex items-center justify-between mb-5">
                 <h3 className="font-heading text-[15px] font-bold">Quality Outcomes</h3>
                 <span className="text-[12px] text-ink-muted">vs. original work</span>
               </div>
-              <QualityBar
-                label="Better"
-                value={metrics.qualityDistribution.better}
-                total={metrics.totalEntries}
-                track="bg-emerald-50"
-                fill="bg-emerald-500"
-              />
-              <QualityBar
-                label="Equal"
-                value={metrics.qualityDistribution.equal}
-                total={metrics.totalEntries}
-                track="bg-brand-50"
-                fill="bg-brand-500"
-              />
-              <QualityBar
-                label="Not as good"
-                value={metrics.qualityDistribution.worse}
-                total={metrics.totalEntries}
-                track="bg-rose-50"
-                fill="bg-rose-500"
-              />
+              <QualityBar label="Better"      value={metrics.qualityDistribution.better} total={metrics.totalEntries} track="bg-emerald-50" fill="bg-emerald-500" />
+              <QualityBar label="Equal"       value={metrics.qualityDistribution.equal}  total={metrics.totalEntries} track="bg-brand-50"   fill="bg-brand-500" />
+              <QualityBar label="Not as good" value={metrics.qualityDistribution.worse}  total={metrics.totalEntries} track="bg-rose-50"    fill="bg-rose-500" />
             </div>
 
-            {/* Top participants */}
-            <div className="rounded-2xl bg-surface-card border border-soft p-6 shadow-card">
+            <div className="rounded-2xl bg-surface-card border border-soft p-6 shadow-card transition-shadow duration-300 hover:shadow-lift">
               <div className="flex items-center justify-between mb-5">
                 <h3 className="font-heading text-[15px] font-bold">By Participant</h3>
                 <span className="text-[12px] text-ink-muted">Top 5</span>
@@ -171,20 +118,24 @@ export default function CohortStats({ cohort, entries = [], currentUserEmail, lo
             </div>
           </div>
 
-          {/* Innovations */}
           {innovations.length > 0 && (
             <div className="mt-4 rounded-2xl border border-amber-200 bg-gradient-to-br from-amber-50 to-white p-6">
               <div className="flex items-start justify-between mb-4">
-                <div>
-                  <div className="h-eyebrow !text-amber-700 mb-1">Innovation Spotlight</div>
-                  <h3 className="font-heading text-[18px] font-extrabold tracking-tight">
-                    Cohort breakthroughs worth celebrating
-                  </h3>
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center">
+                    <Sparkles className="w-5 h-5" strokeWidth={2} />
+                  </div>
+                  <div>
+                    <div className="h-eyebrow !text-amber-700 mb-0.5">Innovation Spotlight</div>
+                    <h3 className="font-heading text-[18px] font-extrabold tracking-tight">
+                      Cohort breakthroughs worth celebrating
+                    </h3>
+                  </div>
                 </div>
               </div>
               <div className="grid md:grid-cols-3 gap-3">
                 {innovations.map((e) => (
-                  <div key={e.id} className="rounded-xl bg-white border border-amber-100 p-4">
+                  <div key={e.id} className="rounded-xl bg-white border border-amber-100 p-4 transition-transform duration-200 hover:-translate-y-0.5 hover:shadow-card">
                     <div className="text-[10px] font-heading font-bold uppercase tracking-wider text-amber-700 mb-1">
                       Innovation
                     </div>
@@ -206,12 +157,12 @@ export default function CohortStats({ cohort, entries = [], currentUserEmail, lo
   );
 }
 
-function MetricTile({ icon, label, value, accent }) {
+function MetricTile({ icon: Icon, label, value, accent }) {
   return (
-    <div className="rounded-2xl bg-surface-card border border-soft p-5 shadow-card">
+    <div className="rounded-2xl bg-surface-card border border-soft p-5 shadow-card transition-all duration-300 hover:shadow-lift hover:-translate-y-0.5">
       <div className="flex items-center justify-between mb-3">
-        <div className={`w-9 h-9 rounded-lg flex items-center justify-center text-[14px] font-bold ${accent}`}>
-          {icon}
+        <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${accent}`}>
+          <Icon className="w-4 h-4" strokeWidth={2} />
         </div>
       </div>
       <div className="font-heading text-[26px] font-extrabold tracking-tight">{value}</div>
@@ -231,7 +182,10 @@ function QualityBar({ label, value, total, track, fill }) {
         <span className="text-[12px] text-ink-muted">{value} · {pct}%</span>
       </div>
       <div className={`h-2 rounded-full overflow-hidden ${track}`}>
-        <div className={`h-full rounded-full ${fill}`} style={{ width: `${pct}%` }} />
+        <div
+          className={`h-full rounded-full ${fill} transition-all duration-700 ease-out`}
+          style={{ width: `${pct}%` }}
+        />
       </div>
     </div>
   );
@@ -249,8 +203,8 @@ function ParticipantRow({ name, count, colorIdx }) {
   const initials = name.split(" ").filter(Boolean).slice(0, 2).map((w) => w[0]).join("").toUpperCase();
   const color = AVATAR_COLORS[colorIdx % AVATAR_COLORS.length];
   return (
-    <div className="flex items-center gap-3">
-      <div className={`w-9 h-9 rounded-full bg-gradient-to-br ${color} text-white flex items-center justify-center text-[12px] font-heading font-bold`}>
+    <div className="flex items-center gap-3 transition-transform duration-200 hover:translate-x-0.5">
+      <div className={`w-9 h-9 rounded-full bg-gradient-to-br ${color} text-white flex items-center justify-center text-[12px] font-heading font-bold shrink-0`}>
         {initials || "?"}
       </div>
       <div className="flex-1 min-w-0">

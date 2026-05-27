@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
+import { PartyPopper, ShieldAlert } from "lucide-react";
 import NavBar from "../../components/NavBar";
 import WelcomeBanner from "../../components/WelcomeBanner";
 import CohortHero from "../../components/cohort/CohortHero";
@@ -65,7 +66,9 @@ export default function CohortLanding() {
           <>
             {/* Row 1 — Hero (left, 60%) + Facilitator card (right, 40%) */}
             <section className="grid lg:grid-cols-[1.4fr_1fr] gap-4 items-stretch">
-              <CohortHero cohort={cohort} />
+              <div className="animate-fade-in-up">
+                <CohortHero cohort={cohort} />
+              </div>
               <FacilitatorCard
                 facilitator={cohort.trainer}
                 coachingNote={cohort.coachingNote}
@@ -81,11 +84,13 @@ export default function CohortLanding() {
             </div>
 
             {/* Row 4 — Progress */}
-            <ProgressBand cohort={cohort} currentBelt={currentBelt} />
+            <div className="animate-fade-in-up delay-300">
+              <ProgressBand cohort={cohort} currentBelt={currentBelt} />
+            </div>
 
             {cohort.ndaRequired && <NDABanner />}
 
-            <section className="mt-12">
+            <section className="mt-12 animate-fade-in-up delay-500">
               <div className="flex items-baseline justify-between mb-6 flex-wrap gap-3">
                 <div>
                   <div className="h-eyebrow mb-1">Curriculum</div>
@@ -97,14 +102,15 @@ export default function CohortLanding() {
               </div>
 
               <div className="space-y-2.5">
-                {filteredSessions.map((s) => (
-                  <SessionRow
-                    key={s.order}
-                    session={s}
-                    cohortSlug={cohort.slug}
-                    meetingTime={cohort.meetingTime}
-                    emphasized={s.order === upNextOrder && sessionFilter !== "completed"}
-                  />
+                {filteredSessions.map((s, idx) => (
+                  <div key={s.order} className="animate-fade-in-up" style={{ animationDelay: `${Math.min(idx * 40, 320)}ms` }}>
+                    <SessionRow
+                      session={s}
+                      cohortSlug={cohort.slug}
+                      meetingTime={cohort.meetingTime}
+                      emphasized={s.order === upNextOrder && sessionFilter !== "completed"}
+                    />
+                  </div>
                 ))}
               </div>
             </section>
@@ -129,11 +135,12 @@ function ProgressBand({ cohort, currentBelt }) {
   const completed = cohort.progress?.completed ?? 0;
   const total = cohort.progress?.total ?? cohort.sessions?.length ?? 8;
   const pct = total > 0 ? Math.round((completed / total) * 100) : 0;
+  const isDone = completed === total;
   const headline =
     completed === 0
       ? "Ready to begin"
-      : completed === total
-        ? "Program complete 🎉"
+      : isDone
+        ? "Program complete"
         : currentBelt
           ? `${completed} of ${total} sessions complete · ${currentBelt} Belt up next`
           : `${completed} of ${total} sessions complete`;
@@ -144,9 +151,12 @@ function ProgressBand({ cohort, currentBelt }) {
     <section className="mt-6 rounded-2xl border border-soft bg-surface-card p-6 shadow-card">
       <div>
         <div className="flex items-end justify-between mb-2 gap-4">
-          <div>
-            <div className="h-eyebrow mb-1">Your Progress</div>
-            <div className="font-heading text-[18px] font-bold">{headline}</div>
+          <div className="flex items-center gap-3">
+            {isDone && <PartyPopper className="w-5 h-5 text-emerald-600" strokeWidth={2} />}
+            <div>
+              <div className="h-eyebrow mb-1">Your Progress</div>
+              <div className="font-heading text-[18px] font-bold">{headline}</div>
+            </div>
           </div>
           <div className="font-heading text-[34px] font-extrabold tracking-tight leading-none">
             {pct}<span className="text-ink-subtle text-[18px] font-medium">%</span>
@@ -215,10 +225,13 @@ function FilterTabs({ current, onChange }) {
 
 function NDABanner() {
   return (
-    <div className="mt-6 rounded-2xl bg-amber-50/60 border border-amber-200/70 p-4 text-[13px] text-amber-900 leading-relaxed">
-      <strong className="font-heading font-bold">NDA Reminder.</strong>{" "}
-      All program content, recordings, and materials are restricted by the NDA you signed.
-      Please do not share outside your cohort.
+    <div className="mt-6 rounded-2xl bg-amber-50/60 border border-amber-200/70 p-4 text-[13px] text-amber-900 leading-relaxed flex items-start gap-3 animate-fade-in-up delay-400">
+      <ShieldAlert className="w-4 h-4 mt-0.5 shrink-0 text-amber-700" strokeWidth={2} />
+      <div>
+        <strong className="font-heading font-bold">NDA Reminder.</strong>{" "}
+        All program content, recordings, and materials are restricted by the NDA you signed.
+        Please do not share outside your cohort.
+      </div>
     </div>
   );
 }

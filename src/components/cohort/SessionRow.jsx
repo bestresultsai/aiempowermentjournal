@@ -1,8 +1,9 @@
 import { Link } from "react-router-dom";
+import { Check, Lock, ChevronRight, ArrowRight } from "lucide-react";
 import { BELT_COLORS } from "../../lib/mockCohort";
 
 // A single row in the cohort's curriculum list.
-// Uses the belt color as an accent ONLY on the number badge, keeping the row itself calm.
+// Uses the belt color as an accent ONLY on the number badge, keeping the row calm.
 export default function SessionRow({ session, cohortSlug, emphasized, meetingTime }) {
   const status = session.completed
     ? "completed"
@@ -17,25 +18,22 @@ export default function SessionRow({ session, cohortSlug, emphasized, meetingTim
   const fmtDate = date
     ? date.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })
     : "Date TBD";
-  // Surface the session time (cohort meets at the same time each week, default 12 PM CT).
   const fmtDateTime = meetingTime ? `${fmtDate} · ${meetingTime}` : fmtDate;
 
   if (status === "locked") return <LockedRow session={session} belt={belt} beltLabel={beltLabel} fmtDate={fmtDateTime} />;
 
-  // Completed rows read as "done" — muted, calm. The check icon stays prominent
-  // so participants can still scan their wins. They remain clickable for review.
   const isCompleted = status === "completed";
 
   return (
     <Link
       to={`/cohort/${cohortSlug}/session/${session.order}`}
       className={
-        "group block " +
+        "group block transition-all duration-200 " +
         (emphasized
           ? "relative overflow-hidden rounded-2xl border-2 border-brand-500 bg-surface-card shadow-lift"
           : isCompleted
-            ? "rounded-2xl border border-soft bg-surface-soft/40 hover:bg-surface-soft/70 transition opacity-75 hover:opacity-100"
-            : "rounded-2xl border border-soft bg-surface-card hover:shadow-lift hover:-translate-y-0.5 transition")
+            ? "rounded-2xl border border-soft bg-surface-soft/40 hover:bg-surface-soft/70 opacity-75 hover:opacity-100"
+            : "rounded-2xl border border-soft bg-surface-card hover:shadow-lift hover:-translate-y-0.5 hover:border-brand-500/40")
       }
     >
       {emphasized && <div className="absolute inset-y-0 left-0 w-1.5 bg-brand-500" />}
@@ -56,9 +54,11 @@ export default function SessionRow({ session, cohortSlug, emphasized, meetingTim
             <span className={"text-[11px] font-heading font-semibold " + (isCompleted ? "text-ink-subtle" : "text-ink-muted")}>{fmtDateTime}</span>
             <StatusPill status={status} emphasized={emphasized} />
             {session.homeworkSubmitted ? (
-              <Pill className="bg-emerald-50 text-emerald-700 border-emerald-200">HW ✓</Pill>
+              <Pill className="bg-emerald-50 text-emerald-700 border-emerald-200 inline-flex items-center gap-1">
+                <Check className="w-2.5 h-2.5" strokeWidth={3} /> HW
+              </Pill>
             ) : status !== "locked" && session.homework?.prompt ? (
-              <Pill className="bg-amber-50 text-amber-700 border-amber-200">HW DUE</Pill>
+              <Pill className="bg-amber-50 text-amber-700 border-amber-200">HW Due</Pill>
             ) : null}
           </div>
           <h3
@@ -80,17 +80,16 @@ export default function SessionRow({ session, cohortSlug, emphasized, meetingTim
         </div>
 
         {emphasized ? (
-          <span className="hidden md:inline-flex items-center gap-1.5 px-4 py-2 bg-ink text-white text-[13px] font-heading font-semibold rounded-lg group-hover:bg-brand-700 transition shrink-0">
-            Open →
+          <span className="hidden md:inline-flex items-center gap-1.5 px-4 py-2 bg-ink text-white text-[13px] font-heading font-semibold rounded-lg group-hover:bg-brand-700 transition-colors duration-200 shrink-0">
+            Open
+            <ArrowRight className="w-3.5 h-3.5 transition-transform duration-200 group-hover:translate-x-0.5" strokeWidth={2.5} />
           </span>
         ) : isCompleted ? (
-          <span className="text-ink-subtle group-hover:text-ink transition text-[13px] font-heading font-semibold shrink-0">
+          <span className="text-ink-subtle group-hover:text-ink transition-colors text-[13px] font-heading font-semibold shrink-0">
             Review
           </span>
         ) : (
-          <span className="text-ink-subtle group-hover:text-brand-600 group-hover:translate-x-0.5 transition text-[18px] shrink-0">
-            →
-          </span>
+          <ChevronRight className="w-5 h-5 text-ink-subtle group-hover:text-brand-600 group-hover:translate-x-0.5 transition-all duration-200 shrink-0" strokeWidth={2.5} />
         )}
       </div>
     </Link>
@@ -117,19 +116,17 @@ function LockedRow({ session, belt, beltLabel, fmtDate }) {
           </span>
           <span className="w-1 h-1 rounded-full bg-ink-subtle" />
           <span className="text-[11px] font-heading font-semibold text-ink-muted">{fmtDate}</span>
-          <Pill className="bg-surface-soft text-ink-muted border-soft">LOCKED</Pill>
+          <Pill className="bg-surface-soft text-ink-muted border-soft">Locked</Pill>
         </div>
         <h3 className="font-heading text-[16px] font-bold text-ink-muted">{session.title}</h3>
         <p className="text-[13px] text-ink-subtle mt-1 line-clamp-1">{session.summary}</p>
       </div>
-      <span className="text-ink-subtle text-[18px] shrink-0">🔒</span>
+      <Lock className="w-4 h-4 text-ink-subtle shrink-0" strokeWidth={2} />
     </article>
   );
 }
 
 function BeltBadge({ belt, session, emphasized, muted }) {
-  // Completed sessions get a muted gray-green badge (subdued) so the row reads
-  // as "done" rather than competing with the active "Up Next" session.
   const bg = session.completed
     ? muted ? "#D1FAE5" : "#22C55E"
     : belt?.hex || "#EFF6FF";
@@ -139,22 +136,24 @@ function BeltBadge({ belt, session, emphasized, muted }) {
   const border = belt?.hex === "#E5E7EB" && !session.completed ? "1px solid #D4D4D4" : "none";
   return (
     <div
-      className={"rounded-xl flex items-center justify-center font-heading font-extrabold shrink-0 " + (emphasized ? "w-14 h-14 text-[20px]" : "w-14 h-14 text-[18px]")}
+      className={"rounded-xl flex items-center justify-center font-heading font-extrabold shrink-0 transition-transform duration-200 group-hover:scale-105 " + (emphasized ? "w-14 h-14 text-[20px]" : "w-14 h-14 text-[18px]")}
       style={{ background: bg, color: fg, border }}
     >
-      {session.completed ? "✓" : session.order}
+      {session.completed
+        ? <Check className="w-6 h-6" strokeWidth={3} />
+        : session.order}
     </div>
   );
 }
 
 function StatusPill({ status, emphasized }) {
   if (status === "completed") {
-    return <Pill className="bg-emerald-50 text-emerald-700 border-emerald-200">COMPLETED</Pill>;
+    return <Pill className="bg-emerald-50 text-emerald-700 border-emerald-200">Completed</Pill>;
   }
   if (emphasized) {
-    return <Pill className="bg-brand-500 text-white border-brand-500">UP NEXT</Pill>;
+    return <Pill className="bg-brand-500 text-white border-brand-500">Up Next</Pill>;
   }
-  return <Pill className="bg-brand-50 text-brand-700 border-brand-100">AVAILABLE</Pill>;
+  return <Pill className="bg-brand-50 text-brand-700 border-brand-100">Available</Pill>;
 }
 
 function Pill({ className = "", children }) {

@@ -3,13 +3,15 @@
 // entries. Pure functions — no React, no side effects.
 
 // Badge tiers — count-based for now. Adjust thresholds as the program grows.
+// `icon` is the Lucide icon NAME (matched in JournalGameCard) so we keep this
+// module free of React/JSX imports.
 export const BADGES = [
-  { count: 1,   icon: "🌱", name: "First Step",     blurb: "You logged your first AI win." },
-  { count: 5,   icon: "🔁", name: "Habit Forming",  blurb: "Five entries — the practice is sticking." },
-  { count: 10,  icon: "🔟", name: "Decade",         blurb: "Ten wins. Real momentum." },
-  { count: 25,  icon: "🚀", name: "Compounder",     blurb: "Twenty-five wins. You're a power user." },
-  { count: 50,  icon: "🏆", name: "Half-Century",   blurb: "Fifty wins. Cohort leader territory." },
-  { count: 100, icon: "👑", name: "Centurion",      blurb: "One hundred wins. AI-native." },
+  { count: 1,   icon: "Sprout",   name: "First Step",     blurb: "You logged your first AI win." },
+  { count: 5,   icon: "Repeat",   name: "Habit Forming",  blurb: "Five entries — the practice is sticking." },
+  { count: 10,  icon: "Flame",    name: "Decade",         blurb: "Ten wins. Real momentum." },
+  { count: 25,  icon: "Rocket",   name: "Compounder",     blurb: "Twenty-five wins. You're a power user." },
+  { count: 50,  icon: "Trophy",   name: "Half-Century",   blurb: "Fifty wins. Cohort leader territory." },
+  { count: 100, icon: "Crown",    name: "Centurion",      blurb: "One hundred wins. AI-native." },
 ];
 
 // Returns the Monday of the week containing the given Date.

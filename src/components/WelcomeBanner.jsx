@@ -1,6 +1,4 @@
-// A platform-level welcome banner shown at the top of authenticated pages
-// (cohort page, dashboard, etc.). Personalized when a user is signed in,
-// generic otherwise. Designed to read as a calm, friendly opener — not a CTA.
+import { Sparkles, Calendar as CalendarIcon } from "lucide-react";
 
 export default function WelcomeBanner({ user, subtitle }) {
   const firstName = user?.name?.split(" ")[0] || null;
@@ -10,31 +8,38 @@ export default function WelcomeBanner({ user, subtitle }) {
     hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
 
   return (
-    <section className="mb-6 rounded-2xl bg-surface-card border border-soft px-6 py-5 flex items-center justify-between gap-4 flex-wrap shadow-card">
-      <div>
-        {firstName ? (
-          <>
-            <h2 className="font-heading text-[22px] font-extrabold tracking-tight text-ink">
-              {greeting}, {firstName}{" "}
-              <span className="text-[20px]">👋</span>
-            </h2>
-            <p className="text-[13.5px] text-ink-muted mt-0.5">
-              {subtitle || "Welcome back to the BestResults.AI Platform."}
-            </p>
-          </>
-        ) : (
-          <>
-            <h2 className="font-heading text-[22px] font-extrabold tracking-tight text-ink">
-              Welcome to the BestResults.AI Platform
-            </h2>
-            <p className="text-[13.5px] text-ink-muted mt-0.5">
-              {subtitle ||
-                "Your AI Empowerment cohort, sessions, and journal — all in one place."}
-            </p>
-          </>
+    <section className="mb-6 rounded-2xl bg-surface-card border border-soft px-6 py-5 flex items-center justify-between gap-4 flex-wrap shadow-card animate-fade-in-up">
+      <div className="flex items-center gap-4">
+        {firstName && (
+          <div className="hidden sm:flex w-11 h-11 rounded-2xl bg-brand-50 text-brand-600 items-center justify-center">
+            <Sparkles className="w-5 h-5" strokeWidth={2} />
+          </div>
         )}
+        <div>
+          {firstName ? (
+            <>
+              <h2 className="font-heading text-[22px] font-extrabold tracking-tight text-ink">
+                {greeting}, {firstName}.
+              </h2>
+              <p className="text-[13.5px] text-ink-muted mt-0.5">
+                {subtitle || "Welcome back to the BestResults.AI Platform."}
+              </p>
+            </>
+          ) : (
+            <>
+              <h2 className="font-heading text-[22px] font-extrabold tracking-tight text-ink">
+                Welcome to the BestResults.AI Platform
+              </h2>
+              <p className="text-[13.5px] text-ink-muted mt-0.5">
+                {subtitle ||
+                  "Your AI Empowerment cohort, sessions, and journal — all in one place."}
+              </p>
+            </>
+          )}
+        </div>
       </div>
-      <div className="hidden md:flex items-center gap-2">
+      <div className="hidden md:flex items-center gap-2 text-ink-muted">
+        <CalendarIcon className="w-4 h-4" strokeWidth={2} />
         <span className="h-eyebrow !text-[10px]">Today</span>
         <span className="text-[13px] font-heading font-semibold text-ink">
           {today.toLocaleDateString("en-US", {
