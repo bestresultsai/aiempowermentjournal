@@ -110,9 +110,8 @@ function LockedRow({ session, belt, beltLabel, fmtDate }) {
       <div
         className="w-14 h-14 rounded-xl flex items-center justify-center font-heading font-extrabold text-[18px] shrink-0 opacity-40"
         style={{
-          background: belt?.hex || "#E5E7EB",
+          background: belt?.gradient || belt?.hex || "#E5E7EB",
           color: belt?.contrast || "#0A0A0A",
-          border: belt?.hex === "#E5E7EB" ? "1px solid #D4D4D4" : "none",
         }}
       >
         {session.order}
@@ -137,10 +136,15 @@ function LockedRow({ session, belt, beltLabel, fmtDate }) {
 // Belt-color badge that ALWAYS shows the session number.
 // Completed sessions get a muted belt color (not a green check anymore — the
 // check now lives on the right side of the row for clearer status separation).
+//
+// Background is the belt's GRADIENT so the number tile feels consistent with
+// the Next Milestone card + Next Live countdown.
 function BeltBadge({ belt, session, emphasized, muted }) {
-  const bg = belt?.hex || "#EFF6FF";
+  const bg = belt?.gradient || belt?.hex || "#EFF6FF";
   const fg = belt?.contrast || "#2563EB";
-  const border = belt?.hex === "#E5E7EB" ? "1px solid #D4D4D4" : "none";
+  // White belt's gradient is light grays, so it needs a thin border on a white card.
+  const needsBorder = belt && (belt.hex === "#E5E7EB" || belt.contrast === "#0F172A" || belt.contrast === "#0A0A0A");
+  const border = needsBorder ? "1px solid rgba(15,23,42,0.10)" : "none";
   return (
     <div
       className={

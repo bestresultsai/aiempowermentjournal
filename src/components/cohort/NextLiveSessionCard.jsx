@@ -52,11 +52,12 @@ export default function NextLiveSessionCard({ cohort }) {
   return (
     <section className="mt-6 rounded-2xl border-2 border-brand-500 bg-surface-card overflow-hidden shadow-lift animate-fade-in-up delay-200">
       <div className="flex flex-col lg:flex-row">
-        {/* Belt-colored countdown block */}
+        {/* Belt-colored countdown block — uses the belt's gradient for consistency
+            with the Next Milestone card and the session number badges. */}
         <div
           className="lg:w-56 flex flex-row lg:flex-col items-center justify-center gap-3 lg:gap-2 px-6 py-5 lg:py-7"
           style={{
-            background: belt?.hex || "#2563EB",
+            background: belt?.gradient || belt?.hex || "#2563EB",
             color: belt?.contrast || "#fff",
             border: belt?.hex === "#E5E7EB" ? "1px solid #D4D4D4" : "none",
           }}

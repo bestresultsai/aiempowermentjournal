@@ -9,6 +9,7 @@ import JournalResult from "./pages/JournalResult";
 import Dashboard from "./pages/Dashboard";
 import CohortLanding from "./pages/cohort/CohortLanding";
 import SessionDetail from "./pages/cohort/SessionDetail";
+import BeltsPreview from "./pages/design/BeltsPreview";
 
 export default function App() {
   return (
@@ -24,6 +25,7 @@ export default function App() {
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/cohort/:slug" element={<CohortLanding />} />
           <Route path="/cohort/:slug/session/:order" element={<SessionDetail />} />
+          <Route path="/design/belts" element={<BeltsPreview />} />
         </Routes>
       </BrowserRouter>
     </AuthProvider>

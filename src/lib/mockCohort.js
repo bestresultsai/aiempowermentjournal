@@ -26,11 +26,15 @@ function weekdayDate(weekOffset, dayOfWeek = 3 /* Wed */) {
   return d.toISOString().slice(0, 10);
 }
 
+// Cohort hero gradient (the top dark/blue banner). Exported so both the hero
+// itself and the design-reference page can share a single source of truth.
+export const HERO_GRADIENT = "linear-gradient(135deg, #1E3A8A 0%, #2563EB 100%)";
+
 // Belt color palette. Used as accent on session rows and in the hero.
 // Each belt also defines a `gradient` — a deep→light pair that's used on any
-// "belt-themed" surface (e.g. Next Milestone card background). Picking one
-// palette per belt keeps the system consistent regardless of which session is
-// up next.
+// "belt-themed" surface (Next Milestone card, Next Live countdown, session
+// number badges). Picking one palette per belt keeps the system consistent
+// regardless of which session is up next.
 export const BELT_COLORS = {
   White:  { hex: "#E5E7EB", text: "#0F172A", contrast: "#0F172A", gradient: "linear-gradient(135deg, #4B5563 0%, #9CA3AF 100%)" },
   Yellow: { hex: "#FACC15", text: "#0F172A", contrast: "#0F172A", gradient: "linear-gradient(135deg, #B45309 0%, #F59E0B 100%)" },

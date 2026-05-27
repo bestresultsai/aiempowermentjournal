@@ -1,5 +1,8 @@
-// Cohort identity hero — dark, asymmetric. The Facilitator + 1:1 card is now
-// a sibling component (FacilitatorCard) so the hero stays focused on the cohort.
+import { HERO_GRADIENT } from "../../lib/mockCohort";
+
+// Cohort identity hero — blue gradient, asymmetric. The Facilitator + 1:1 card
+// is now a sibling component (FacilitatorCard) so the hero stays focused on
+// the cohort itself.
 export default function CohortHero({ cohort }) {
   if (!cohort) return null;
   const start = cohort.startDate ? new Date(cohort.startDate) : null;
@@ -14,7 +17,7 @@ export default function CohortHero({ cohort }) {
   return (
     <div
       className="relative overflow-hidden rounded-3xl p-9 lg:p-12 text-white h-full"
-      style={{ background: "linear-gradient(135deg, #1E3A8A 0%, #2563EB 100%)" }}
+      style={{ background: HERO_GRADIENT }}
     >
       <div className="absolute inset-0 grain opacity-40" />
       <div className="relative">
