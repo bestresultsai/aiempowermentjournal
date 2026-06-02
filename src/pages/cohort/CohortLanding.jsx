@@ -6,19 +6,29 @@ import CohortHero from "../../components/cohort/CohortHero";
 import FacilitatorCard from "../../components/cohort/FacilitatorCard";
 import NextLiveSessionCard from "../../components/cohort/NextLiveSessionCard";
 import MissingHomeworkCard from "../../components/cohort/MissingHomeworkCard";
+import JournalGameCard from "../../components/cohort/JournalGameCard";
+import NextMilestoneCard from "../../components/cohort/NextMilestoneCard";
+import CohortStats from "../../components/cohort/CohortStats";
 import SessionRow from "../../components/cohort/SessionRow";
 import { useAuth } from "../../context/AuthContext";
 import { calculateStreakWeeks } from "../../lib/gamification";
 import { useResolvedCohort, useCohortEntries } from "../../lib/cohortResolution";
 
 // ---------------------------------------------------------------------------
-// JOURNEY page. Mounted at:
-//   /journey           — generic, resolves to the user's primary cohort
+// HOME page (the comprehensive overview). Mounted at:
+//   /home              — the participant's signed-in home
 //   /cohort/:slug      — explicit, for admins/multi-cohort users
 //
-// Journal-related cards (Game Card, Next Milestone, Cohort Impact dashboard)
-// live on /journal — they were moved out of here in Round B so the Journey
-// page is purely about workshops + curriculum.
+// Contains EVERYTHING in summary form:
+//   • Welcome banner
+//   • Hero + Facilitator (cohort identity)
+//   • AI Empowerment Journey cards (Next Live, Missing Homework, Progress)
+//   • AI Empowerment Journal cards (Game Card, Next Milestone)
+//   • NDA reminder
+//   • Curriculum (full sessions list)
+//   • Cohort Impact dashboard (Summary / Details)
+//
+// Focused per-domain views live at /journey (workshops) and /journal (impact).
 // ---------------------------------------------------------------------------
 
 export default function CohortLanding() {
@@ -26,7 +36,7 @@ export default function CohortLanding() {
   const [sessionFilter, setSessionFilter] = useState("all");
 
   const { cohort, isLoading, error } = useResolvedCohort();
-  const { entries: cohortEntries } = useCohortEntries(cohort);
+  const { entries: cohortEntries, isLoading: entriesLoading, error: entriesError } = useCohortEntries(cohort);
 
   const filteredSessions = (() => {
     if (!cohort?.sessions) return [];
@@ -86,9 +96,16 @@ export default function CohortLanding() {
               <ProgressBand cohort={cohort} currentBelt={currentBelt} />
             </div>
 
-            {/* ==================== NDA + CURRICULUM ==================== */}
+            {/* ==================== AI EMPOWERMENT JOURNAL ==================== */}
+            <div className="mt-6">
+              <JournalGameCard entries={cohortEntries} currentUserEmail={user?.email} />
+            </div>
+            <NextMilestoneCard entries={cohortEntries} currentUserEmail={user?.email} />
+
+            {/* ==================== NDA ==================== */}
             {cohort.ndaRequired && <NDABanner />}
 
+            {/* ==================== CURRICULUM ==================== */}
             <section className="mt-12 animate-fade-in-up delay-500">
               <div className="flex items-baseline justify-between mb-6 flex-wrap gap-3">
                 <div>
@@ -113,6 +130,15 @@ export default function CohortLanding() {
                 ))}
               </div>
             </section>
+
+            {/* ==================== COHORT IMPACT ==================== */}
+            <CohortStats
+              cohort={cohort}
+              entries={cohortEntries}
+              currentUserEmail={user?.email}
+              loading={entriesLoading}
+              error={entriesError?.message}
+            />
           </>
         )}
       </main>
