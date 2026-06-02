@@ -64,6 +64,11 @@ export const MOCK_COHORT = {
   // dashboard by this value via /api/entries?cohort=...  In live mode this is
   // the same as `name` (or a relation to the Cohorts DB).
   journalCohortName: "IAHE Cohort",
+  // Three-level naming:
+  //   methodName   — the overarching framework (largest brand identity)
+  //   programName  — a specific delivery / version of the method
+  //   name         — the specific cohort (group of participants)
+  methodName: "AI Empowerment Method",
   programCode: "AIEW3",
   programName: "Best Results AI Empowerment Workshop Series 3.0",
   organization: {

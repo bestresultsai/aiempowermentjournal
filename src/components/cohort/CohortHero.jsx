@@ -26,8 +26,8 @@ export default function CohortHero({ cohort }) {
           {cohort.programCode || "AIEW3"} · Cohort in Session
         </div>
         <h1 className="font-heading text-[40px] lg:text-[52px] leading-[1.04] font-extrabold mb-5">
-          {cohort.name}.<br />
-          <span className="text-white/65 font-light italic">Eight belts, eight workshops.</span>
+          {cohort.methodName || "AI Empowerment Method"}.<br />
+          <span className="text-white/65 font-light italic">{cohort.name}.</span>
         </h1>
         <p className="text-[15px] leading-relaxed text-white/75 max-w-md mb-8">
           {cohort.journeyIntro}
