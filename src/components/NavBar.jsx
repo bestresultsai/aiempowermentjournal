@@ -34,7 +34,7 @@ export default function NavBar() {
           {user && (
             <nav className="hidden md:flex items-center gap-1 text-[15px]">
               <NavLink to={cohortSlug ? `/cohort/${cohortSlug}` : "/dashboard"} active={pathname.startsWith("/cohort")} icon={GraduationCap}>
-                My Cohort
+                Journey
               </NavLink>
               <NavLink to="/dashboard" active={pathname === "/dashboard"} icon={LayoutDashboard}>
                 Dashboard

@@ -22,6 +22,9 @@ export default function App() {
           <Route path="/login" element={<Login />} />
           <Route path="/auth/verify" element={<AuthVerify />} />
           <Route path="/journal" element={<Journal />} />
+          {/* Round A: /journal/new is the canonical full-page entry form URL.
+              /journal stays here until Round B turns it into the dashboard. */}
+          <Route path="/journal/new" element={<Journal />} />
           <Route path="/journal/result" element={<JournalResult />} />
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/cohort/:slug" element={<CohortLanding />} />
