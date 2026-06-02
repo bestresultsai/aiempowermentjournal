@@ -7,10 +7,10 @@ export default function Home() {
   const { user, loading } = useAuth();
   const navigate = useNavigate();
 
-  // Logged-in users → unified platform home (the dashboard).
+  // Logged-in users → Journey (their cohort home).
   useEffect(() => {
     if (!loading && user) {
-      navigate("/dashboard", { replace: true });
+      navigate("/journey", { replace: true });
     }
   }, [user, loading, navigate]);
 

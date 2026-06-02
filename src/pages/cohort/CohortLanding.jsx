@@ -1,6 +1,4 @@
 import { useState, useMemo } from "react";
-import { useParams } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
 import { PartyPopper, ShieldAlert } from "lucide-react";
 import NavBar from "../../components/NavBar";
 import WelcomeBanner from "../../components/WelcomeBanner";
@@ -8,42 +6,27 @@ import CohortHero from "../../components/cohort/CohortHero";
 import FacilitatorCard from "../../components/cohort/FacilitatorCard";
 import NextLiveSessionCard from "../../components/cohort/NextLiveSessionCard";
 import MissingHomeworkCard from "../../components/cohort/MissingHomeworkCard";
-import NextMilestoneCard from "../../components/cohort/NextMilestoneCard";
 import SessionRow from "../../components/cohort/SessionRow";
-import CohortStats from "../../components/cohort/CohortStats";
-import JournalGameCard from "../../components/cohort/JournalGameCard";
-import { getCohortBySlug } from "../../lib/cohortApi";
-import { getEntries } from "../../lib/api";
 import { useAuth } from "../../context/AuthContext";
 import { calculateStreakWeeks } from "../../lib/gamification";
-import { DEMO_JOURNAL_ENTRIES } from "../../lib/demoData";
+import { useResolvedCohort, useCohortEntries } from "../../lib/cohortResolution";
+
+// ---------------------------------------------------------------------------
+// JOURNEY page. Mounted at:
+//   /journey           — generic, resolves to the user's primary cohort
+//   /cohort/:slug      — explicit, for admins/multi-cohort users
+//
+// Journal-related cards (Game Card, Next Milestone, Cohort Impact dashboard)
+// live on /journal — they were moved out of here in Round B so the Journey
+// page is purely about workshops + curriculum.
+// ---------------------------------------------------------------------------
 
 export default function CohortLanding() {
-  const { slug } = useParams();
-  const { user, isDemo } = useAuth();
+  const { user } = useAuth();
   const [sessionFilter, setSessionFilter] = useState("all");
 
-  const { data: cohort, isLoading, error } = useQuery({
-    queryKey: ["cohort", slug],
-    queryFn: () => getCohortBySlug(slug),
-  });
-
-  const journalCohortName = cohort?.journalCohortName || cohort?.name;
-  const {
-    data: liveEntries = [],
-    isLoading: entriesLoading,
-    error: entriesError,
-  } = useQuery({
-    queryKey: ["cohort-entries", journalCohortName],
-    queryFn: () => getEntries({ cohort: journalCohortName }),
-    // In demo mode we don't hit the live Notion endpoint at all — we use the
-    // mock data instead, so the dashboard always populates predictably.
-    enabled: !!journalCohortName && !isDemo,
-  });
-
-  // In demo mode, replace live entries with the canned mock set so the dashboard
-  // + streak math + innovation spotlight all light up correctly.
-  const cohortEntries = isDemo ? DEMO_JOURNAL_ENTRIES : liveEntries;
+  const { cohort, isLoading, error } = useResolvedCohort();
+  const { entries: cohortEntries } = useCohortEntries(cohort);
 
   const filteredSessions = (() => {
     if (!cohort?.sessions) return [];
@@ -56,7 +39,7 @@ export default function CohortLanding() {
   const upNextOrder = upNextSession?.order;
   const currentBelt = upNextSession?.belt;
 
-  // Compute current user's journal streak (in weeks) for the Welcome banner badge.
+  // Compute current user's journal streak for the Welcome banner badge.
   const userEntries = useMemo(() => {
     if (!user?.email) return [];
     return cohortEntries.filter(
@@ -81,11 +64,11 @@ export default function CohortLanding() {
 
         {isLoading && <SkeletonHero />}
         {error && <ErrorPanel message={error.message} />}
+        {!isLoading && !error && !cohort && <NoCohortPanel />}
 
         {cohort && (
           <>
             {/* ==================== HERO ROW ==================== */}
-            {/* Hero (60%) + Facilitator card (40%) — establishes cohort identity. */}
             <section className="grid lg:grid-cols-[1.4fr_1fr] gap-4 items-stretch">
               <div className="animate-fade-in-up">
                 <CohortHero cohort={cohort} />
@@ -97,21 +80,13 @@ export default function CohortLanding() {
             </section>
 
             {/* ==================== AI EMPOWERMENT JOURNEY ==================== */}
-            {/* Workshop curriculum — live sessions, homework, attendance/progress. */}
             <NextLiveSessionCard cohort={cohort} />
             <MissingHomeworkCard cohort={cohort} />
             <div className="animate-fade-in-up delay-300">
               <ProgressBand cohort={cohort} currentBelt={currentBelt} />
             </div>
 
-            {/* ==================== AI EMPOWERMENT JOURNAL ==================== */}
-            {/* Gamified impact tracking — entries, streaks, badges. */}
-            <div className="mt-6">
-              <JournalGameCard entries={cohortEntries} currentUserEmail={user?.email} />
-            </div>
-            <NextMilestoneCard entries={cohortEntries} currentUserEmail={user?.email} />
-
-            {/* ==================== NDA + DETAIL ==================== */}
+            {/* ==================== NDA + CURRICULUM ==================== */}
             {cohort.ndaRequired && <NDABanner />}
 
             <section className="mt-12 animate-fade-in-up delay-500">
@@ -138,14 +113,6 @@ export default function CohortLanding() {
                 ))}
               </div>
             </section>
-
-            <CohortStats
-              cohort={cohort}
-              entries={cohortEntries}
-              currentUserEmail={user?.email}
-              loading={entriesLoading}
-              error={entriesError?.message}
-            />
           </>
         )}
       </main>
@@ -268,6 +235,20 @@ function ErrorPanel({ message }) {
   return (
     <div className="bg-rose-50 border border-rose-200 text-rose-800 px-5 py-4 rounded-2xl text-[14px]">
       <strong className="font-heading font-bold">Couldn't load cohort.</strong> {message}
+    </div>
+  );
+}
+
+function NoCohortPanel() {
+  return (
+    <div className="rounded-2xl border border-dashed border-soft bg-surface-card p-10 text-center mt-6">
+      <h2 className="font-heading text-[22px] font-extrabold text-ink mb-2">
+        You're not in a cohort yet.
+      </h2>
+      <p className="text-[14px] text-ink-muted leading-relaxed max-w-md mx-auto">
+        Once you're enrolled in a cohort, your sessions, materials, and homework will appear here.
+        Contact your facilitator if you think this is a mistake.
+      </p>
     </div>
   );
 }
