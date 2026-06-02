@@ -1,10 +1,28 @@
 import { useState } from "react";
 
-// Canonical BRAI logo, hosted on HubSpot's CDN. To self-host later, drop the
-// file at `public/brand/brai-logo-black.png` and update this constant.
+// ---------------------------------------------------------------------------
+// Canonical BRAI logos.
+//
+// `BRAND_LOGO_URL`       — black wordmark on transparent background.
+//                          Used on light surfaces (default).
+// `BRAND_LOGO_WHITE_URL` — white wordmark on transparent background.
+//                          Used on dark surfaces (Login left pane, etc).
+//
+// Both should be PNGs with TRANSPARENT backgrounds. When you have the proper
+// transparent variants ready, just swap these URLs — every consumer of <Logo>
+// picks them up automatically.
+// ---------------------------------------------------------------------------
 export const BRAND_LOGO_URL =
   "https://48031831.fs1.hubspotusercontent-na1.net/hubfs/48031831/Brand/BRAI%20Logo%20Black.png";
 
+// TODO: Replace with the real transparent-bg white PNG when available.
+// Until then, we fall back to the black logo + CSS filter inversion on dark surfaces.
+export const BRAND_LOGO_WHITE_URL = BRAND_LOGO_URL;
+
+const HAS_REAL_WHITE = BRAND_LOGO_WHITE_URL !== BRAND_LOGO_URL;
+
+// Size variants map to the height of the rendered image. The original glyph
+// is a horizontal lockup, so we let the width auto-scale.
 const LOGO_HEIGHTS = { sm: 36, md: 64, lg: 112 };
 const TAGLINE_FONT_SIZES = { sm: 10, md: 12, lg: 15 };
 
@@ -12,6 +30,13 @@ export default function Logo({ size = "md", dark = false, showTagline = false })
   const [errored, setErrored] = useState(false);
   const height = LOGO_HEIGHTS[size] ?? LOGO_HEIGHTS.md;
   const tagFs = TAGLINE_FONT_SIZES[size] ?? TAGLINE_FONT_SIZES.md;
+  const taglineColor = dark ? "#FFFFFF" : "#5B5B5B";
+
+  // Use the white asset when available + the surface is dark.
+  // If no real white asset yet, fall back to CSS filter inversion (looks OK but
+  // not as clean as a real transparent white PNG).
+  const useFilterInversion = dark && !HAS_REAL_WHITE;
+  const src = dark && HAS_REAL_WHITE ? BRAND_LOGO_WHITE_URL : BRAND_LOGO_URL;
 
   return (
     <div className="inline-flex flex-col items-start">
@@ -19,7 +44,7 @@ export default function Logo({ size = "md", dark = false, showTagline = false })
         <TextFallback size={size} dark={dark} />
       ) : (
         <img
-          src={BRAND_LOGO_URL}
+          src={src}
           alt="BestResults.AI"
           height={height}
           onError={() => setErrored(true)}
@@ -27,8 +52,7 @@ export default function Logo({ size = "md", dark = false, showTagline = false })
             height,
             width: "auto",
             display: "block",
-            // Invert the black PNG for dark backgrounds until we have a white variant.
-            filter: dark ? "invert(1) brightness(2)" : "none",
+            filter: useFilterInversion ? "invert(1) brightness(2)" : "none",
           }}
         />
       )}
@@ -37,7 +61,7 @@ export default function Logo({ size = "md", dark = false, showTagline = false })
           className="font-heading font-medium tracking-wide mt-1.5"
           style={{
             fontSize: tagFs,
-            color: dark ? "#94A3B8" : "#5B5B5B",
+            color: dark ? "rgba(255,255,255,0.75)" : taglineColor,
             letterSpacing: "0.08em",
             textTransform: "uppercase",
           }}

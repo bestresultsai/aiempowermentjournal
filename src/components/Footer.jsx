@@ -1,9 +1,17 @@
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import Logo from "./Logo";
 
 // Platform footer. Subtle, full-width, sits at the bottom of every page.
 // Designed to not compete with the page content above it.
+//
+// Hidden on auth pages — those use their own full-bleed layouts (e.g. the
+// two-column Login) where the global footer would clash visually.
+const HIDDEN_ON = ["/login", "/auth/"];
+
 export default function Footer() {
+  const { pathname } = useLocation();
+  if (HIDDEN_ON.some((p) => pathname === p || pathname.startsWith(p))) return null;
+
   const year = new Date().getFullYear();
 
   return (

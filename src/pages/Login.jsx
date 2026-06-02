@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import {
   Mail, ArrowRight, GraduationCap, NotebookPen, Trophy, CheckCircle2,
@@ -7,10 +7,23 @@ import Logo from "../components/Logo";
 import { sendMagicLink } from "../lib/api";
 import { HERO_GRADIENT } from "../lib/mockCohort";
 
+// localStorage flag — set once a user successfully requests a magic link.
+// Used to differentiate first-time vs returning visitors in the UI copy.
+const HAS_SIGNED_IN_KEY = "brai_has_signed_in";
+
 export default function Login() {
   const [email, setEmail] = useState("");
   const [status, setStatus] = useState("idle"); // idle | sending | sent | error
   const [errorMsg, setErrorMsg] = useState("");
+  const [hasVisited, setHasVisited] = useState(false);
+
+  useEffect(() => {
+    try {
+      setHasVisited(localStorage.getItem(HAS_SIGNED_IN_KEY) === "1");
+    } catch {
+      /* ignore */
+    }
+  }, []);
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -19,6 +32,12 @@ export default function Login() {
     try {
       await sendMagicLink(email.trim());
       setStatus("sent");
+      // Mark this device as having signed in so the next visit feels familiar.
+      try {
+        localStorage.setItem(HAS_SIGNED_IN_KEY, "1");
+      } catch {
+        /* ignore */
+      }
     } catch (err) {
       setErrorMsg(err.message);
       setStatus("error");
@@ -35,23 +54,34 @@ export default function Login() {
         >
           <div className="absolute inset-0 grain opacity-40 pointer-events-none" />
 
-          {/* Logo top */}
+          {/* Logo top (larger so it anchors the pane) */}
           <div className="relative flex items-center gap-3">
-            <Logo size="md" dark />
+            <Logo size="lg" dark />
           </div>
 
-          {/* Headline + bullets */}
+          {/* Headline + bullets — copy varies for first-time vs returning visitors */}
           <div className="relative max-w-md">
             <div className="inline-flex items-center gap-2 text-[11px] font-heading font-semibold tracking-[0.18em] uppercase text-white/70 mb-5">
               <span className="w-1.5 h-1.5 rounded-full bg-white" />
               BestResults.AI Platform
             </div>
             <h1 className="font-heading text-[42px] xl:text-[52px] leading-[1.04] font-extrabold mb-6">
-              Welcome back.<br />
-              <span className="text-white/65 font-light italic">Pick up where you left off.</span>
+              {hasVisited ? (
+                <>
+                  Welcome back.<br />
+                  <span className="text-white/65 font-light italic">Pick up where you left off.</span>
+                </>
+              ) : (
+                <>
+                  Welcome.<br />
+                  <span className="text-white/65 font-light italic">Your AI Empowerment journey starts here.</span>
+                </>
+              )}
             </h1>
             <p className="text-[15px] leading-relaxed text-white/80 mb-8">
-              Your cohort, your sessions, and every AI win you've shipped — all in one place.
+              {hasVisited
+                ? "Your cohort, your sessions, and every AI win you've shipped — all in one place."
+                : "Live cohort workshops, your AI Journal, and a clear path from your first prompt to your Black Belt."}
             </p>
 
             <ul className="space-y-3.5">
@@ -93,6 +123,7 @@ export default function Login() {
                 status={status}
                 errorMsg={errorMsg}
                 onSubmit={handleSubmit}
+                hasVisited={hasVisited}
               />
             )}
 
@@ -116,12 +147,12 @@ export default function Login() {
 
 // ---- Form state ----
 
-function FormState({ email, setEmail, status, errorMsg, onSubmit }) {
+function FormState({ email, setEmail, status, errorMsg, onSubmit, hasVisited }) {
   return (
     <>
-      <div className="h-eyebrow mb-2">Sign in</div>
+      <div className="h-eyebrow mb-2">{hasVisited ? "Sign back in" : "Get started"}</div>
       <h2 className="font-heading text-[30px] font-extrabold tracking-tight text-ink mb-2">
-        Welcome to the platform.
+        {hasVisited ? "Welcome back." : "Sign in to the platform."}
       </h2>
       <p className="text-[14px] text-ink-muted mb-8 leading-relaxed">
         Enter your email and we'll send you a one-tap magic link. No passwords to remember.
