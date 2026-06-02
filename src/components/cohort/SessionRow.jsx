@@ -58,10 +58,10 @@ export default function SessionRow({ session, cohortSlug, emphasized, meetingTim
             <StatusPill status={status} emphasized={emphasized} />
             {session.homeworkSubmitted ? (
               <Pill className="bg-emerald-50 text-emerald-700 border-emerald-200 inline-flex items-center gap-1">
-                <Check className="w-2.5 h-2.5" strokeWidth={3} /> HW
+                <Check className="w-2.5 h-2.5" strokeWidth={3} /> Homework Done
               </Pill>
             ) : status !== "locked" && session.homework?.prompt ? (
-              <Pill className="bg-amber-50 text-amber-700 border-amber-200">HW Due</Pill>
+              <Pill className="bg-amber-50 text-amber-700 border-amber-200">Homework Due</Pill>
             ) : null}
           </div>
           <h3

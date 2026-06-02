@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "./context/AuthContext";
 import DemoBanner from "./components/DemoBanner";
+import Footer from "./components/Footer";
 import Home from "./pages/Home";
 import Login from "./pages/Login";
 import AuthVerify from "./pages/AuthVerify";
@@ -27,6 +28,7 @@ export default function App() {
           <Route path="/cohort/:slug/session/:order" element={<SessionDetail />} />
           <Route path="/design/belts" element={<BeltsPreview />} />
         </Routes>
+        <Footer />
       </BrowserRouter>
     </AuthProvider>
   );
