@@ -67,7 +67,8 @@ export default function MissingHomeworkCard({ cohort }) {
 
         {/* Right — CTA */}
         <Link
-          to={`/cohort/${cohort.slug}/session/${oldest.order}?tab=homework`}
+          /* Generic session URL — keeps cohort slug out of the participant's address bar. */
+          to={`/session/${oldest.order}?tab=homework`}
           className="group inline-flex items-center gap-1.5 px-4 py-2.5 bg-ink text-white rounded-xl text-[13.5px] font-heading font-semibold hover:bg-brand-700 transition-colors duration-200 shrink-0"
         >
           Submit homework

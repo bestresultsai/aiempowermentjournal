@@ -64,6 +64,8 @@ export default function App() {
 
           {/* JOURNEY — workshop-focused */}
           <Route path="/journey" element={<JourneyPage />} />
+          {/* Generic session URL — resolves to the user's primary cohort */}
+          <Route path="/session/:order" element={<SessionDetail />} />
 
           {/* JOURNAL — gamified impact tracking */}
           <Route path="/journal" element={<JournalDashboard />} />

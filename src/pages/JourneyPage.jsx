@@ -106,7 +106,7 @@ export default function JourneyPage() {
                   <div key={s.order} className="animate-fade-in-up" style={{ animationDelay: `${Math.min(idx * 40, 320)}ms` }}>
                     <SessionRow
                       session={s}
-                      cohortSlug={cohort.slug}
+                      /* generic URL → /session/:order (no cohortSlug prop) */
                       meetingTime={cohort.meetingTime}
                       emphasized={s.order === upNextOrder && sessionFilter !== "completed"}
                     />

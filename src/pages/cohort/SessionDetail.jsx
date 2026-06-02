@@ -10,12 +10,32 @@ import SessionPlayer from "../../components/cohort/SessionPlayer";
 import HomeworkSubmission from "../../components/cohort/HomeworkSubmission";
 import { BELT_COLORS } from "../../lib/mockCohort";
 import { getSession, markSessionComplete, submitHomework } from "../../lib/cohortApi";
+import { useResolvedCohort } from "../../lib/cohortResolution";
 
+// SessionDetail is mounted on two URL patterns:
+//   /session/:order               — generic; cohort resolves via useResolvedCohort()
+//   /cohort/:slug/session/:order  — explicit; cohort comes from the URL slug
+//
+// `scopedToCohort` flag drives Prev/Next URL generation so links match the
+// pattern the user came from.
 export default function SessionDetail() {
-  const { slug, order } = useParams();
+  const params = useParams();
+  const { order } = params;
+  const explicitSlug = params.slug;
+  const scopedToCohort = !!explicitSlug;
+
+  // When generic, resolve the cohort the same way Home and Journey do.
+  const { cohort: resolvedCohort } = useResolvedCohort();
+  const slug = explicitSlug || resolvedCohort?.slug;
+
   const navigate = useNavigate();
   const qc = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
+
+  // Helper that mints a session URL matching the current pattern.
+  const sessionUrl = (n) =>
+    scopedToCohort ? `/cohort/${slug}/session/${n}` : `/session/${n}`;
+  const journeyUrl = scopedToCohort ? `/cohort/${slug}` : "/journey";
 
   // Honor ?tab=homework links (from NextMilestoneCard and email reminders).
   const initialTab = searchParams.get("tab") === "homework" || searchParams.get("tab") === "materials"
@@ -36,6 +56,7 @@ export default function SessionDetail() {
   const { data, isLoading, error } = useQuery({
     queryKey: ["cohort", slug, "session", order],
     queryFn: () => getSession(slug, order),
+    enabled: !!slug,
   });
 
   const complete = useMutation({
@@ -72,7 +93,7 @@ export default function SessionDetail() {
           <div className="absolute inset-0 grain opacity-30 pointer-events-none" />
           <div className="relative max-w-[960px] mx-auto px-6 lg:px-8 py-10 lg:py-12">
             <Link
-              to="/journey"
+              to={journeyUrl}
               className="inline-flex items-center gap-1.5 text-[12.5px] font-heading font-semibold opacity-80 hover:opacity-100 transition-opacity mb-5"
             >
               <ArrowLeft className="w-4 h-4" strokeWidth={2.5} />
@@ -172,9 +193,9 @@ export default function SessionDetail() {
                 pending={complete.isPending}
                 onNext={() => {
                   if (nextSession && nextSession.unlocked) {
-                    navigate(`/cohort/${slug}/session/${nextSession.order}`);
+                    navigate(sessionUrl(nextSession.order));
                   } else {
-                    navigate("/journey");
+                    navigate(journeyUrl);
                   }
                 }}
               />
@@ -187,12 +208,12 @@ export default function SessionDetail() {
                 <SessionNavLink
                   direction="prev"
                   session={prevSession}
-                  cohortSlug={slug}
+                  sessionUrl={sessionUrl}
                 />
                 <SessionNavLink
                   direction="next"
                   session={nextSession}
-                  cohortSlug={slug}
+                  sessionUrl={sessionUrl}
                 />
               </div>
             </section>
@@ -434,7 +455,7 @@ function CompletionFooter({ session, belt, onMark, pending, onNext }) {
 // Prev / Next session navigation cards
 // ---------------------------------------------------------------------------
 
-function SessionNavLink({ direction, session, cohortSlug }) {
+function SessionNavLink({ direction, session, sessionUrl }) {
   if (!session) {
     return (
       <div className="rounded-2xl border border-dashed border-soft bg-surface-paper p-5 flex items-center gap-3 opacity-60">
@@ -492,7 +513,7 @@ function SessionNavLink({ direction, session, cohortSlug }) {
 
   return (
     <Link
-      to={`/cohort/${cohortSlug}/session/${session.order}`}
+      to={sessionUrl(session.order)}
       className="group rounded-2xl border border-soft bg-surface-card hover:shadow-lift hover:-translate-y-0.5 hover:border-brand-500/40 transition-all duration-200 p-5"
     >
       {inner}

@@ -35,8 +35,13 @@ export default function CohortLanding() {
   const { user } = useAuth();
   const [sessionFilter, setSessionFilter] = useState("all");
 
-  const { cohort, isLoading, error } = useResolvedCohort();
+  const { cohort, isLoading, error, resolvedFrom } = useResolvedCohort();
   const { entries: cohortEntries, isLoading: entriesLoading, error: entriesError } = useCohortEntries(cohort);
+
+  // Only generate slug-scoped session URLs when an admin/multi-cohort user is
+  // explicitly viewing /cohort/:slug. Otherwise use the generic /session/:n URL
+  // so participants never see internal slugs in their address bar.
+  const sessionLinkCohortSlug = resolvedFrom === "url" ? cohort?.slug : null;
 
   const filteredSessions = (() => {
     if (!cohort?.sessions) return [];
@@ -122,7 +127,7 @@ export default function CohortLanding() {
                   <div key={s.order} className="animate-fade-in-up" style={{ animationDelay: `${Math.min(idx * 40, 320)}ms` }}>
                     <SessionRow
                       session={s}
-                      cohortSlug={cohort.slug}
+                      cohortSlug={sessionLinkCohortSlug}
                       meetingTime={cohort.meetingTime}
                       emphasized={s.order === upNextOrder && sessionFilter !== "completed"}
                     />

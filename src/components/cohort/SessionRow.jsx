@@ -5,12 +5,22 @@ import { BELT_COLORS } from "../../lib/mockCohort";
 // A single row in the cohort's curriculum list.
 // Belt color + session NUMBER always shown on the left badge (never replaced).
 // Status (check, chevron, lock) lives on the right.
+//
+// URL behavior:
+//   • If `cohortSlug` is passed → scoped link `/cohort/:slug/session/:order`
+//     (used when an admin views a specific cohort via /cohort/:slug)
+//   • If `cohortSlug` is omitted → generic link `/session/:order`
+//     (used everywhere participants navigate from Home/Journey)
 export default function SessionRow({ session, cohortSlug, emphasized, meetingTime }) {
   const status = session.completed
     ? "completed"
     : session.unlocked
       ? "available"
       : "locked";
+
+  const sessionHref = cohortSlug
+    ? `/cohort/${cohortSlug}/session/${session.order}`
+    : `/session/${session.order}`;
 
   const belt = session.belt && BELT_COLORS[session.belt] ? BELT_COLORS[session.belt] : null;
   const beltLabel = session.belt ? `${session.belt} Belt` : `Session ${session.order}`;
@@ -27,7 +37,7 @@ export default function SessionRow({ session, cohortSlug, emphasized, meetingTim
 
   return (
     <Link
-      to={`/cohort/${cohortSlug}/session/${session.order}`}
+      to={sessionHref}
       className={
         "group block transition-all duration-200 " +
         (emphasized
