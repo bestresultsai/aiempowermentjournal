@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import {
-  Plus, LayoutDashboard, GraduationCap, NotebookPen, LogOut, ChevronDown, Check,
+  Plus, Home as HomeIcon, GraduationCap, NotebookPen, Library,
+  ChevronDown, Check, Settings as SettingsIcon, LogOut, User,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { getUserCohorts, STORAGE_KEY } from "../lib/cohortResolution";
@@ -12,7 +13,6 @@ export default function NavBar() {
   const navigate = useNavigate();
   const { pathname } = useLocation();
 
-  // Available cohorts for the user (used by the switcher).
   const userCohorts = getUserCohorts(user);
   const showSwitcher = userCohorts.length > 1;
 
@@ -21,33 +21,38 @@ export default function NavBar() {
     navigate("/");
   }
 
-  const initials = (user?.name || "?")
-    .split(" ").filter(Boolean).slice(0, 2)
-    .map((w) => w[0]).join("").toUpperCase();
-
   return (
     <header className="sticky top-0 z-40 backdrop-blur-md bg-surface-paper/90 border-b border-soft">
       <div className="max-w-[1180px] mx-auto px-6 lg:px-8 h-36 flex items-center justify-between">
-        <div className="flex items-center gap-10">
-          <Link to={user ? "/journey" : "/"} className="flex items-center transition-transform duration-200 hover:scale-[1.02]">
+        <div className="flex items-center gap-8">
+          <Link
+            to={user ? "/home" : "/"}
+            className="flex items-center transition-transform duration-200 hover:scale-[1.02]"
+          >
             <Logo size="lg" />
           </Link>
           {user && (
             <nav className="hidden md:flex items-center gap-1 text-[15px]">
               <NavLink
-                to="/journey"
-                active={pathname === "/journey" || pathname.startsWith("/cohort")}
-                icon={GraduationCap}
+                to="/home"
+                active={pathname === "/home" || pathname.startsWith("/cohort")}
+                icon={HomeIcon}
               >
-                Journey
+                Home
               </NavLink>
               {showSwitcher && <CohortSwitcher cohorts={userCohorts} />}
+              <NavLink to="/journey" active={pathname === "/journey"} icon={GraduationCap}>
+                Journey
+              </NavLink>
               <NavLink
                 to="/journal"
                 active={pathname === "/journal" || pathname === "/journal/result"}
-                icon={LayoutDashboard}
+                icon={NotebookPen}
               >
                 Journal
+              </NavLink>
+              <NavLink to="/resources" active={pathname.startsWith("/resources")} icon={Library}>
+                Resources
               </NavLink>
             </nav>
           )}
@@ -63,22 +68,7 @@ export default function NavBar() {
           </Link>
 
           {user ? (
-            <div className="flex items-center gap-3 pl-4 border-l border-soft">
-              <div className="w-11 h-11 rounded-full bg-brand-700 text-white flex items-center justify-center text-[14px] font-heading font-bold transition-transform duration-200 hover:scale-105 cursor-pointer">
-                {initials}
-              </div>
-              <div className="hidden sm:flex flex-col leading-tight">
-                <span className="text-[14px] font-heading font-semibold text-ink">
-                  {user.name?.split(" ")[0]}
-                </span>
-                <button
-                  onClick={handleLogout}
-                  className="text-[11px] text-ink-subtle hover:text-ink transition-colors text-left inline-flex items-center gap-1"
-                >
-                  <LogOut className="w-2.5 h-2.5" /> Sign out
-                </button>
-              </div>
-            </div>
+            <UserMenu user={user} onLogout={handleLogout} />
           ) : (
             <Link
               to="/login"
@@ -111,17 +101,88 @@ function NavLink({ to, active, icon: Icon, children }) {
 }
 
 // ---------------------------------------------------------------------------
-// Cohort switcher — only renders when the user has 2+ cohorts. Lets them
-// jump between cohorts without leaving the Journey page. Updates the
-// `STORAGE_KEY` localStorage so /journey resolves to the picked cohort next
-// time too.
+// User menu — avatar dropdown with Settings + Sign out.
 // ---------------------------------------------------------------------------
+
+function UserMenu({ user, onLogout }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    function onDocClick(e) {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+    }
+    document.addEventListener("mousedown", onDocClick);
+    return () => document.removeEventListener("mousedown", onDocClick);
+  }, []);
+
+  const initials = (user.name || "?")
+    .split(" ").filter(Boolean).slice(0, 2)
+    .map((w) => w[0]).join("").toUpperCase();
+
+  return (
+    <div ref={ref} className="relative pl-4 border-l border-soft">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="flex items-center gap-2.5 group"
+      >
+        <div className="w-11 h-11 rounded-full bg-brand-700 text-white flex items-center justify-center text-[14px] font-heading font-bold transition-transform duration-200 group-hover:scale-105">
+          {initials}
+        </div>
+        <div className="hidden sm:flex flex-col items-start leading-tight">
+          <span className="text-[14px] font-heading font-semibold text-ink">
+            {user.name?.split(" ")[0]}
+          </span>
+          <span className="text-[11px] text-ink-subtle inline-flex items-center gap-0.5">
+            Menu <ChevronDown className={"w-3 h-3 transition-transform duration-200 " + (open ? "rotate-180" : "")} strokeWidth={2.5} />
+          </span>
+        </div>
+      </button>
+
+      {open && (
+        <div className="absolute top-full right-0 mt-2 min-w-[240px] rounded-xl bg-surface-card border border-soft shadow-lift overflow-hidden z-50 animate-fade-in-up">
+          <div className="px-4 py-3 border-b border-soft">
+            <div className="text-[13.5px] font-heading font-bold text-ink truncate">{user.name}</div>
+            <div className="text-[11.5px] text-ink-muted truncate mt-0.5">{user.email}</div>
+          </div>
+          <button
+            onClick={() => { setOpen(false); navigate("/settings"); }}
+            className="w-full px-4 py-2.5 text-left text-[13.5px] font-heading font-medium text-ink hover:bg-surface-soft transition-colors inline-flex items-center gap-2.5"
+          >
+            <User className="w-4 h-4 text-ink-muted" strokeWidth={2} />
+            View profile
+          </button>
+          <button
+            onClick={() => { setOpen(false); navigate("/settings"); }}
+            className="w-full px-4 py-2.5 text-left text-[13.5px] font-heading font-medium text-ink hover:bg-surface-soft transition-colors inline-flex items-center gap-2.5"
+          >
+            <SettingsIcon className="w-4 h-4 text-ink-muted" strokeWidth={2} />
+            Settings
+          </button>
+          <div className="border-t border-soft" />
+          <button
+            onClick={() => { setOpen(false); onLogout(); }}
+            className="w-full px-4 py-2.5 text-left text-[13.5px] font-heading font-medium text-ink hover:bg-surface-soft transition-colors inline-flex items-center gap-2.5"
+          >
+            <LogOut className="w-4 h-4 text-ink-muted" strokeWidth={2} />
+            Sign out
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Cohort switcher — visible only for users with 2+ cohorts.
+// ---------------------------------------------------------------------------
+
 function CohortSwitcher({ cohorts }) {
   const [open, setOpen] = useState(false);
   const navigate = useNavigate();
   const ref = useRef(null);
 
-  // Click-outside to close.
   useEffect(() => {
     function onDocClick(e) {
       if (ref.current && !ref.current.contains(e.target)) setOpen(false);
@@ -141,11 +202,7 @@ function CohortSwitcher({ cohorts }) {
   })();
 
   function selectCohort(slug) {
-    try {
-      window.localStorage.setItem(STORAGE_KEY, slug);
-    } catch {
-      /* ignore */
-    }
+    try { window.localStorage.setItem(STORAGE_KEY, slug); } catch {}
     setOpen(false);
     navigate(`/cohort/${slug}`);
   }
@@ -170,12 +227,10 @@ function CohortSwitcher({ cohorts }) {
             <button
               key={c.slug}
               onClick={() => selectCohort(c.slug)}
-              className="w-full text-left px-4 py-3 hover:bg-surface-soft transition-colors flex items-start gap-3 group"
+              className="w-full text-left px-4 py-3 hover:bg-surface-soft transition-colors flex items-start gap-3"
             >
               <div className="flex-1 min-w-0">
-                <div className="text-[13.5px] font-heading font-bold text-ink truncate">
-                  {c.name}
-                </div>
+                <div className="text-[13.5px] font-heading font-bold text-ink truncate">{c.name}</div>
                 <div className="text-[11.5px] text-ink-muted mt-0.5">
                   {c.methodName} · {c.programCode}
                 </div>

@@ -7,10 +7,10 @@ export default function Home() {
   const { user, loading } = useAuth();
   const navigate = useNavigate();
 
-  // Logged-in users → Journey (their cohort home).
+  // Logged-in users → /home (the comprehensive cohort overview).
   useEffect(() => {
     if (!loading && user) {
-      navigate("/journey", { replace: true });
+      navigate("/home", { replace: true });
     }
   }, [user, loading, navigate]);
 
