@@ -7,6 +7,7 @@ import WelcomeBanner from "../../components/WelcomeBanner";
 import CohortHero from "../../components/cohort/CohortHero";
 import FacilitatorCard from "../../components/cohort/FacilitatorCard";
 import NextLiveSessionCard from "../../components/cohort/NextLiveSessionCard";
+import MissingHomeworkCard from "../../components/cohort/MissingHomeworkCard";
 import NextMilestoneCard from "../../components/cohort/NextMilestoneCard";
 import SessionRow from "../../components/cohort/SessionRow";
 import CohortStats from "../../components/cohort/CohortStats";
@@ -83,7 +84,8 @@ export default function CohortLanding() {
 
         {cohort && (
           <>
-            {/* Row 1 — Hero (left, 60%) + Facilitator card (right, 40%) */}
+            {/* ==================== HERO ROW ==================== */}
+            {/* Hero (60%) + Facilitator card (40%) — establishes cohort identity. */}
             <section className="grid lg:grid-cols-[1.4fr_1fr] gap-4 items-stretch">
               <div className="animate-fade-in-up">
                 <CohortHero cohort={cohort} />
@@ -94,21 +96,22 @@ export default function CohortLanding() {
               />
             </section>
 
-            {/* Row 2 — Next Live Session (full width, prominent) */}
+            {/* ==================== AI EMPOWERMENT JOURNEY ==================== */}
+            {/* Workshop curriculum — live sessions, homework, attendance/progress. */}
             <NextLiveSessionCard cohort={cohort} />
-
-            {/* Row 3 — Gamified Journal CTA (full width, like the progress band) */}
-            <div className="mt-6">
-              <JournalGameCard entries={cohortEntries} currentUserEmail={user?.email} />
-            </div>
-
-            {/* Row 4 — Progress */}
+            <MissingHomeworkCard cohort={cohort} />
             <div className="animate-fade-in-up delay-300">
               <ProgressBand cohort={cohort} currentBelt={currentBelt} />
             </div>
 
-            <NextMilestoneCard cohort={cohort} />
+            {/* ==================== AI EMPOWERMENT JOURNAL ==================== */}
+            {/* Gamified impact tracking — entries, streaks, badges. */}
+            <div className="mt-6">
+              <JournalGameCard entries={cohortEntries} currentUserEmail={user?.email} />
+            </div>
+            <NextMilestoneCard entries={cohortEntries} currentUserEmail={user?.email} />
 
+            {/* ==================== NDA + DETAIL ==================== */}
             {cohort.ndaRequired && <NDABanner />}
 
             <section className="mt-12 animate-fade-in-up delay-500">
