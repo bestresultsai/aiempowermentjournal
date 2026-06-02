@@ -60,7 +60,7 @@ export default async function handler(req) {
           html: `
             <div style="font-family: 'DM Sans', system-ui, sans-serif; max-width: 500px; margin: 0 auto; padding: 40px 20px;">
               <div style="text-align: center; margin-bottom: 30px;">
-                <img src="https://48031831.fs1.hubspotusercontent-na1.net/hubfs/48031831/Brand/BRAI%20Logo%20Black.png" alt="BestResults.AI" height="36" style="height: 36px; width: auto; display: inline-block;" />
+                <img src="${APP_URL}/brand/horizontal-color-no-tagline.svg" alt="BestResults.AI" height="36" style="height: 36px; width: auto; display: inline-block;" />
               </div>
               <h2 style="color: #0F172A; font-size: 20px; margin-bottom: 16px;">Hi ${userName},</h2>
               <p style="color: #64748B; font-size: 15px; line-height: 1.6;">Click the button below to sign in to the BestResults.AI platform.</p>

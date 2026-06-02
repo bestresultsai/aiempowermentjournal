@@ -1,23 +1,23 @@
 import { useState } from "react";
 
 // ---------------------------------------------------------------------------
-// Canonical BRAI logos.
+// Canonical BRAI logos — self-hosted SVGs in public/brand/.
+// All variants live in that folder; swap to a different one if a context calls
+// for it (e.g. stacked vs horizontal, with/without tagline, grey for muted).
 //
-// `BRAND_LOGO_URL`       — black wordmark on transparent background.
-//                          Used on light surfaces (default).
-// `BRAND_LOGO_WHITE_URL` — white wordmark on transparent background.
-//                          Used on dark surfaces (Login left pane, etc).
-//
-// Both should be PNGs with TRANSPARENT backgrounds. When you have the proper
-// transparent variants ready, just swap these URLs — every consumer of <Logo>
-// picks them up automatically.
+// Available variants (all transparent background, vector):
+//   horizontal-color.svg              — color, with tagline
+//   horizontal-color-no-tagline.svg   — color, no tagline   (← default light)
+//   horizontal-grey-no-tagline.svg    — grey, no tagline
+//   horizontal-white-no-tagline.svg   — white, no tagline   (← default dark)
+//   stacked-black.svg                 — black, stacked, with tagline
+//   stacked-color.svg                 — color, stacked, with tagline
+//   stacked-white.svg                 — white, stacked, with tagline
+//   stacked-color-no-tagline.svg      — color, stacked, no tagline
+//   stacked-white-no-tagline.svg      — white, stacked, no tagline
 // ---------------------------------------------------------------------------
-export const BRAND_LOGO_URL =
-  "https://48031831.fs1.hubspotusercontent-na1.net/hubfs/48031831/Brand/BRAI%20Logo%20Black.png";
-
-// TODO: Replace with the real transparent-bg white PNG when available.
-// Until then, we fall back to the black logo + CSS filter inversion on dark surfaces.
-export const BRAND_LOGO_WHITE_URL = BRAND_LOGO_URL;
+export const BRAND_LOGO_URL       = "/brand/horizontal-color-no-tagline.svg";
+export const BRAND_LOGO_WHITE_URL = "/brand/horizontal-white-no-tagline.svg";
 
 const HAS_REAL_WHITE = BRAND_LOGO_WHITE_URL !== BRAND_LOGO_URL;
 
