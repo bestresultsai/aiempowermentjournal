@@ -56,8 +56,8 @@ export function getUserCohorts(user) {
   // Multi-cohort demo (?demo=multi) — show all three demo cohorts so the
   // switcher renders with multiple options to choose from.
   if (isMultiCohortDemo()) {
-    return DEMO_COHORTS.map(({ slug, name, programCode, methodName }) => ({
-      slug, name, programCode, methodName,
+    return DEMO_COHORTS.map(({ slug, name, programCode, methodName, organization }) => ({
+      slug, name, programCode, methodName, organization,
     }));
   }
 
@@ -68,6 +68,7 @@ export function getUserCohorts(user) {
       name: MOCK_COHORT.name,
       programCode: MOCK_COHORT.programCode,
       methodName: MOCK_COHORT.methodName,
+      organization: MOCK_COHORT.organization,
     },
   ];
 }

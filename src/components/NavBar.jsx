@@ -64,7 +64,6 @@ export default function NavBar() {
               >
                 Home
               </NavLink>
-              {showSwitcher && <CohortSwitcher cohorts={userCohorts} />}
               <NavLink to="/journey" active={pathname === "/journey"} icon={GraduationCap}>
                 Journey
               </NavLink>
@@ -90,6 +89,11 @@ export default function NavBar() {
             <Plus className="w-4 h-4 text-brand-600 transition-transform duration-200 group-hover:rotate-90" strokeWidth={2.5} />
             New Entry
           </Link>
+
+          {/* Cohort switcher — only renders for users with 2+ cohorts, sits
+              right next to the profile so it reads as "which identity am I
+              viewing as right now" rather than as a primary nav item. */}
+          {user && showSwitcher && <CohortSwitcher cohorts={userCohorts} />}
 
           {user ? (
             <UserMenu user={user} onLogout={handleLogout} />
@@ -233,17 +237,32 @@ function CohortSwitcher({ cohorts }) {
 
   const current = cohorts.find((c) => c.slug === currentSlug) || cohorts[0];
 
+  // Pick the most distinguishing short label: the org's shortName ("IAHE",
+  // "Mayo Clinic", "UCLA"). Falls back to programCode if no org is set.
+  const triggerLabel =
+    current?.organization?.shortName || current?.programCode || "Cohort";
+
   return (
     <div ref={ref} className="relative">
       <button
         onClick={() => setOpen((o) => !o)}
-        className="ml-1 px-2.5 py-1.5 rounded-lg text-[12px] font-heading font-semibold text-ink-muted hover:bg-ink/5 hover:text-ink transition-all duration-200 inline-flex items-center gap-1.5"
+        className="hidden lg:inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-surface-soft border border-soft hover:bg-white hover:border-brand-500 transition-all duration-200"
       >
-        <span className="text-ink-subtle">{current?.programCode || "·"}</span>
-        <ChevronDown className={"w-3 h-3 transition-transform duration-200 " + (open ? "rotate-180" : "")} strokeWidth={2.5} />
+        <div className="flex flex-col items-start leading-none">
+          <span className="text-[9px] font-heading font-bold uppercase tracking-wider text-ink-subtle">
+            Cohort
+          </span>
+          <span className="text-[13px] font-heading font-semibold text-ink mt-0.5 max-w-[120px] truncate">
+            {triggerLabel}
+          </span>
+        </div>
+        <ChevronDown
+          className={"w-3.5 h-3.5 text-ink-muted transition-transform duration-200 " + (open ? "rotate-180" : "")}
+          strokeWidth={2.5}
+        />
       </button>
       {open && (
-        <div className="absolute top-full mt-2 left-0 min-w-[260px] rounded-xl bg-surface-card border border-soft shadow-lift overflow-hidden z-50 animate-fade-in-up">
+        <div className="absolute top-full mt-2 right-0 min-w-[280px] rounded-xl bg-surface-card border border-soft shadow-lift overflow-hidden z-50 animate-fade-in-up">
           <div className="px-4 py-2.5 text-[10px] font-heading font-bold uppercase tracking-wider text-ink-subtle border-b border-soft">
             Switch cohort
           </div>
@@ -254,8 +273,10 @@ function CohortSwitcher({ cohorts }) {
               className="w-full text-left px-4 py-3 hover:bg-surface-soft transition-colors flex items-start gap-3"
             >
               <div className="flex-1 min-w-0">
-                <div className="text-[13.5px] font-heading font-bold text-ink truncate">{c.name}</div>
-                <div className="text-[11.5px] text-ink-muted mt-0.5">
+                <div className="text-[13.5px] font-heading font-bold text-ink truncate">
+                  {c.organization?.shortName || c.name}
+                </div>
+                <div className="text-[11.5px] text-ink-muted mt-0.5 truncate">
                   {c.methodName} · {c.programCode}
                 </div>
               </div>
