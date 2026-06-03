@@ -16,20 +16,44 @@ export default function NavBar() {
   const userCohorts = getUserCohorts(user);
   const showSwitcher = userCohorts.length > 1;
 
+  // Shrink-on-scroll: compress the header height + logo size once the user
+  // scrolls past a small threshold so the page content gets more room.
+  const [scrolled, setScrolled] = useState(false);
+  useEffect(() => {
+    function onScroll() {
+      setScrolled(window.scrollY > 24);
+    }
+    onScroll(); // initialize for cases where the page loads scrolled
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
   function handleLogout() {
     logout();
     navigate("/");
   }
 
   return (
-    <header className="sticky top-0 z-40 backdrop-blur-md bg-surface-paper/90 border-b border-soft">
-      <div className="max-w-[1180px] mx-auto px-6 lg:px-8 h-36 flex items-center justify-between">
+    <header
+      className={
+        "sticky top-0 z-40 backdrop-blur-md bg-surface-paper/90 border-b border-soft " +
+        "transition-shadow duration-300 " +
+        (scrolled ? "shadow-card" : "shadow-none")
+      }
+    >
+      <div
+        className={
+          "max-w-[1180px] mx-auto px-6 lg:px-8 flex items-center justify-between " +
+          "transition-[height] duration-300 ease-out " +
+          (scrolled ? "h-20" : "h-36")
+        }
+      >
         <div className="flex items-center gap-8">
           <Link
             to={user ? "/home" : "/"}
             className="flex items-center transition-transform duration-200 hover:scale-[1.02]"
           >
-            <Logo size="lg" />
+            <Logo size={scrolled ? "md" : "lg"} />
           </Link>
           {user && (
             <nav className="hidden md:flex items-center gap-1 text-[15px]">

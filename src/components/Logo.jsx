@@ -53,6 +53,9 @@ export default function Logo({ size = "md", dark = false, showTagline = false })
             width: "auto",
             display: "block",
             filter: useFilterInversion ? "invert(1) brightness(2)" : "none",
+            // Smooth resize when a parent toggles the `size` prop (e.g. NavBar
+            // shrink-on-scroll, responsive layout changes).
+            transition: "height 300ms ease-out",
           }}
         />
       )}
