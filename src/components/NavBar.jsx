@@ -92,11 +92,19 @@ export default function NavBar() {
 
           {/* Cohort switcher — only renders for users with 2+ cohorts, sits
               right next to the profile so it reads as "which identity am I
-              viewing as right now" rather than as a primary nav item. */}
-          {user && showSwitcher && <CohortSwitcher cohorts={userCohorts} />}
+              viewing as right now" rather than as a primary nav item. When
+              visible, it owns the vertical separator that splits the nav
+              cluster from the identity cluster. */}
+          {user && showSwitcher && (
+            <CohortSwitcher cohorts={userCohorts} withDivider />
+          )}
 
           {user ? (
-            <UserMenu user={user} onLogout={handleLogout} />
+            <UserMenu
+              user={user}
+              onLogout={handleLogout}
+              withDivider={!showSwitcher}
+            />
           ) : (
             <Link
               to="/login"
@@ -132,7 +140,7 @@ function NavLink({ to, active, icon: Icon, children }) {
 // User menu — avatar dropdown with Settings + Sign out.
 // ---------------------------------------------------------------------------
 
-function UserMenu({ user, onLogout }) {
+function UserMenu({ user, onLogout, withDivider = true }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
   const navigate = useNavigate();
@@ -150,7 +158,13 @@ function UserMenu({ user, onLogout }) {
     .map((w) => w[0]).join("").toUpperCase();
 
   return (
-    <div ref={ref} className="relative pl-4 border-l border-soft">
+    <div
+      ref={ref}
+      className={
+        "relative " +
+        (withDivider ? "pl-4 border-l border-soft" : "")
+      }
+    >
       <button
         onClick={() => setOpen((o) => !o)}
         className="flex items-center gap-2.5 group"
@@ -206,7 +220,7 @@ function UserMenu({ user, onLogout }) {
 // Cohort switcher — visible only for users with 2+ cohorts.
 // ---------------------------------------------------------------------------
 
-function CohortSwitcher({ cohorts }) {
+function CohortSwitcher({ cohorts, withDivider = false }) {
   const [open, setOpen] = useState(false);
   const navigate = useNavigate();
   const ref = useRef(null);
@@ -243,7 +257,13 @@ function CohortSwitcher({ cohorts }) {
     current?.organization?.shortName || current?.programCode || "Cohort";
 
   return (
-    <div ref={ref} className="relative">
+    <div
+      ref={ref}
+      className={
+        "relative " +
+        (withDivider ? "pl-4 border-l border-soft" : "")
+      }
+    >
       <button
         onClick={() => setOpen((o) => !o)}
         className="hidden lg:inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-surface-soft border border-soft hover:bg-white hover:border-brand-500 transition-all duration-200"
