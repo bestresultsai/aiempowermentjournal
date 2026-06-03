@@ -1,16 +1,20 @@
 import { User, Briefcase, Linkedin } from "lucide-react";
 import { FormField } from "./FormField";
 import PhotoUpload from "./PhotoUpload";
+import { getInitialsForUser } from "../../lib/userDisplay";
 
 // ---------------------------------------------------------------------------
 // Step 2 — Profile. Captures name + role + LinkedIn + headshot.
-// `form` and `update(field, value)` come from the parent wizard.
+// `form` and `update(field, value)` come from the parent wizard. `email` is
+// used as a fallback when the name field is still empty so the avatar bubble
+// shows a friendly letter instead of "?". `namePrefilled` is true when the
+// parent guessed the name from the email — we surface a small hint so the
+// user knows to double-check it.
 // ---------------------------------------------------------------------------
 
-export default function StepProfile({ form, update }) {
-  const initials = (form.name || "?")
-    .split(" ").filter(Boolean).slice(0, 2)
-    .map((w) => w[0]).join("").toUpperCase();
+export default function StepProfile({ form, update, email, namePrefilled }) {
+  // Best-effort initials: form.name first, else derived from email, else "?".
+  const initials = getInitialsForUser({ name: form.name, email });
 
   return (
     <div className="space-y-7">
@@ -45,6 +49,11 @@ export default function StepProfile({ form, update }) {
           onChange={(v) => update("name", v)}
           placeholder="Josue Acuna"
           required
+          hint={
+            namePrefilled
+              ? "We guessed this from your email — double-check and edit if needed."
+              : undefined
+          }
         />
         <FormField
           label="Role / Title"

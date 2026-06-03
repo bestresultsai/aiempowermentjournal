@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { ArrowLeft, ArrowRight, Check, Loader2 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { saveOnboarding } from "../lib/onboardingApi";
+import { deriveFullNameFromEmail } from "../lib/userDisplay";
 import Logo from "../components/Logo";
 import StepperHeader from "../components/onboarding/StepperHeader";
 import StepWelcome from "../components/onboarding/StepWelcome";
@@ -28,17 +29,28 @@ export default function WelcomeWizard() {
   const { user, completeOnboarding } = useAuth();
   const navigate = useNavigate();
 
+  // If we don't have a name on the user yet, try to guess one from the email
+  // local part ("jane.smith@x.com" → "Jane Smith"). The user can confirm or
+  // correct on Step 2; we never advance without an explicit name.
+  const guessedName = deriveFullNameFromEmail(user?.email);
+
   const [step, setStep] = useState(1);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
   const [form, setForm] = useState({
-    name: user?.name || "",
+    name: user?.name || guessedName || "",
     title: user?.title || "",
     linkedin: user?.linkedin || "",
     headshotUrl: user?.headshotUrl || null,
     whyAi: user?.whyAi || "",
     mainGoal: user?.mainGoal || "",
   });
+
+  // True when the name field is currently showing an email-derived guess
+  // (i.e. user had no name on record and the guess is still untouched). Used
+  // to surface a small "double-check this" hint on Step 2.
+  const namePrefilled =
+    !!guessedName && !user?.name && form.name === guessedName;
 
   function update(field, value) {
     setForm((f) => ({ ...f, [field]: value }));
@@ -91,7 +103,10 @@ export default function WelcomeWizard() {
     }
   }
 
-  const firstName = (user?.name || form.name || "").split(" ")[0] || "";
+  // Step 1's greeting prefers whatever's currently in the form (which already
+  // folds in the email-derived guess when no name was on record). Falls back
+  // cleanly to "" so StepWelcome shows the generic "Welcome to BRAI." line.
+  const firstName = (form.name || user?.name || "").trim().split(/\s+/)[0] || "";
 
   return (
     <div className="min-h-screen bg-surface-paper flex flex-col">
@@ -113,7 +128,14 @@ export default function WelcomeWizard() {
           {/* Active step content */}
           <div key={step} className="animate-fade-in-up">
             {step === 1 && <StepWelcome firstName={firstName} />}
-            {step === 2 && <StepProfile form={form} update={update} />}
+            {step === 2 && (
+              <StepProfile
+                form={form}
+                update={update}
+                email={user?.email}
+                namePrefilled={namePrefilled}
+              />
+            )}
             {step === 3 && <StepGoals form={form} update={update} />}
           </div>
 
