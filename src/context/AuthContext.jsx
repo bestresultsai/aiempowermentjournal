@@ -15,11 +15,16 @@ export function AuthProvider({ children }) {
   const [isDemo, setIsDemo] = useState(false);
 
   useEffect(() => {
-    // 1) If the URL has `?demo=1`, activate demo mode (persisted in localStorage).
+    // 1) If the URL has `?demo=...`, activate demo mode (persisted in localStorage).
+    //    ?demo=1     → single-cohort participant
+    //    ?demo=multi → multi-cohort participant (shows the cohort switcher)
     try {
       const params = new URLSearchParams(window.location.search);
-      if (params.get("demo") === "1") {
-        activateDemoMode();
+      const demoParam = params.get("demo");
+      if (demoParam === "1") {
+        activateDemoMode({ multi: false });
+      } else if (demoParam === "multi") {
+        activateDemoMode({ multi: true });
       }
     } catch {
       /* ignore — server-side render or no DOM */

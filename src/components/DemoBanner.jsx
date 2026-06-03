@@ -1,11 +1,13 @@
 import { Eye, X } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
+import { isMultiCohortDemo } from "../lib/demoData";
 
 // Renders only when demo mode is active. Tells the viewer they're in preview
 // mode and gives them a quick exit.
 export default function DemoBanner() {
   const { isDemo, exitDemo } = useAuth();
   if (!isDemo) return null;
+  const multi = isMultiCohortDemo();
 
   function handleExit() {
     exitDemo();
@@ -30,10 +32,10 @@ export default function DemoBanner() {
         <div className="flex items-center gap-2">
           <Eye className="w-3.5 h-3.5" strokeWidth={2.5} />
           <span className="font-semibold tracking-tight">
-            Preview mode
+            Preview mode {multi ? "(multi-cohort)" : ""}
           </span>
           <span className="text-violet-700/80 hidden sm:inline">
-            · You're viewing the platform as a signed-in participant. Data shown is mock data.
+            · You're viewing the platform as a {multi ? "multi-cohort participant" : "signed-in participant"}. Data shown is mock data.
           </span>
         </div>
         <button

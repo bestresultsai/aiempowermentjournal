@@ -1,11 +1,12 @@
 // ---------------------------------------------------------------------------
 // Demo / preview mode.
-// Visiting any URL with `?demo=1` activates demo mode: a fake "Josue Acuna"
-// user is signed in, and the cohort dashboard is populated with mock journal
-// entries scoped to that user (so the streak badge + cohort metrics light up).
+// Visiting URLs with a `?demo=` query param activates demo mode:
+//   ?demo=1      → single-cohort participant ("Josue Acuna" in IAHE cohort)
+//   ?demo=multi  → multi-cohort participant — same user, but enrolled in 3
+//                  cohorts. Used to preview the cohort switcher in NavBar.
 //
-// Demo mode is intended for design previews. It's NOT a real auth path —
-// nothing about it touches the magic-link / JWT / Notion auth flow.
+// In all demo modes the data is mocked locally — nothing touches the real
+// magic-link / JWT / Notion auth flow.
 // ---------------------------------------------------------------------------
 
 export const DEMO_USER = {
@@ -188,24 +189,81 @@ export const DEMO_JOURNAL_ENTRIES = [
 ];
 
 // ---------------------------------------------------------------------------
+// Multi-cohort demo identity.
+//
+// Three mock cohorts used by ?demo=multi. They all map back to MOCK_COHORT's
+// session data in mock mode (so navigating into any of them shows a working
+// cohort page). What differs is the cohort identity — name, organization,
+// program. Enough to make the switcher feel real.
+// ---------------------------------------------------------------------------
+export const DEMO_COHORTS = [
+  {
+    slug: "iahe-aiew3-2026q1",
+    name: "AIEW3 — IAHE Cohort",
+    methodName: "AI Empowerment Method",
+    programCode: "AIEW3",
+    organization: {
+      id: "org-iahe",
+      name: "International Alliance of Healthcare Educators",
+      shortName: "IAHE",
+    },
+  },
+  {
+    slug: "mayo-aiew3-2026q2",
+    name: "AIEW3 — Mayo Clinic Education",
+    methodName: "AI Empowerment Method",
+    programCode: "AIEW3",
+    organization: {
+      id: "org-mayo",
+      name: "Mayo Clinic Education",
+      shortName: "Mayo Clinic",
+    },
+  },
+  {
+    slug: "ucla-apfw-2026q1",
+    name: "APFW — UCLA Health",
+    methodName: "AI Empowerment Method",
+    programCode: "APFW",
+    organization: {
+      id: "org-ucla",
+      name: "UCLA Health",
+      shortName: "UCLA",
+    },
+  },
+];
+
+// ---------------------------------------------------------------------------
 // Demo mode helpers
 // ---------------------------------------------------------------------------
 
 const STORAGE_KEY = "brai_demo_mode";
+// Stored values:
+//   "1"     — standard single-cohort demo
+//   "multi" — multi-cohort demo (switcher visible)
 
 export function isDemoModeActive() {
   if (typeof window === "undefined") return false;
   try {
-    return window.localStorage.getItem(STORAGE_KEY) === "1";
+    const v = window.localStorage.getItem(STORAGE_KEY);
+    return v === "1" || v === "multi";
   } catch {
     return false;
   }
 }
 
-export function activateDemoMode() {
+export function isMultiCohortDemo() {
+  if (typeof window === "undefined") return false;
+  try {
+    return window.localStorage.getItem(STORAGE_KEY) === "multi";
+  } catch {
+    return false;
+  }
+}
+
+export function activateDemoMode({ multi = false } = {}) {
   if (typeof window === "undefined") return;
   try {
-    window.localStorage.setItem(STORAGE_KEY, "1");
+    window.localStorage.setItem(STORAGE_KEY, multi ? "multi" : "1");
   } catch {
     /* ignore */
   }

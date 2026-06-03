@@ -11,6 +11,7 @@ import {
   MOCK_HOMEWORK,
   isSessionUnlocked,
 } from "./mockCohort";
+import { DEMO_COHORTS } from "./demoData";
 
 export const USE_MOCK_DATA = true; // flip to false once Notion DBs + functions are live
 
@@ -69,14 +70,28 @@ function decorateSessions(sessions, completed, homeworkByOrder) {
 
 export async function getCohortBySlug(slug) {
   if (USE_MOCK_DATA) {
-    if (slug !== MOCK_COHORT.slug) {
+    // Multi-cohort demo: every demo cohort slug serves MOCK_COHORT's content
+    // with the demo cohort's identity overlaid (name, slug, organization).
+    const demoCohort = DEMO_COHORTS.find((c) => c.slug === slug);
+    const isKnownSlug = slug === MOCK_COHORT.slug || !!demoCohort;
+    if (!isKnownSlug) {
       throw new Error(`Cohort "${slug}" not found (mock mode).`);
     }
+
     const key = currentUserKey();
     const completed = inMemoryProgress[key] || [];
     const homework = inMemoryHomework[key] || {};
+
     return {
       ...MOCK_COHORT,
+      // Overlay the requested demo cohort's identity, if applicable.
+      ...(demoCohort ? {
+        slug: demoCohort.slug,
+        name: demoCohort.name,
+        methodName: demoCohort.methodName,
+        programCode: demoCohort.programCode,
+        organization: demoCohort.organization,
+      } : {}),
       sessions: decorateSessions(MOCK_SESSIONS, completed, homework),
       progress: {
         completed: completed.length,

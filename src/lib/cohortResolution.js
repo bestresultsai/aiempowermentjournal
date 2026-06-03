@@ -21,7 +21,7 @@ import { MOCK_COHORT } from "./mockCohort";
 import { getCohortBySlug } from "./cohortApi";
 import { getEntries } from "./api";
 import { useAuth } from "../context/AuthContext";
-import { DEMO_JOURNAL_ENTRIES } from "./demoData";
+import { DEMO_JOURNAL_ENTRIES, DEMO_COHORTS, isMultiCohortDemo } from "./demoData";
 
 export const STORAGE_KEY = "brai_last_cohort_slug";
 
@@ -52,7 +52,16 @@ function writeLastSlug(slug) {
 // ---------------------------------------------------------------------------
 export function getUserCohorts(user) {
   if (!user) return [];
-  // In mock mode, every user has access to MOCK_COHORT.
+
+  // Multi-cohort demo (?demo=multi) — show all three demo cohorts so the
+  // switcher renders with multiple options to choose from.
+  if (isMultiCohortDemo()) {
+    return DEMO_COHORTS.map(({ slug, name, programCode, methodName }) => ({
+      slug, name, programCode, methodName,
+    }));
+  }
+
+  // Default: a single mock cohort (whatever MOCK_COHORT is configured as).
   return [
     {
       slug: MOCK_COHORT.slug,
