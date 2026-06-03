@@ -3,6 +3,14 @@ import { AuthProvider } from "./context/AuthContext";
 import DemoBanner from "./components/DemoBanner";
 import Footer from "./components/Footer";
 import OnboardingGate from "./components/OnboardingGate";
+import AdminGate from "./components/AdminGate";
+import AdminLayout from "./pages/admin/AdminLayout";
+import AdminDashboard from "./pages/admin/AdminDashboard";
+import AdminCohorts from "./pages/admin/AdminCohorts";
+import AdminCohortRoster from "./pages/admin/AdminCohortRoster";
+import AdminHomeworkQueue from "./pages/admin/AdminHomeworkQueue";
+import AdminParticipants from "./pages/admin/AdminParticipants";
+import AdminParticipantDetail from "./pages/admin/AdminParticipantDetail";
 import Home from "./pages/Home";
 import Login from "./pages/Login";
 import AuthVerify from "./pages/AuthVerify";
@@ -40,6 +48,13 @@ import BeltsPreview from "./pages/design/BeltsPreview";
 //
 //   /cohort/:slug             Explicit cohort access — same UI as /home
 //   /cohort/:slug/session/:n  Session detail
+//
+//   /admin                    ADMIN PANEL — gated by AdminGate (role !== participant)
+//   /admin/cohorts            List of cohorts in scope
+//   /admin/cohorts/:slug      Roster: participants + per-belt progress
+//   /admin/homework           Pending homework queue (read-only round 1)
+//   /admin/users              Directory of all participants in scope (with search)
+//   /admin/users/:id          Participant detail — profile + progress + submissions
 //
 //   /dashboard                Legacy redirect → /journal
 //   /design/belts             Design reference page
@@ -82,6 +97,23 @@ export default function App() {
             {/* Explicit cohort routes (admin / multi-cohort) */}
             <Route path="/cohort/:slug" element={<CohortLanding />} />
             <Route path="/cohort/:slug/session/:order" element={<SessionDetail />} />
+
+            {/* ADMIN PANEL — role-gated; participants are redirected to /home */}
+            <Route
+              path="/admin"
+              element={
+                <AdminGate>
+                  <AdminLayout />
+                </AdminGate>
+              }
+            >
+              <Route index element={<AdminDashboard />} />
+              <Route path="cohorts" element={<AdminCohorts />} />
+              <Route path="cohorts/:slug" element={<AdminCohortRoster />} />
+              <Route path="homework" element={<AdminHomeworkQueue />} />
+              <Route path="users" element={<AdminParticipants />} />
+              <Route path="users/:id" element={<AdminParticipantDetail />} />
+            </Route>
 
             {/* Legacy + utility */}
             <Route path="/dashboard" element={<Navigate to="/journal" replace />} />

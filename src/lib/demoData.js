@@ -17,7 +17,8 @@
 export const DEMO_USER = {
   email: "josueacuna@me.com",
   name: "Josue Acuna",
-  role: "individual",
+  // Default to participant — admin demo modes override this via DEMO_USER_OVERRIDES.
+  role: "participant",
   organization: "BestResults.AI",
   assignedCohorts: ["IAHE Cohort"],
   userId: "demo-josue-acuna",
@@ -251,43 +252,62 @@ export const DEMO_COHORTS = [
 
 const STORAGE_KEY = "brai_demo_mode";
 // Stored values:
-//   "1"          — standard single-cohort demo
-//   "multi"      — multi-cohort demo (switcher visible)
-//   "onboarding" — un-onboarded participant (lands on /welcome)
+//   "1"           — single-cohort participant
+//   "multi"       — multi-cohort participant (switcher visible)
+//   "onboarding"  — un-onboarded participant (lands on /welcome)
+//   "super"       — Super Admin (Josue) — sees every cohort + org
+//   "admin"       — BRAI staff admin — sees every cohort + org
+//   "org"         — IAHE org admin — sees only IAHE cohorts
+//   "facilitator" — Mike Burkesmith — sees only IAHE cohort, can grade
+
+const VALID_VALUES = new Set([
+  "1", "multi", "onboarding", "super", "admin", "org", "facilitator",
+]);
 
 export function isDemoModeActive() {
   if (typeof window === "undefined") return false;
   try {
+    return VALID_VALUES.has(window.localStorage.getItem(STORAGE_KEY));
+  } catch {
+    return false;
+  }
+}
+
+function readDemoFlavor() {
+  if (typeof window === "undefined") return null;
+  try {
     const v = window.localStorage.getItem(STORAGE_KEY);
-    return v === "1" || v === "multi" || v === "onboarding";
+    return VALID_VALUES.has(v) ? v : null;
   } catch {
-    return false;
+    return null;
   }
 }
 
-export function isMultiCohortDemo() {
-  if (typeof window === "undefined") return false;
-  try {
-    return window.localStorage.getItem(STORAGE_KEY) === "multi";
-  } catch {
-    return false;
-  }
+export function isMultiCohortDemo()  { return readDemoFlavor() === "multi"; }
+export function isOnboardingDemo()   { return readDemoFlavor() === "onboarding"; }
+export function isSuperDemo()        { return readDemoFlavor() === "super"; }
+export function isAdminDemo()        { return readDemoFlavor() === "admin"; }
+export function isOrgDemo()          { return readDemoFlavor() === "org"; }
+export function isFacilitatorDemo()  { return readDemoFlavor() === "facilitator"; }
+
+// True when the demo flavor is any admin-tier role.
+export function isAnyAdminDemo() {
+  const v = readDemoFlavor();
+  return v === "super" || v === "admin" || v === "org" || v === "facilitator";
 }
 
-// True when the URL/localStorage flag asks to preview the onboarding wizard
-// (so the AuthContext can mark the demo user as un-onboarded).
-export function isOnboardingDemo() {
-  if (typeof window === "undefined") return false;
-  try {
-    return window.localStorage.getItem(STORAGE_KEY) === "onboarding";
-  } catch {
-    return false;
-  }
-}
+export function getDemoFlavor() { return readDemoFlavor(); }
 
-export function activateDemoMode({ multi = false, onboarding = false } = {}) {
+export function activateDemoMode({
+  multi = false,
+  onboarding = false,
+  role = null, // "super" | "admin" | "org" | "facilitator"
+} = {}) {
   if (typeof window === "undefined") return;
-  const value = onboarding ? "onboarding" : multi ? "multi" : "1";
+  let value = "1";
+  if (role && ["super", "admin", "org", "facilitator"].includes(role)) value = role;
+  else if (onboarding) value = "onboarding";
+  else if (multi) value = "multi";
   try {
     window.localStorage.setItem(STORAGE_KEY, value);
   } catch {
@@ -303,3 +323,47 @@ export function deactivateDemoMode() {
     /* ignore */
   }
 }
+
+// ---------------------------------------------------------------------------
+// Demo user templates for each admin role. The AuthContext spreads DEMO_USER
+// then merges these to override role + scoping fields.
+// ---------------------------------------------------------------------------
+
+export const DEMO_USER_OVERRIDES = {
+  super: {
+    name: "Josue Acuna",
+    email: "josueacuna@me.com",
+    title: "Founder, BestResults.AI",
+    organization: "BestResults.AI",
+    role: "super",
+    assignedOrgs: [],
+    assignedCohorts: [],
+  },
+  admin: {
+    name: "Alex Rivera",
+    email: "alex.rivera@bestresults.ai",
+    title: "Head of Programs",
+    organization: "BestResults.AI",
+    role: "admin",
+    assignedOrgs: [],
+    assignedCohorts: [],
+  },
+  org: {
+    name: "Sarah Patel",
+    email: "sarah.patel@iahe.org",
+    title: "Director of Education",
+    organization: "IAHE",
+    role: "org",
+    assignedOrgs: ["org-iahe"],
+    assignedCohorts: [],
+  },
+  facilitator: {
+    name: "Mike Burkesmith",
+    email: "mike@bestresults.ai",
+    title: "Lead Facilitator, BestResults.AI",
+    organization: "BestResults.AI",
+    role: "facilitator",
+    assignedOrgs: [],
+    assignedCohorts: ["iahe-aiew3-2026q1"],
+  },
+};

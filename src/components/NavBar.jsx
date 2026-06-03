@@ -2,10 +2,11 @@ import { useState, useRef, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import {
   Plus, Home as HomeIcon, GraduationCap, NotebookPen, Library,
-  ChevronDown, Check, LogOut, User,
+  ChevronDown, Check, LogOut, User, Shield,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { getUserCohorts, STORAGE_KEY } from "../lib/cohortResolution";
+import { canAccessAdmin } from "../lib/adminRoles";
 import Logo from "./Logo";
 
 export default function NavBar() {
@@ -195,6 +196,17 @@ function UserMenu({ user, onLogout, withDivider = true }) {
             <User className="w-4 h-4 text-ink-muted" strokeWidth={2} />
             View profile
           </button>
+          {/* Admin entry — only visible to users with a role above participant.
+              Routes to /admin which is itself gated by AdminGate. */}
+          {canAccessAdmin(user) && (
+            <button
+              onClick={() => { setOpen(false); navigate("/admin"); }}
+              className="w-full px-4 py-2.5 text-left text-[13.5px] font-heading font-medium text-ink hover:bg-surface-soft transition-colors inline-flex items-center gap-2.5"
+            >
+              <Shield className="w-4 h-4 text-brand-600" strokeWidth={2} />
+              Admin panel
+            </button>
+          )}
           <div className="border-t border-soft" />
           <button
             onClick={() => { setOpen(false); onLogout(); }}

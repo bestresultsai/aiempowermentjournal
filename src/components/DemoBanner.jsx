@@ -1,28 +1,53 @@
 import { Eye, X } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
-import { isMultiCohortDemo, isOnboardingDemo } from "../lib/demoData";
+import {
+  isMultiCohortDemo,
+  isOnboardingDemo,
+  isSuperDemo,
+  isAdminDemo,
+  isOrgDemo,
+  isFacilitatorDemo,
+} from "../lib/demoData";
 
 // Renders only when demo mode is active. Tells the viewer they're in preview
 // mode and gives them a quick exit.
 export default function DemoBanner() {
   const { isDemo, exitDemo } = useAuth();
   if (!isDemo) return null;
-  const multi = isMultiCohortDemo();
-  const onboarding = isOnboardingDemo();
-  const flavorLabel = onboarding
-    ? "(onboarding)"
-    : multi
-      ? "(multi-cohort)"
-      : "";
-  const flavorBody = onboarding
-    ? "You're previewing the first-login wizard. Complete it to land on /home."
-    : multi
-      ? "You're viewing the platform as a multi-cohort participant. Data shown is mock data."
-      : "You're viewing the platform as a signed-in participant. Data shown is mock data.";
+
+  const flavor = (() => {
+    if (isSuperDemo()) return {
+      label: "(Super Admin)",
+      body: "You're viewing the platform as a Super Admin — every org, every cohort.",
+    };
+    if (isAdminDemo()) return {
+      label: "(Admin)",
+      body: "You're viewing the platform as BRAI staff admin — every org, every cohort.",
+    };
+    if (isOrgDemo()) return {
+      label: "(Org Admin)",
+      body: "You're viewing as an IAHE org admin — scoped to IAHE cohorts only.",
+    };
+    if (isFacilitatorDemo()) return {
+      label: "(Facilitator)",
+      body: "You're viewing as Mike Burkesmith — scoped to assigned cohorts.",
+    };
+    if (isOnboardingDemo()) return {
+      label: "(onboarding)",
+      body: "You're previewing the first-login wizard. Complete it to land on /home.",
+    };
+    if (isMultiCohortDemo()) return {
+      label: "(multi-cohort)",
+      body: "You're viewing as a multi-cohort participant. Data shown is mock data.",
+    };
+    return {
+      label: "",
+      body: "You're viewing as a signed-in participant. Data shown is mock data.",
+    };
+  })();
 
   function handleExit() {
     exitDemo();
-    // Strip ?demo=1 from the URL so a refresh doesn't reactivate demo mode.
     try {
       const url = new URL(window.location.href);
       url.searchParams.delete("demo");
@@ -30,7 +55,6 @@ export default function DemoBanner() {
     } catch {
       /* ignore */
     }
-    // Reload so the page renders the signed-out state cleanly.
     window.location.reload();
   }
 
@@ -43,10 +67,10 @@ export default function DemoBanner() {
         <div className="flex items-center gap-2">
           <Eye className="w-3.5 h-3.5" strokeWidth={2.5} />
           <span className="font-semibold tracking-tight">
-            Preview mode {flavorLabel}
+            Preview mode {flavor.label}
           </span>
           <span className="text-violet-700/80 hidden sm:inline">
-            · {flavorBody}
+            · {flavor.body}
           </span>
         </div>
         <button

@@ -2,8 +2,11 @@ import { createContext, useContext, useState, useEffect } from "react";
 import { getMe } from "../lib/api";
 import {
   DEMO_USER,
+  DEMO_USER_OVERRIDES,
   isDemoModeActive,
   isOnboardingDemo,
+  isAnyAdminDemo,
+  getDemoFlavor,
   activateDemoMode,
   deactivateDemoMode,
 } from "../lib/demoData";
@@ -17,9 +20,15 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     // 1) If the URL has `?demo=...`, activate demo mode (persisted in localStorage).
-    //    ?demo=1           → single-cohort participant
-    //    ?demo=multi       → multi-cohort participant (shows cohort switcher)
-    //    ?demo=onboarding  → un-onboarded participant (lands on /welcome)
+    //    Participant flavors:
+    //      ?demo=1           → single-cohort participant
+    //      ?demo=multi       → multi-cohort participant
+    //      ?demo=onboarding  → un-onboarded participant (lands on /welcome)
+    //    Admin flavors:
+    //      ?demo=super       → Super Admin (sees everything)
+    //      ?demo=admin       → BRAI staff admin (sees everything)
+    //      ?demo=org         → IAHE org admin (scoped to IAHE)
+    //      ?demo=facilitator → Mike (scoped to assigned cohorts)
     try {
       const params = new URLSearchParams(window.location.search);
       const demoParam = params.get("demo");
@@ -29,17 +38,21 @@ export function AuthProvider({ children }) {
         activateDemoMode({ multi: true });
       } else if (demoParam === "onboarding") {
         activateDemoMode({ onboarding: true });
+      } else if (["super", "admin", "org", "facilitator"].includes(demoParam)) {
+        activateDemoMode({ role: demoParam });
       }
     } catch {
       /* ignore — server-side render or no DOM */
     }
 
-    // 2) If demo mode is active (URL just set it, OR a prior visit set it),
-    //    short-circuit auth with the demo user. For the onboarding flavor,
-    //    strip the profile fields so the wizard has a clean slate to demo.
+    // 2) If demo mode is active, short-circuit auth with a demo user shaped
+    //    to whichever flavor is set.
     if (isDemoModeActive()) {
+      const flavor = getDemoFlavor();
+      let demoUser = DEMO_USER;
+
       if (isOnboardingDemo()) {
-        setUser({
+        demoUser = {
           ...DEMO_USER,
           title: "",
           linkedin: "",
@@ -47,10 +60,18 @@ export function AuthProvider({ children }) {
           mainGoal: "",
           headshotUrl: null,
           onboardingCompletedAt: null,
-        });
-      } else {
-        setUser(DEMO_USER);
+        };
+      } else if (isAnyAdminDemo() && DEMO_USER_OVERRIDES[flavor]) {
+        // Admin flavors completely replace identity (name/email/role/scope)
+        // so the demo feels like a different person logging in.
+        demoUser = {
+          ...DEMO_USER,
+          ...DEMO_USER_OVERRIDES[flavor],
+          userId: `demo-${flavor}`,
+        };
       }
+
+      setUser(demoUser);
       setIsDemo(true);
       setLoading(false);
       return;
