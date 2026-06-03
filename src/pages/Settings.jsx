@@ -20,12 +20,14 @@ export default function Settings() {
   const fileRef = useRef(null);
 
   // Form state — seeded from the JWT user, then editable in-place.
+  // Reads onboarding-captured fields (title, headshot, etc.) so the profile
+  // page shows what the user filled in via /welcome.
   const [form, setForm] = useState({
     name: user?.name || "",
-    title: "",                              // not in JWT today; editable
+    title: user?.title || "",               // captured during onboarding
     phone: "",                              // not in JWT today; editable
     organization: user?.organization || "",
-    headshotPreview: null,
+    headshotPreview: user?.headshotUrl || null,
   });
   const [saveState, setSaveState] = useState("idle"); // idle | saving | saved
 

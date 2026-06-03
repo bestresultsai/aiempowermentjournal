@@ -1,14 +1,19 @@
 // ---------------------------------------------------------------------------
 // Demo / preview mode.
 // Visiting URLs with a `?demo=` query param activates demo mode:
-//   ?demo=1      → single-cohort participant ("Josue Acuna" in IAHE cohort)
-//   ?demo=multi  → multi-cohort participant — same user, but enrolled in 3
-//                  cohorts. Used to preview the cohort switcher in NavBar.
+//   ?demo=1           → single-cohort participant ("Josue Acuna", IAHE cohort)
+//   ?demo=multi       → multi-cohort participant — enrolled in 3 cohorts.
+//                       Used to preview the cohort switcher in NavBar.
+//   ?demo=onboarding  → fresh participant who has NOT completed onboarding.
+//                       Lands on /welcome so the wizard can be previewed.
 //
 // In all demo modes the data is mocked locally — nothing touches the real
 // magic-link / JWT / Notion auth flow.
 // ---------------------------------------------------------------------------
 
+// Base demo user — already onboarded. The AuthContext clones this and clears
+// `onboardingCompletedAt` when the URL says ?demo=onboarding so the gate
+// fires the wizard instead of the normal app.
 export const DEMO_USER = {
   email: "josueacuna@me.com",
   name: "Josue Acuna",
@@ -16,6 +21,14 @@ export const DEMO_USER = {
   organization: "BestResults.AI",
   assignedCohorts: ["IAHE Cohort"],
   userId: "demo-josue-acuna",
+  // Profile fields the wizard captures. Pre-populated for the already-onboarded
+  // demo flows so /settings has something to render.
+  title: "Director of AI Strategy",
+  linkedin: "https://www.linkedin.com/in/josueacuna/",
+  whyAi: "I want healthcare educators to redirect 10+ hours a week away from busywork and toward the things only humans can do.",
+  mainGoal: "Ship our internal AI Empowerment platform and onboard the first 30 IAHE participants before the end of Q2.",
+  headshotUrl: null, // when null, NavBar/Settings fall back to initials avatar
+  onboardingCompletedAt: "2026-05-15T10:30:00.000Z",
 };
 
 // Helper — N days ago as ISO date.
@@ -238,14 +251,15 @@ export const DEMO_COHORTS = [
 
 const STORAGE_KEY = "brai_demo_mode";
 // Stored values:
-//   "1"     — standard single-cohort demo
-//   "multi" — multi-cohort demo (switcher visible)
+//   "1"          — standard single-cohort demo
+//   "multi"      — multi-cohort demo (switcher visible)
+//   "onboarding" — un-onboarded participant (lands on /welcome)
 
 export function isDemoModeActive() {
   if (typeof window === "undefined") return false;
   try {
     const v = window.localStorage.getItem(STORAGE_KEY);
-    return v === "1" || v === "multi";
+    return v === "1" || v === "multi" || v === "onboarding";
   } catch {
     return false;
   }
@@ -260,10 +274,22 @@ export function isMultiCohortDemo() {
   }
 }
 
-export function activateDemoMode({ multi = false } = {}) {
-  if (typeof window === "undefined") return;
+// True when the URL/localStorage flag asks to preview the onboarding wizard
+// (so the AuthContext can mark the demo user as un-onboarded).
+export function isOnboardingDemo() {
+  if (typeof window === "undefined") return false;
   try {
-    window.localStorage.setItem(STORAGE_KEY, multi ? "multi" : "1");
+    return window.localStorage.getItem(STORAGE_KEY) === "onboarding";
+  } catch {
+    return false;
+  }
+}
+
+export function activateDemoMode({ multi = false, onboarding = false } = {}) {
+  if (typeof window === "undefined") return;
+  const value = onboarding ? "onboarding" : multi ? "multi" : "1";
+  try {
+    window.localStorage.setItem(STORAGE_KEY, value);
   } catch {
     /* ignore */
   }

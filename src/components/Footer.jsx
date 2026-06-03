@@ -6,7 +6,7 @@ import Logo from "./Logo";
 //
 // Hidden on auth pages — those use their own full-bleed layouts (e.g. the
 // two-column Login) where the global footer would clash visually.
-const HIDDEN_ON = ["/login", "/auth/"];
+const HIDDEN_ON = ["/login", "/auth/", "/welcome"];
 
 export default function Footer() {
   const { pathname } = useLocation();

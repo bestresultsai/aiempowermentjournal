@@ -3,6 +3,7 @@ import { getMe } from "../lib/api";
 import {
   DEMO_USER,
   isDemoModeActive,
+  isOnboardingDemo,
   activateDemoMode,
   deactivateDemoMode,
 } from "../lib/demoData";
@@ -16,8 +17,9 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     // 1) If the URL has `?demo=...`, activate demo mode (persisted in localStorage).
-    //    ?demo=1     → single-cohort participant
-    //    ?demo=multi → multi-cohort participant (shows the cohort switcher)
+    //    ?demo=1           → single-cohort participant
+    //    ?demo=multi       → multi-cohort participant (shows cohort switcher)
+    //    ?demo=onboarding  → un-onboarded participant (lands on /welcome)
     try {
       const params = new URLSearchParams(window.location.search);
       const demoParam = params.get("demo");
@@ -25,15 +27,30 @@ export function AuthProvider({ children }) {
         activateDemoMode({ multi: false });
       } else if (demoParam === "multi") {
         activateDemoMode({ multi: true });
+      } else if (demoParam === "onboarding") {
+        activateDemoMode({ onboarding: true });
       }
     } catch {
       /* ignore — server-side render or no DOM */
     }
 
     // 2) If demo mode is active (URL just set it, OR a prior visit set it),
-    //    short-circuit auth with the demo user.
+    //    short-circuit auth with the demo user. For the onboarding flavor,
+    //    strip the profile fields so the wizard has a clean slate to demo.
     if (isDemoModeActive()) {
-      setUser(DEMO_USER);
+      if (isOnboardingDemo()) {
+        setUser({
+          ...DEMO_USER,
+          title: "",
+          linkedin: "",
+          whyAi: "",
+          mainGoal: "",
+          headshotUrl: null,
+          onboardingCompletedAt: null,
+        });
+      } else {
+        setUser(DEMO_USER);
+      }
       setIsDemo(true);
       setLoading(false);
       return;
@@ -72,8 +89,38 @@ export function AuthProvider({ children }) {
     setIsDemo(false);
   }
 
+  // Called by the WelcomeWizard once the user finishes onboarding.
+  // Merges the captured profile fields onto the in-memory user and stamps
+  // `onboardingCompletedAt` so the gate stops redirecting to /welcome.
+  function completeOnboarding(profile) {
+    setUser((prev) =>
+      prev
+        ? {
+            ...prev,
+            ...profile,
+            onboardingCompletedAt: new Date().toISOString(),
+          }
+        : prev,
+    );
+  }
+
+  // Derived flag — true when we have a signed-in user who hasn't yet
+  // finished the welcome wizard. Used by <OnboardingGate>.
+  const needsOnboarding = !!user && !user.onboardingCompletedAt;
+
   return (
-    <AuthContext.Provider value={{ user, loading, isDemo, login, logout, exitDemo }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        loading,
+        isDemo,
+        needsOnboarding,
+        login,
+        logout,
+        exitDemo,
+        completeOnboarding,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );
