@@ -61,7 +61,7 @@ export default function Settings() {
         <NavBar />
         <main className="max-w-[1180px] mx-auto px-6 lg:px-8 py-16 text-center">
           <h2 className="font-heading text-[22px] font-extrabold text-ink mb-2">
-            You need to sign in to view Settings.
+            You need to sign in to view your profile.
           </h2>
           <Link
             to="/login"

@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import {
   Plus, Home as HomeIcon, GraduationCap, NotebookPen, Library,
-  ChevronDown, Check, Settings as SettingsIcon, LogOut, User,
+  ChevronDown, Check, LogOut, User,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { getUserCohorts, STORAGE_KEY } from "../lib/cohortResolution";
@@ -194,13 +194,6 @@ function UserMenu({ user, onLogout, withDivider = true }) {
           >
             <User className="w-4 h-4 text-ink-muted" strokeWidth={2} />
             View profile
-          </button>
-          <button
-            onClick={() => { setOpen(false); navigate("/settings"); }}
-            className="w-full px-4 py-2.5 text-left text-[13.5px] font-heading font-medium text-ink hover:bg-surface-soft transition-colors inline-flex items-center gap-2.5"
-          >
-            <SettingsIcon className="w-4 h-4 text-ink-muted" strokeWidth={2} />
-            Settings
           </button>
           <div className="border-t border-soft" />
           <button
