@@ -8,6 +8,7 @@ import AdminLayout from "./pages/admin/AdminLayout";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import AdminCohorts from "./pages/admin/AdminCohorts";
 import AdminCohortRoster from "./pages/admin/AdminCohortRoster";
+import AdminJournalDashboard from "./pages/admin/AdminJournalDashboard";
 import AdminHomeworkQueue from "./pages/admin/AdminHomeworkQueue";
 import AdminParticipants from "./pages/admin/AdminParticipants";
 import AdminParticipantDetail from "./pages/admin/AdminParticipantDetail";
@@ -52,6 +53,7 @@ import BeltsPreview from "./pages/design/BeltsPreview";
 //   /admin                    ADMIN PANEL — gated by AdminGate (role !== participant)
 //   /admin/cohorts            List of cohorts in scope
 //   /admin/cohorts/:slug      Roster: participants + per-belt progress
+//   /admin/journal            AI Journal dashboard — hours saved, leaderboard, stale
 //   /admin/homework           Pending homework queue (read-only round 1)
 //   /admin/users              Directory of all participants in scope (with search)
 //   /admin/users/:id          Participant detail — profile + progress + submissions
@@ -110,6 +112,7 @@ export default function App() {
               <Route index element={<AdminDashboard />} />
               <Route path="cohorts" element={<AdminCohorts />} />
               <Route path="cohorts/:slug" element={<AdminCohortRoster />} />
+              <Route path="journal" element={<AdminJournalDashboard />} />
               <Route path="homework" element={<AdminHomeworkQueue />} />
               <Route path="users" element={<AdminParticipants />} />
               <Route path="users/:id" element={<AdminParticipantDetail />} />

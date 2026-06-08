@@ -2,27 +2,43 @@ import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { Users, Search, ArrowRight } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
-import { getAccessibleCohortSlugs } from "../../lib/adminRoles";
+import { getAccessibleCohorts, getAccessibleCohortSlugs } from "../../lib/adminRoles";
 import { DEMO_COHORTS } from "../../lib/demoData";
 import { ADMIN_MOCK_PARTICIPANTS } from "../../lib/adminMockData";
 import { MOCK_SESSIONS } from "../../lib/mockCohort";
 
 // /admin/users — flat directory of all participants in scope, with a
-// lightweight search box.
+// search box and a cohort filter (All / IAHE / Mayo / UCLA — only those the
+// admin can see).
 export default function AdminParticipants() {
   const { user } = useAuth();
   const [q, setQ] = useState("");
+  // null = "All cohorts"; otherwise a specific cohort slug.
+  const [cohortFilter, setCohortFilter] = useState(null);
   const allowedSlugs = getAccessibleCohortSlugs(user, DEMO_COHORTS);
+  const accessibleCohorts = getAccessibleCohorts(user, DEMO_COHORTS);
 
   const cohortBySlug = useMemo(
     () => Object.fromEntries(DEMO_COHORTS.map((c) => [c.slug, c])),
     [],
   );
 
+  // Per-cohort participant counts for the filter chips.
+  const countsBySlug = useMemo(() => {
+    const counts = { __all__: 0 };
+    for (const p of ADMIN_MOCK_PARTICIPANTS) {
+      if (!allowedSlugs.includes(p.cohortSlug)) continue;
+      counts.__all__++;
+      counts[p.cohortSlug] = (counts[p.cohortSlug] || 0) + 1;
+    }
+    return counts;
+  }, [allowedSlugs]);
+
   const filtered = useMemo(() => {
     const lc = q.trim().toLowerCase();
     return ADMIN_MOCK_PARTICIPANTS
       .filter((p) => allowedSlugs.includes(p.cohortSlug))
+      .filter((p) => !cohortFilter || p.cohortSlug === cohortFilter)
       .filter((p) =>
         !lc ||
         p.name.toLowerCase().includes(lc) ||
@@ -30,7 +46,11 @@ export default function AdminParticipants() {
         (p.organization || "").toLowerCase().includes(lc),
       )
       .sort((a, b) => a.name.localeCompare(b.name));
-  }, [q, allowedSlugs]);
+  }, [q, allowedSlugs, cohortFilter]);
+
+  // Hide the filter row when the admin only has access to one cohort — it
+  // would just be "All" + that single chip, which is noise.
+  const showCohortFilter = accessibleCohorts.length > 1;
 
   return (
     <div className="space-y-6 animate-fade-in-up">
@@ -43,10 +63,35 @@ export default function AdminParticipants() {
             Participants
           </h1>
           <p className="text-[13px] text-ink-muted">
-            {filtered.length} {filtered.length === 1 ? "person" : "people"} across your scope.
+            {filtered.length} {filtered.length === 1 ? "person" : "people"}{" "}
+            {cohortFilter
+              ? `in ${cohortBySlug[cohortFilter]?.organization?.shortName || "this cohort"}`
+              : "across your scope"}
+            .
           </p>
         </div>
       </header>
+
+      {/* Cohort filter chips (only when admin can see more than one cohort) */}
+      {showCohortFilter && (
+        <div className="flex items-center gap-2 flex-wrap">
+          <FilterChip
+            active={cohortFilter === null}
+            onClick={() => setCohortFilter(null)}
+            label="All cohorts"
+            count={countsBySlug.__all__}
+          />
+          {accessibleCohorts.map((c) => (
+            <FilterChip
+              key={c.slug}
+              active={cohortFilter === c.slug}
+              onClick={() => setCohortFilter(c.slug)}
+              label={c.organization?.shortName || c.name}
+              count={countsBySlug[c.slug] || 0}
+            />
+          ))}
+        </div>
+      )}
 
       {/* Search */}
       <div className="relative">
@@ -96,10 +141,37 @@ export default function AdminParticipants() {
 
         {filtered.length === 0 && (
           <div className="p-8 text-center text-[13px] text-ink-muted">
-            No participants match "{q}".
+            {q
+              ? <>No participants match "{q}".</>
+              : "No participants in this cohort."}
           </div>
         )}
       </div>
     </div>
+  );
+}
+
+function FilterChip({ active, onClick, label, count }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={
+        "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12.5px] font-heading font-semibold transition-all duration-200 " +
+        (active
+          ? "bg-ink text-white"
+          : "bg-surface-card border border-soft text-ink-muted hover:text-ink hover:border-brand-500")
+      }
+    >
+      {label}
+      <span
+        className={
+          "inline-flex items-center justify-center min-w-[20px] px-1 rounded-full text-[10.5px] font-bold " +
+          (active ? "bg-white/15 text-white" : "bg-ink/5 text-ink-muted")
+        }
+      >
+        {count}
+      </span>
+    </button>
   );
 }

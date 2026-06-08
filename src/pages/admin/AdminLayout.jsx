@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
 import {
   LayoutDashboard, Users, BookCheck, GraduationCap, ArrowLeft,
-  Shield, LogOut, ChevronDown,
+  Shield, LogOut, ChevronDown, NotebookPen,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { getRoleLabel } from "../../lib/adminRoles";
@@ -23,6 +23,7 @@ import Logo from "../../components/Logo";
 const NAV = [
   { to: "/admin",            label: "Dashboard",    icon: LayoutDashboard, end: true },
   { to: "/admin/cohorts",    label: "Cohorts",      icon: GraduationCap },
+  { to: "/admin/journal",    label: "AI Journal",   icon: NotebookPen },
   { to: "/admin/homework",   label: "Homework",     icon: BookCheck },
   { to: "/admin/users",      label: "Participants", icon: Users },
 ];
@@ -169,6 +170,7 @@ function BreadCrumb({ path }) {
   const labels = {
     admin: "Admin",
     cohorts: "Cohorts",
+    journal: "AI Journal",
     homework: "Homework",
     users: "Participants",
   };

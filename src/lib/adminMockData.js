@@ -370,6 +370,34 @@ export function getScopeJournalStats(cohortSlugs) {
   };
 }
 
+// Leaderboard — top time-savers across scope.
+export function getTopContributorsInScope(cohortSlugs, limit = 5) {
+  const allowed = new Set(cohortSlugs);
+  return ADMIN_MOCK_PARTICIPANTS
+    .filter((p) => allowed.has(p.cohortSlug))
+    .map((p) => ({
+      id: p.id,
+      name: p.name,
+      title: p.title,
+      organization: p.organization,
+      cohortSlug: p.cohortSlug,
+      entriesCount: p.journalEntries?.length || 0,
+      minutesSaved: totalTimeSaved(p.journalEntries || []),
+    }))
+    .filter((p) => p.entriesCount > 0)
+    .sort((a, b) => b.minutesSaved - a.minutesSaved)
+    .slice(0, limit);
+}
+
+// Participants who haven't journaled in N+ days — useful for nudges.
+export function getStaleParticipantsInScope(cohortSlugs, daysThreshold = 14) {
+  const allowed = new Set(cohortSlugs);
+  return ADMIN_MOCK_PARTICIPANTS
+    .filter((p) => allowed.has(p.cohortSlug))
+    .filter((p) => (p.lastJournalDaysAgo ?? 0) > daysThreshold)
+    .sort((a, b) => (b.lastJournalDaysAgo ?? 0) - (a.lastJournalDaysAgo ?? 0));
+}
+
 // Most recent entries across scope (for the dashboard activity feed).
 export function getRecentEntriesInScope(cohortSlugs, limit = 6) {
   const allowed = new Set(cohortSlugs);
