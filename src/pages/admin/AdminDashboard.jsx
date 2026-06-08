@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom";
 import {
   GraduationCap, Users, BookCheck, NotebookPen, ArrowRight,
-  TrendingUp, Clock, Sparkles,
+  TrendingUp, Clock, Sparkles, AlertTriangle,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { getAccessibleCohorts, hasGlobalScope, getRoleLabel } from "../../lib/adminRoles";
@@ -12,6 +12,7 @@ import {
   getPendingHomework,
   getScopeJournalStats,
   getRecentEntriesInScope,
+  getAtRiskParticipants,
   formatMinutes,
   timeSavedFor,
   totalTimeSaved,
@@ -45,6 +46,7 @@ export default function AdminDashboard() {
   // AI Journal aggregates in scope.
   const journalStats = getScopeJournalStats(cohortSlugs);
   const recentEntries = getRecentEntriesInScope(cohortSlugs, 6);
+  const atRisk = getAtRiskParticipants(cohortSlugs);
 
   return (
     <div className="space-y-8 animate-fade-in-up">
@@ -96,6 +98,62 @@ export default function AdminDashboard() {
           accent="emerald"
         />
       </div>
+
+      {/* At-risk participants — combines stale journal, low progress, late homework
+          into one triage list so facilitators don't have to triangulate. */}
+      {atRisk.length > 0 && (
+        <section className="rounded-2xl bg-amber-50/40 border border-amber-100 p-5">
+          <div className="flex items-center justify-between gap-3 flex-wrap mb-3">
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center">
+                <AlertTriangle className="w-4.5 h-4.5" strokeWidth={2.25} />
+              </div>
+              <div>
+                <h2 className="font-heading text-[15px] font-extrabold text-ink">
+                  {atRisk.length} participant{atRisk.length === 1 ? "" : "s"} need attention
+                </h2>
+                <p className="text-[12px] text-ink-muted">
+                  Combined signal: stale journal, behind on belts, or homework stalled.
+                </p>
+              </div>
+            </div>
+          </div>
+          <div className="rounded-xl bg-surface-card border border-amber-100 overflow-hidden">
+            {atRisk.slice(0, 5).map((p) => (
+              <Link
+                key={p.id}
+                to={`/admin/users/${p.id}`}
+                className="group flex items-center gap-3 px-4 py-3 hover:bg-amber-50/60 transition-colors border-b border-amber-100/50 last:border-b-0"
+              >
+                <div className="w-9 h-9 rounded-full bg-brand-700 text-white flex items-center justify-center text-[11px] font-heading font-bold shrink-0">
+                  {p.name.split(" ").slice(0, 2).map((w) => w[0]).join("").toUpperCase()}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="font-heading text-[13.5px] font-bold text-ink truncate group-hover:text-brand-700 transition-colors">
+                    {p.name}
+                  </div>
+                  <div className="flex items-center gap-1.5 flex-wrap mt-1">
+                    {p.risks.map((r) => (
+                      <span
+                        key={r}
+                        className="text-[10.5px] font-heading font-semibold text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded"
+                      >
+                        {r}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+                <ArrowRight className="w-4 h-4 text-ink-subtle shrink-0 group-hover:text-brand-600 transition-colors" strokeWidth={2.5} />
+              </Link>
+            ))}
+          </div>
+          {atRisk.length > 5 && (
+            <div className="mt-3 text-[12px] text-ink-muted text-right">
+              + {atRisk.length - 5} more participant{atRisk.length - 5 === 1 ? "" : "s"}
+            </div>
+          )}
+        </section>
+      )}
 
       {/* Cohorts in scope */}
       <section>

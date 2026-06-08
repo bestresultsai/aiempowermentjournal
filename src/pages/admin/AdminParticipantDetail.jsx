@@ -1,7 +1,7 @@
 import { Link, Navigate, useParams } from "react-router-dom";
 import {
   ArrowLeft, Mail, Building2, BookCheck, Check, Clock, GraduationCap,
-  ExternalLink, NotebookPen, Sparkles,
+  ExternalLink, NotebookPen, Sparkles, Lightbulb, Target,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { getAccessibleCohortSlugs } from "../../lib/adminRoles";
@@ -75,6 +75,45 @@ export default function AdminParticipantDetail() {
           </div>
         </div>
       </header>
+
+      {/* Why they're here — onboarding payload from /welcome wizard.
+          Highest-leverage 1:1 prep material; surfaces the participant's own
+          words about goals + motivation. */}
+      {(p.whyAi || p.mainGoal) && (
+        <section className="rounded-2xl bg-gradient-to-br from-brand-50/60 to-surface-card border border-brand-100 p-5">
+          <div className="text-[10.5px] font-heading font-bold uppercase tracking-wider text-brand-700 mb-3">
+            Why they're here
+          </div>
+          <div className="grid md:grid-cols-2 gap-4">
+            {p.whyAi && (
+              <div className="flex items-start gap-3">
+                <div className="w-9 h-9 rounded-xl bg-brand-100 text-brand-700 flex items-center justify-center shrink-0">
+                  <Lightbulb className="w-4.5 h-4.5" strokeWidth={2.25} />
+                </div>
+                <div className="min-w-0">
+                  <div className="text-[11px] font-heading font-bold uppercase tracking-wider text-brand-700/80 mb-1">
+                    Their "why"
+                  </div>
+                  <p className="text-[13.5px] text-ink leading-relaxed">{p.whyAi}</p>
+                </div>
+              </div>
+            )}
+            {p.mainGoal && (
+              <div className="flex items-start gap-3">
+                <div className="w-9 h-9 rounded-xl bg-brand-100 text-brand-700 flex items-center justify-center shrink-0">
+                  <Target className="w-4.5 h-4.5" strokeWidth={2.25} />
+                </div>
+                <div className="min-w-0">
+                  <div className="text-[11px] font-heading font-bold uppercase tracking-wider text-brand-700/80 mb-1">
+                    Main goal
+                  </div>
+                  <p className="text-[13.5px] text-ink leading-relaxed">{p.mainGoal}</p>
+                </div>
+              </div>
+            )}
+          </div>
+        </section>
+      )}
 
       {/* Quick stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">

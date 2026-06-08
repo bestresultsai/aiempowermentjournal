@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom";
 import {
   NotebookPen, Clock, Users, Trophy, Sparkles, AlertCircle,
-  TrendingUp, Building2, ArrowRight,
+  TrendingUp, Building2, ArrowRight, Award, BarChart3,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { getAccessibleCohorts } from "../../lib/adminRoles";
@@ -13,10 +13,14 @@ import {
   getStaleParticipantsInScope,
   getScopeJournalStats,
   getParticipantsForCohort,
+  getBiggestWinsInScope,
+  getWeeklyTrend,
+  getEngagementSegments,
   timeSavedFor,
-  totalTimeSaved,
   formatMinutes,
 } from "../../lib/adminMockData";
+import WeeklyTrendChart from "../../components/admin/WeeklyTrendChart";
+import EngagementDonut from "../../components/admin/EngagementDonut";
 
 // ---------------------------------------------------------------------------
 // /admin/journal — the AI Journal dashboard.
@@ -38,6 +42,9 @@ export default function AdminJournalDashboard() {
   const topContributors = getTopContributorsInScope(cohortSlugs, 5);
   const stale = getStaleParticipantsInScope(cohortSlugs, 14);
   const recent = getRecentEntriesInScope(cohortSlugs, 20);
+  const biggestWins = getBiggestWinsInScope(cohortSlugs, 3);
+  const weeklyTrend = getWeeklyTrend(cohortSlugs, 8);
+  const segments = getEngagementSegments(cohortSlugs);
 
   // Per-cohort breakdown for the comparison table.
   const cohortRows = cohorts.map((c) => {
@@ -117,6 +124,69 @@ export default function AdminJournalDashboard() {
           isText
         />
       </div>
+
+      {/* Biggest wins — top 3 time-saving entries, called out as featured cards */}
+      {biggestWins.length > 0 && (
+        <section>
+          <SectionHeader title="Biggest wins this period" />
+          <div className="grid md:grid-cols-3 gap-3">
+            {biggestWins.map((w, i) => (
+              <Link
+                key={`${w.participantId}-${w.id}`}
+                to={`/admin/users/${w.participantId}`}
+                className="group rounded-2xl bg-gradient-to-br from-emerald-50 to-surface-card border border-emerald-100 p-5 hover:border-emerald-300 hover:shadow-card transition-all duration-200 flex flex-col"
+              >
+                <div className="flex items-center gap-2 mb-3">
+                  <div className={
+                    "w-8 h-8 rounded-full flex items-center justify-center font-heading font-extrabold text-[12px] " +
+                    (i === 0 ? "bg-amber-100 text-amber-700" : "bg-emerald-100 text-emerald-700")
+                  }>
+                    {i === 0 ? <Award className="w-4 h-4" strokeWidth={2.5} /> : i + 1}
+                  </div>
+                  <div className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-600 text-white text-[11px] font-heading font-bold">
+                    <Sparkles className="w-3 h-3" strokeWidth={3} />
+                    {formatMinutes(w.saved)} saved
+                  </div>
+                </div>
+                <h3 className="font-heading font-bold text-ink text-[14.5px] leading-snug">
+                  {w.title}
+                </h3>
+                <p className="text-[12.5px] text-ink-muted leading-relaxed mt-2 line-clamp-3 flex-1">
+                  {w.description}
+                </p>
+                <div className="mt-3 pt-3 border-t border-emerald-100/60 text-[11.5px] text-ink-muted font-heading">
+                  <span className="font-semibold text-ink">{w.participantName}</span>
+                  {" · "}
+                  {w.organization}
+                </div>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* Charts — weekly trend + engagement segmentation */}
+      <section className="grid lg:grid-cols-[1.6fr_1fr] gap-3">
+        <div className="rounded-2xl bg-surface-card border border-soft p-5">
+          <div className="flex items-center gap-2 mb-4">
+            <BarChart3 className="w-4 h-4 text-emerald-700" strokeWidth={2.25} />
+            <h2 className="font-heading text-[14px] font-extrabold text-ink">
+              Entries per week
+            </h2>
+            <span className="text-[11.5px] text-ink-muted">· last 8 weeks</span>
+          </div>
+          <WeeklyTrendChart data={weeklyTrend} />
+        </div>
+        <div className="rounded-2xl bg-surface-card border border-soft p-5">
+          <div className="flex items-center gap-2 mb-4">
+            <Users className="w-4 h-4 text-emerald-700" strokeWidth={2.25} />
+            <h2 className="font-heading text-[14px] font-extrabold text-ink">
+              Engagement
+            </h2>
+          </div>
+          <EngagementDonut segments={segments} />
+        </div>
+      </section>
 
       {/* Cohort comparison */}
       {cohortRows.length > 0 && (

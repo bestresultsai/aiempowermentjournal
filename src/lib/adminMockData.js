@@ -43,6 +43,8 @@ export const ADMIN_MOCK_PARTICIPANTS = [
     title: "Director of AI Strategy",
     organization: "BestResults.AI",
     cohortSlug: COHORT_IAHE,
+    whyAi: "I want healthcare educators to redirect 10+ hours a week away from busywork and toward the things only humans can do.",
+    mainGoal: "Ship our internal AI Empowerment platform and onboard the first 30 IAHE participants before the end of Q2.",
     progress: [1, 2, 3, 4],
     lastJournalDaysAgo: 2,
     submissions: {
@@ -65,6 +67,8 @@ export const ADMIN_MOCK_PARTICIPANTS = [
     title: "Director of Education",
     organization: "IAHE",
     cohortSlug: COHORT_IAHE,
+    whyAi: "Our credentialing intake is drowning the team. I'm convinced AI can take 70% of it off our plate without losing the human touch.",
+    mainGoal: "Cut credentialing intake time by half before the next accreditation cycle.",
     progress: [1, 2, 3],
     lastJournalDaysAgo: 5,
     submissions: {
@@ -85,6 +89,8 @@ export const ADMIN_MOCK_PARTICIPANTS = [
     title: "Program Manager",
     organization: "IAHE",
     cohortSlug: COHORT_IAHE,
+    whyAi: "I'm not technical and I'm tired of feeling left behind every time someone says \"AI\" in a meeting.",
+    mainGoal: "Build one workflow my whole team uses weekly — proof I can lead this transition.",
     progress: [1, 2],
     lastJournalDaysAgo: 12,
     submissions: {
@@ -102,6 +108,8 @@ export const ADMIN_MOCK_PARTICIPANTS = [
     title: "Curriculum Designer",
     organization: "IAHE",
     cohortSlug: COHORT_IAHE,
+    whyAi: "I already use AI daily but feel like I'm only scratching the surface. I want to go from hobbyist to actually shipping.",
+    mainGoal: "Build three reusable workflows my whole curriculum team can adopt — and document them so they outlive me.",
     progress: [1, 2, 3, 4, 5],
     lastJournalDaysAgo: 1,
     submissions: {
@@ -127,6 +135,8 @@ export const ADMIN_MOCK_PARTICIPANTS = [
     title: "VP of Clinical Learning",
     organization: "Mayo Clinic Education",
     cohortSlug: COHORT_MAYO,
+    whyAi: "We're moving from 'AI is a project' to 'AI is how we work.' I have to set the bar for the rest of the org.",
+    mainGoal: "Stand up a cross-functional AI guild with reusable playbooks by end of program.",
     progress: [1, 2, 3, 4, 5, 6],
     lastJournalDaysAgo: 3,
     submissions: {
@@ -151,6 +161,8 @@ export const ADMIN_MOCK_PARTICIPANTS = [
     title: "Director, Faculty Development",
     organization: "Mayo Clinic Education",
     cohortSlug: COHORT_MAYO,
+    whyAi: "Our faculty review process is broken. AI is the only thing that could let us scale it without doubling headcount.",
+    mainGoal: "Ship a faculty review co-pilot that survives leadership change.",
     progress: [1, 2, 3],
     lastJournalDaysAgo: 8,
     submissions: {
@@ -170,6 +182,8 @@ export const ADMIN_MOCK_PARTICIPANTS = [
     title: "Senior Instructional Designer",
     organization: "Mayo Clinic Education",
     cohortSlug: COHORT_MAYO,
+    whyAi: "Honestly? I'm here because my boss told me to. I'm skeptical but trying to keep an open mind.",
+    mainGoal: "Find one thing AI actually does better than my current workflow. Just one.",
     progress: [1, 2],
     lastJournalDaysAgo: 16,
     submissions: {
@@ -188,6 +202,8 @@ export const ADMIN_MOCK_PARTICIPANTS = [
     title: "Chief Learning Officer",
     organization: "UCLA Health",
     cohortSlug: COHORT_UCLA,
+    whyAi: "We're an academic medical center. If we don't get AI right, our graduates will be a decade behind their peers in five years.",
+    mainGoal: "Have a defensible AI literacy curriculum across all CME programs by end of fiscal year.",
     progress: [1, 2, 3, 4, 5, 6, 7],
     lastJournalDaysAgo: 1,
     submissions: {
@@ -214,6 +230,8 @@ export const ADMIN_MOCK_PARTICIPANTS = [
     title: "Director, Continuing Education",
     organization: "UCLA Health",
     cohortSlug: COHORT_UCLA,
+    whyAi: "CME accreditation is gobbling up my team's evenings. I refuse to keep asking people to work nights.",
+    mainGoal: "Get CME activity reporting from weeks down to days, with the same audit quality.",
     progress: [1, 2, 3, 4],
     lastJournalDaysAgo: 4,
     submissions: {
@@ -235,6 +253,8 @@ export const ADMIN_MOCK_PARTICIPANTS = [
     title: "Learning Experience Lead",
     organization: "UCLA Health",
     cohortSlug: COHORT_UCLA,
+    whyAi: "Honestly stretched too thin right now. I want to be here but my calendar isn't cooperating.",
+    mainGoal: "Finish the first 4 sessions and walk away with at least one workflow I actually use.",
     progress: [1],
     lastJournalDaysAgo: 22,
     submissions: {
@@ -396,6 +416,146 @@ export function getStaleParticipantsInScope(cohortSlugs, daysThreshold = 14) {
     .filter((p) => allowed.has(p.cohortSlug))
     .filter((p) => (p.lastJournalDaysAgo ?? 0) > daysThreshold)
     .sort((a, b) => (b.lastJournalDaysAgo ?? 0) - (a.lastJournalDaysAgo ?? 0));
+}
+
+// Biggest individual time-savers across scope — the "wins worth celebrating".
+export function getBiggestWinsInScope(cohortSlugs, limit = 3) {
+  const allowed = new Set(cohortSlugs);
+  return ADMIN_MOCK_PARTICIPANTS
+    .filter((p) => allowed.has(p.cohortSlug))
+    .flatMap((p) =>
+      (p.journalEntries || []).map((e) => ({
+        ...e,
+        participantId: p.id,
+        participantName: p.name,
+        organization: p.organization,
+        cohortSlug: p.cohortSlug,
+        saved: timeSavedFor(e),
+      })),
+    )
+    .filter((e) => e.saved > 0)
+    .sort((a, b) => b.saved - a.saved)
+    .slice(0, limit);
+}
+
+// Weekly trend — entries per week for the last N weeks.
+// Returns array of { weekStart: ISO, weekLabel: "Aug 1", count, minutesSaved }.
+export function getWeeklyTrend(cohortSlugs, weeks = 8) {
+  const allowed = new Set(cohortSlugs);
+  const buckets = [];
+  const now = new Date();
+  now.setHours(0, 0, 0, 0);
+  // Anchor on Monday of current week.
+  const dayOfWeek = (now.getDay() + 6) % 7; // 0 = Monday
+  now.setDate(now.getDate() - dayOfWeek);
+
+  for (let i = weeks - 1; i >= 0; i--) {
+    const start = new Date(now);
+    start.setDate(start.getDate() - i * 7);
+    const end = new Date(start);
+    end.setDate(end.getDate() + 7);
+    buckets.push({
+      weekStart: start.toISOString(),
+      weekLabel: start.toLocaleDateString(undefined, { month: "short", day: "numeric" }),
+      startMs: start.getTime(),
+      endMs: end.getTime(),
+      count: 0,
+      minutesSaved: 0,
+    });
+  }
+
+  for (const p of ADMIN_MOCK_PARTICIPANTS) {
+    if (!allowed.has(p.cohortSlug)) continue;
+    for (const e of p.journalEntries || []) {
+      const t = new Date(e.date).getTime();
+      const bucket = buckets.find((b) => t >= b.startMs && t < b.endMs);
+      if (bucket) {
+        bucket.count++;
+        bucket.minutesSaved += timeSavedFor(e);
+      }
+    }
+  }
+  return buckets;
+}
+
+// Engagement segmentation — group participants by entry count.
+//   champion: 5+ entries
+//   engaged: 2-4 entries
+//   trying: 1 entry
+//   absent: 0 entries
+// Returns array of { key, label, count, color } in display order.
+export function getEngagementSegments(cohortSlugs) {
+  const allowed = new Set(cohortSlugs);
+  const segments = {
+    champion: { key: "champion", label: "Champion", count: 0, hint: "5+ entries", color: "#10B981" },
+    engaged:  { key: "engaged",  label: "Engaged",  count: 0, hint: "2–4 entries", color: "#3B82F6" },
+    trying:   { key: "trying",   label: "Trying",   count: 0, hint: "1 entry", color: "#F59E0B" },
+    absent:   { key: "absent",   label: "Absent",   count: 0, hint: "0 entries", color: "#9CA3AF" },
+  };
+  for (const p of ADMIN_MOCK_PARTICIPANTS) {
+    if (!allowed.has(p.cohortSlug)) continue;
+    const n = p.journalEntries?.length || 0;
+    if (n >= 5)      segments.champion.count++;
+    else if (n >= 2) segments.engaged.count++;
+    else if (n === 1) segments.trying.count++;
+    else              segments.absent.count++;
+  }
+  return [segments.champion, segments.engaged, segments.trying, segments.absent];
+}
+
+// At-risk = combination signal:
+//   stale journal (>10 days) OR
+//   progress significantly behind (<3 sessions when others have 4+) OR
+//   late on homework (last submission >14 days but they're early in the program)
+// Returns array of participants with `risks` array describing why.
+export function getAtRiskParticipants(cohortSlugs) {
+  const allowed = new Set(cohortSlugs);
+  const rows = [];
+  for (const p of ADMIN_MOCK_PARTICIPANTS) {
+    if (!allowed.has(p.cohortSlug)) continue;
+    const risks = [];
+    if ((p.lastJournalDaysAgo ?? 0) > 10) {
+      risks.push(`No journal in ${p.lastJournalDaysAgo}d`);
+    }
+    if ((p.progress?.length || 0) <= 2) {
+      risks.push("Behind on belts");
+    }
+    // Latest homework submission timestamp.
+    const subs = Object.values(p.submissions || {});
+    const lastSubmit = subs.length
+      ? Math.max(...subs.map((s) => new Date(s.submittedAt).getTime()))
+      : 0;
+    const daysSinceSubmit = lastSubmit
+      ? Math.floor((Date.now() - lastSubmit) / 86400000)
+      : 999;
+    if (daysSinceSubmit > 14 && (p.progress?.length || 0) < 5) {
+      risks.push("Homework stalled");
+    }
+    if (risks.length > 0) {
+      rows.push({ ...p, risks });
+    }
+  }
+  // Most-at-risk first (more risks = higher).
+  rows.sort((a, b) => b.risks.length - a.risks.length);
+  return rows;
+}
+
+// Per-participant journal stat snapshot used by /admin/users list rows.
+export function getParticipantJournalStat(p) {
+  const entries = p.journalEntries || [];
+  return {
+    entriesCount: entries.length,
+    minutesSaved: totalTimeSaved(entries),
+  };
+}
+
+// Engagement bucket for a single participant — used by status filter.
+export function getEngagementBucket(p) {
+  const n = p.journalEntries?.length || 0;
+  if (n >= 5)      return "champion";
+  if (n >= 2)      return "engaged";
+  if (n === 1)     return "trying";
+  return "absent";
 }
 
 // Most recent entries across scope (for the dashboard activity feed).
