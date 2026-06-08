@@ -1,10 +1,15 @@
 import { Link, Navigate, useParams } from "react-router-dom";
-import { ArrowLeft, ArrowRight, GraduationCap, BookCheck, NotebookPen } from "lucide-react";
+import {
+  ArrowLeft, GraduationCap, BookCheck, NotebookPen, Sparkles, Clock, Users,
+} from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { getAccessibleCohorts } from "../../lib/adminRoles";
 import { DEMO_COHORTS } from "../../lib/demoData";
 import { MOCK_SESSIONS, BELT_COLORS } from "../../lib/mockCohort";
-import { getParticipantsForCohort } from "../../lib/adminMockData";
+import {
+  getParticipantsForCohort, getCohortJournalStats,
+  totalTimeSaved, formatMinutes,
+} from "../../lib/adminMockData";
 
 // /admin/cohorts/:slug — roster of participants in a single cohort.
 //
@@ -23,6 +28,7 @@ export default function AdminCohortRoster() {
 
   const roster = getParticipantsForCohort(slug);
   const totalSessions = MOCK_SESSIONS.length;
+  const journal = getCohortJournalStats(slug);
 
   return (
     <div className="space-y-6 animate-fade-in-up">
@@ -52,6 +58,34 @@ export default function AdminCohortRoster() {
         </div>
       </header>
 
+      {/* Cohort-level Journal summary */}
+      {journal.totalEntries > 0 && (
+        <section className="rounded-2xl bg-emerald-50/40 border border-emerald-100 p-5">
+          <div className="flex items-center gap-2 mb-3">
+            <Sparkles className="w-4 h-4 text-emerald-700" strokeWidth={2.5} />
+            <h2 className="font-heading text-[13px] font-bold uppercase tracking-wider text-emerald-700">
+              AI Journal — this cohort
+            </h2>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <CohortJournalStat icon={NotebookPen} label="Entries" value={journal.totalEntries} />
+            <CohortJournalStat icon={Clock} label="Hours saved" value={Math.round(journal.totalMinutesSaved / 60)} />
+            <CohortJournalStat
+              icon={Users}
+              label="Top contributor"
+              value={journal.topContributor?.name.split(" ")[0] || "—"}
+              sub={journal.topContributor ? `${formatMinutes(journal.topContributorMinutes)} saved` : null}
+            />
+            <CohortJournalStat
+              icon={Sparkles}
+              label="Latest entry"
+              value={journal.latest ? timeAgoShort(journal.latest.date) : "—"}
+              sub={journal.latest ? journal.latest.participantName : null}
+            />
+          </div>
+        </section>
+      )}
+
       {/* Roster table */}
       <div className="rounded-2xl bg-surface-card border border-soft overflow-hidden">
         {/* Header row (desktop) */}
@@ -60,12 +94,14 @@ export default function AdminCohortRoster() {
           <div className="w-48 text-center">Progress (8 belts)</div>
           <div className="w-20 text-right">Done</div>
           <div className="w-24 text-right">Homework</div>
-          <div className="w-24 text-right">Last journal</div>
+          <div className="w-36 text-right">Journal</div>
         </div>
 
         {roster.map((p) => {
           const completedCount = p.progress?.length || 0;
           const submittedCount = Object.keys(p.submissions || {}).length;
+          const entriesCount = p.journalEntries?.length || 0;
+          const minutesSaved = totalTimeSaved(p.journalEntries || []);
           return (
             <Link
               key={p.id}
@@ -119,18 +155,28 @@ export default function AdminCohortRoster() {
                 </span>
               </div>
 
-              {/* Last journal */}
-              <div className="w-full md:w-24 text-left md:text-right flex md:justify-end items-center gap-1.5">
-                <NotebookPen className="w-3.5 h-3.5 text-ink-muted shrink-0" strokeWidth={2.25} />
-                <span className={
-                  "font-heading font-semibold text-[13px] " +
-                  ((p.lastJournalDaysAgo ?? 999) > 10 ? "text-amber-700" : "text-ink")
+              {/* Journal — entries + hours saved + last activity */}
+              <div className="w-full md:w-36 text-left md:text-right">
+                <div className="flex md:justify-end items-center gap-1.5">
+                  <NotebookPen className="w-3.5 h-3.5 text-ink-muted shrink-0" strokeWidth={2.25} />
+                  <span className="font-heading font-bold text-ink text-[14px]">
+                    {entriesCount}
+                  </span>
+                  {minutesSaved > 0 && (
+                    <span className="text-[11.5px] font-heading font-semibold text-emerald-700">
+                      · {formatMinutes(minutesSaved)} saved
+                    </span>
+                  )}
+                </div>
+                <div className={
+                  "text-[10.5px] font-heading mt-0.5 " +
+                  ((p.lastJournalDaysAgo ?? 999) > 10 ? "text-amber-700" : "text-ink-muted")
                 }>
-                  {(p.lastJournalDaysAgo ?? 999) > 100 ? "—" :
+                  {(p.lastJournalDaysAgo ?? 999) > 100 ? "no entries" :
                     p.lastJournalDaysAgo === 0 ? "today" :
                       p.lastJournalDaysAgo === 1 ? "yesterday" :
-                        `${p.lastJournalDaysAgo}d ago`}
-                </span>
+                        `last ${p.lastJournalDaysAgo}d ago`}
+                </div>
               </div>
             </Link>
           );
@@ -144,4 +190,27 @@ export default function AdminCohortRoster() {
       </div>
     </div>
   );
+}
+
+function CohortJournalStat({ icon: Icon, label, value, sub }) {
+  return (
+    <div>
+      <div className="flex items-center gap-1.5 text-[10.5px] font-heading font-bold uppercase tracking-wider text-emerald-700/80">
+        <Icon className="w-3 h-3" strokeWidth={2.5} />
+        {label}
+      </div>
+      <div className="font-heading font-extrabold text-emerald-900 text-[22px] tracking-tight mt-0.5">
+        {value}
+      </div>
+      {sub && <div className="text-[10.5px] text-emerald-700/70 mt-0.5">{sub}</div>}
+    </div>
+  );
+}
+
+function timeAgoShort(iso) {
+  const d = new Date(iso);
+  const days = Math.floor((Date.now() - d.getTime()) / 86400000);
+  if (days <= 0) return "today";
+  if (days === 1) return "yesterday";
+  return `${days}d ago`;
 }

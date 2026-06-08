@@ -1,16 +1,20 @@
 import { Link } from "react-router-dom";
 import {
   GraduationCap, Users, BookCheck, NotebookPen, ArrowRight,
-  Activity, TrendingUp,
+  TrendingUp, Clock, Sparkles,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { getAccessibleCohorts, hasGlobalScope, getRoleLabel } from "../../lib/adminRoles";
 import { DEMO_COHORTS } from "../../lib/demoData";
-import { MOCK_COHORT } from "../../lib/mockCohort";
 import {
   ADMIN_MOCK_PARTICIPANTS,
   getParticipantsForCohort,
   getPendingHomework,
+  getScopeJournalStats,
+  getRecentEntriesInScope,
+  formatMinutes,
+  timeSavedFor,
+  totalTimeSaved,
 } from "../../lib/adminMockData";
 
 // ---------------------------------------------------------------------------
@@ -38,19 +42,9 @@ export default function AdminDashboard() {
   // Pending homework in scope.
   const pending = getPendingHomework(cohortSlugs);
 
-  // Last activity (most recent journal entry across scoped participants).
-  const minDaysAgo = participants.reduce(
-    (min, p) => Math.min(min, p.lastJournalDaysAgo ?? 999),
-    999,
-  );
-  const lastActivityLabel =
-    minDaysAgo === 999
-      ? "—"
-      : minDaysAgo === 0
-        ? "today"
-        : minDaysAgo === 1
-          ? "yesterday"
-          : `${minDaysAgo}d ago`;
+  // AI Journal aggregates in scope.
+  const journalStats = getScopeJournalStats(cohortSlugs);
+  const recentEntries = getRecentEntriesInScope(cohortSlugs, 6);
 
   return (
     <div className="space-y-8 animate-fade-in-up">
@@ -70,7 +64,7 @@ export default function AdminDashboard() {
       </header>
 
       {/* KPI cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
         <KpiCard
           icon={GraduationCap}
           label="Cohorts"
@@ -90,11 +84,16 @@ export default function AdminDashboard() {
           accent={pending.length > 0 ? "warn" : "muted"}
         />
         <KpiCard
-          icon={Activity}
-          label="Last journal entry"
-          value={lastActivityLabel}
-          accent="muted"
-          isText
+          icon={NotebookPen}
+          label="Journal entries"
+          value={journalStats.totalEntries}
+          accent="emerald"
+        />
+        <KpiCard
+          icon={Clock}
+          label="Hours saved"
+          value={Math.round(journalStats.totalMinutesSaved / 60)}
+          accent="emerald"
         />
       </div>
 
@@ -114,6 +113,10 @@ export default function AdminDashboard() {
                       8 *
                       100,
                   );
+            const cohortMinutes = roster.reduce(
+              (sum, p) => sum + totalTimeSaved(p.journalEntries || []),
+              0,
+            );
             return (
               <Link
                 key={c.slug}
@@ -129,9 +132,10 @@ export default function AdminDashboard() {
                 <div className="text-[12px] text-ink-muted mt-0.5">
                   {c.methodName} · {c.programCode}
                 </div>
-                <div className="mt-4 grid grid-cols-2 gap-3">
-                  <Stat label="Participants" value={totalParticipants} />
-                  <Stat label="Avg progress" value={`${avgProgress}%`} />
+                <div className="mt-4 grid grid-cols-3 gap-2">
+                  <Stat label="People" value={totalParticipants} />
+                  <Stat label="Progress" value={`${avgProgress}%`} />
+                  <Stat label="Hrs saved" value={Math.round(cohortMinutes / 60)} accent="emerald" />
                 </div>
               </Link>
             );
@@ -159,37 +163,43 @@ export default function AdminDashboard() {
         </section>
       )}
 
-      {/* Recent journal activity */}
+      {/* Recent AI Journal activity */}
       <section>
-        <SectionHeader title="Recent activity" />
-        <div className="rounded-2xl bg-surface-card border border-soft overflow-hidden">
-          {participants
-            .slice()
-            .sort((a, b) => a.lastJournalDaysAgo - b.lastJournalDaysAgo)
-            .slice(0, 6)
-            .map((p) => (
-              <Link
-                key={p.id}
-                to={`/admin/users/${p.id}`}
-                className="flex items-center gap-3 px-4 py-3 hover:bg-surface-soft transition-colors border-b border-soft last:border-b-0"
-              >
-                <div className="w-9 h-9 rounded-full bg-brand-700 text-white flex items-center justify-center text-[11px] font-heading font-bold">
-                  {p.name.split(" ").slice(0, 2).map((w) => w[0]).join("").toUpperCase()}
+        <SectionHeader title="Recent journal entries" />
+        <div className="space-y-2">
+          {recentEntries.length === 0 ? (
+            <div className="p-6 rounded-2xl border border-dashed border-soft text-center text-[13px] text-ink-muted">
+              No journal entries yet in your scope.
+            </div>
+          ) : recentEntries.map((e) => (
+            <Link
+              key={`${e.participantId}-${e.id}`}
+              to={`/admin/users/${e.participantId}`}
+              className="block rounded-2xl bg-surface-card border border-soft p-4 hover:border-brand-500 hover:shadow-card transition-all duration-200"
+            >
+              <div className="flex items-start gap-3">
+                <div className="w-9 h-9 rounded-full bg-brand-700 text-white flex items-center justify-center text-[11px] font-heading font-bold shrink-0">
+                  {e.participantName.split(" ").slice(0, 2).map((w) => w[0]).join("").toUpperCase()}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="text-[14px] font-heading font-semibold text-ink truncate">
-                    {p.name}
+                  <div className="flex items-center gap-2 text-[11.5px] text-ink-muted mb-1">
+                    <span className="font-heading font-semibold text-ink">{e.participantName}</span>
+                    <span>·</span>
+                    <span>{e.organization}</span>
+                    <span>·</span>
+                    <span>{timeAgo(e.date)}</span>
                   </div>
-                  <div className="text-[11.5px] text-ink-muted">
-                    {p.organization} · last journal {p.lastJournalDaysAgo === 0 ? "today" : `${p.lastJournalDaysAgo}d ago`}
+                  <div className="font-heading text-[14px] font-bold text-ink leading-snug">
+                    {e.title}
                   </div>
+                  <p className="text-[12.5px] text-ink-muted leading-relaxed mt-1 line-clamp-2">
+                    {e.description}
+                  </p>
                 </div>
-                <div className="flex items-center gap-2 text-[11px] font-heading font-bold text-brand-600">
-                  <NotebookPen className="w-3.5 h-3.5" strokeWidth={2.5} />
-                  Open
-                </div>
-              </Link>
-            ))}
+                <TimeSavedChip minutes={timeSavedFor(e)} />
+              </div>
+            </Link>
+          ))}
         </div>
       </section>
     </div>
@@ -204,7 +214,9 @@ function KpiCard({ icon: Icon, label, value, accent = "brand", isText }) {
       ? "bg-amber-50 text-amber-700"
       : accent === "muted"
         ? "bg-ink/5 text-ink-muted"
-        : "bg-brand-50 text-brand-600";
+        : accent === "emerald"
+          ? "bg-emerald-50 text-emerald-700"
+          : "bg-brand-50 text-brand-600";
   return (
     <div className="rounded-2xl bg-surface-card border border-soft p-4 lg:p-5">
       <div className="flex items-center gap-2">
@@ -244,17 +256,40 @@ function SectionHeader({ title, cta }) {
   );
 }
 
-function Stat({ label, value }) {
+function Stat({ label, value, accent }) {
   return (
     <div>
       <div className="text-[10.5px] font-heading font-bold uppercase tracking-wider text-ink-subtle">
         {label}
       </div>
-      <div className="font-heading font-extrabold text-ink text-[20px] tracking-tight mt-0.5">
+      <div
+        className={
+          "font-heading font-extrabold text-[20px] tracking-tight mt-0.5 " +
+          (accent === "emerald" ? "text-emerald-700" : "text-ink")
+        }
+      >
         {value}
       </div>
     </div>
   );
+}
+
+function TimeSavedChip({ minutes }) {
+  if (!minutes || minutes <= 0) return null;
+  return (
+    <div className="shrink-0 inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 text-[11px] font-heading font-bold">
+      <Sparkles className="w-3 h-3" strokeWidth={3} />
+      {formatMinutes(minutes)} saved
+    </div>
+  );
+}
+
+function timeAgo(iso) {
+  const d = new Date(iso);
+  const days = Math.floor((Date.now() - d.getTime()) / 86400000);
+  if (days <= 0) return "today";
+  if (days === 1) return "yesterday";
+  return `${days}d ago`;
 }
 
 function PendingRow({ row }) {
