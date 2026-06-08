@@ -1,13 +1,15 @@
 import { Link } from "react-router-dom";
 import {
   GraduationCap, ArrowRight, Users, Building2, CheckCircle2,
-  Calendar, Sparkles,
+  Calendar, Sparkles, Plus,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { useScopeFilters } from "../../lib/useScopeFilters";
+import { canCreateCohorts } from "../../lib/adminRoles";
 import { DEMO_COHORTS } from "../../lib/demoData";
 import { MOCK_SESSIONS, BELT_COLORS } from "../../lib/mockCohort";
 import { getParticipantsForCohort } from "../../lib/adminMockData";
+import { getAllCohortsForAdmin } from "../../lib/cohortAdmin";
 import PipelineView, { stageForDelivered } from "../../components/admin/PipelineView";
 import ScopeFilterBar from "../../components/admin/ScopeFilterBar";
 
@@ -50,7 +52,10 @@ function formatDate(iso) {
 
 export default function AdminCohorts() {
   const { user } = useAuth();
-  const scope = useScopeFilters(user, DEMO_COHORTS);
+  // Merge user-created cohorts (from localStorage) with the base list so newly
+  // created cohorts appear here without a refresh.
+  const allCohorts = getAllCohortsForAdmin();
+  const scope = useScopeFilters(user, allCohorts);
   const { cohorts, effectiveCohorts, orgs, facilitators } = scope;
   const delivery = getDeliveryInfo();
 
@@ -91,7 +96,7 @@ export default function AdminCohorts() {
         <div className="w-10 h-10 rounded-xl bg-brand-50 text-brand-600 flex items-center justify-center">
           <GraduationCap className="w-5 h-5" strokeWidth={2} />
         </div>
-        <div>
+        <div className="flex-1">
           <h1 className="font-heading text-[24px] lg:text-[28px] font-extrabold text-ink leading-tight">
             Cohorts
           </h1>
@@ -101,6 +106,15 @@ export default function AdminCohorts() {
               : `${effectiveCohorts.length} of ${cohorts.length} cohorts shown.`}
           </p>
         </div>
+        {canCreateCohorts(user) && (
+          <Link
+            to="/admin/cohorts/new"
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-brand-600 text-white text-[12.5px] font-heading font-semibold hover:bg-brand-700 transition-colors shrink-0"
+          >
+            <Plus className="w-3.5 h-3.5" strokeWidth={2.5} />
+            New cohort
+          </Link>
+        )}
       </header>
 
       {/* Scope filter — Org + Facilitator (cohort chip hidden on the cohorts list). */}

@@ -2,16 +2,17 @@ import { useMemo, useState } from "react";
 import { Link, Navigate, useParams } from "react-router-dom";
 import {
   ArrowLeft, GraduationCap, BookCheck, NotebookPen, Sparkles, Clock, Users,
-  ChevronUp, ChevronDown, Download, Target,
+  ChevronUp, ChevronDown, Download, Target, Pencil,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
-import { getAccessibleCohorts } from "../../lib/adminRoles";
+import { getAccessibleCohorts, canEditCohort } from "../../lib/adminRoles";
 import { DEMO_COHORTS } from "../../lib/demoData";
 import { MOCK_SESSIONS, BELT_COLORS } from "../../lib/mockCohort";
 import {
   getParticipantsForCohort, getCohortJournalStats,
   totalTimeSaved, formatMinutes,
 } from "../../lib/adminMockData";
+import { getAllCohortsForAdmin } from "../../lib/cohortAdmin";
 import { downloadCSV } from "../../lib/csvExport";
 
 // /admin/cohorts/:slug — roster of participants in a single cohort.
@@ -22,7 +23,8 @@ import { downloadCSV } from "../../lib/csvExport";
 export default function AdminCohortRoster() {
   const { slug } = useParams();
   const { user } = useAuth();
-  const cohorts = getAccessibleCohorts(user, DEMO_COHORTS);
+  // Pull from the merged list so newly-created cohorts resolve here.
+  const cohorts = getAccessibleCohorts(user, getAllCohortsForAdmin());
   const cohort = cohorts.find((c) => c.slug === slug);
 
   // Sort state.
@@ -118,13 +120,24 @@ export default function AdminCohortRoster() {
             {roster.length === 1 ? "participant" : "participants"}
           </p>
         </div>
-        <button
-          onClick={handleExportCSV}
-          className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white border border-soft text-[12.5px] font-heading font-semibold text-ink hover:bg-surface-soft hover:border-brand-500 transition-all duration-200 shrink-0"
-        >
-          <Download className="w-3.5 h-3.5 text-brand-600" strokeWidth={2.5} />
-          Export CSV
-        </button>
+        <div className="flex items-center gap-2 shrink-0">
+          {canEditCohort(user, cohort) && (
+            <Link
+              to={`/admin/cohorts/${cohort.slug}/edit`}
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white border border-soft text-[12.5px] font-heading font-semibold text-ink hover:bg-surface-soft hover:border-brand-500 transition-all duration-200"
+            >
+              <Pencil className="w-3.5 h-3.5 text-brand-600" strokeWidth={2.5} />
+              Edit cohort
+            </Link>
+          )}
+          <button
+            onClick={handleExportCSV}
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white border border-soft text-[12.5px] font-heading font-semibold text-ink hover:bg-surface-soft hover:border-brand-500 transition-all duration-200"
+          >
+            <Download className="w-3.5 h-3.5 text-brand-600" strokeWidth={2.5} />
+            Export CSV
+          </button>
+        </div>
       </header>
 
       {/* Cohort-level Journal summary */}

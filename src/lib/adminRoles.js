@@ -71,6 +71,36 @@ export function canManageRoles(user) {
   return !!user && user.role === ROLES.SUPER;
 }
 
+// Cohort creation is reserved for BRAI staff (Super + Admin). Org admins +
+// facilitators can edit existing cohorts in their scope but not create new ones.
+export function canCreateCohorts(user) {
+  if (!user) return false;
+  return user.role === ROLES.SUPER || user.role === ROLES.ADMIN;
+}
+
+// Can the user edit this specific cohort?
+//   - Super / Admin: any cohort
+//   - Org admin: cohorts within their `assignedOrgs`
+//   - Facilitator: cohorts in their `assignedCohorts` (limited to schedule edits;
+//     pages enforce field-level limits — we just gate the route here)
+export function canEditCohort(user, cohort) {
+  if (!user || !cohort) return false;
+  if (user.role === ROLES.SUPER || user.role === ROLES.ADMIN) return true;
+  if (user.role === ROLES.ORG) {
+    return (user.assignedOrgs || []).includes(cohort.organization?.id);
+  }
+  if (user.role === ROLES.FACILITATOR) {
+    return (user.assignedCohorts || []).includes(cohort.slug);
+  }
+  return false;
+}
+
+// Archival is destructive; lock it to BRAI staff only for round 1.
+export function canArchiveCohort(user) {
+  if (!user) return false;
+  return user.role === ROLES.SUPER || user.role === ROLES.ADMIN;
+}
+
 // ---------------------------------------------------------------------------
 // Scoping — which cohorts can a given user actually see?
 //

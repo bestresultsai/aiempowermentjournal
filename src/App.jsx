@@ -8,6 +8,8 @@ import AdminLayout from "./pages/admin/AdminLayout";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import AdminCohorts from "./pages/admin/AdminCohorts";
 import AdminCohortRoster from "./pages/admin/AdminCohortRoster";
+import AdminCohortNew from "./pages/admin/AdminCohortNew";
+import AdminCohortEdit from "./pages/admin/AdminCohortEdit";
 import AdminJournalDashboard from "./pages/admin/AdminJournalDashboard";
 import AdminHomeworkQueue from "./pages/admin/AdminHomeworkQueue";
 import AdminParticipants from "./pages/admin/AdminParticipants";
@@ -52,7 +54,9 @@ import BeltsPreview from "./pages/design/BeltsPreview";
 //
 //   /admin                    ADMIN PANEL — gated by AdminGate (role !== participant)
 //   /admin/cohorts            List of cohorts in scope
+//   /admin/cohorts/new        Create cohort (super + admin only)
 //   /admin/cohorts/:slug      Roster: participants + per-belt progress
+//   /admin/cohorts/:slug/edit Edit cohort (gated by canEditCohort)
 //   /admin/journal            AI Journal dashboard — hours saved, leaderboard, stale
 //   /admin/homework           Pending homework queue (read-only round 1)
 //   /admin/users              Directory of all participants in scope (with search)
@@ -111,7 +115,9 @@ export default function App() {
             >
               <Route index element={<AdminDashboard />} />
               <Route path="cohorts" element={<AdminCohorts />} />
+              <Route path="cohorts/new" element={<AdminCohortNew />} />
               <Route path="cohorts/:slug" element={<AdminCohortRoster />} />
+              <Route path="cohorts/:slug/edit" element={<AdminCohortEdit />} />
               <Route path="journal" element={<AdminJournalDashboard />} />
               <Route path="homework" element={<AdminHomeworkQueue />} />
               <Route path="users" element={<AdminParticipants />} />
