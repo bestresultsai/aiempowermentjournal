@@ -220,8 +220,15 @@ function BreadCrumb({ path }) {
     journal: "AI Journal",
     homework: "Homework",
     users: "Participants",
+    new: "New",
+    edit: "Edit",
   };
-  const trail = parts.map((p, i) => labels[p] || p);
+  // For unmapped segments (cohort slugs, participant ids), title-case each
+  // word so breadcrumbs read consistently rather than dropping in raw slugs.
+  function titleCase(s) {
+    return s.split(/[-_]/).filter(Boolean).map((w) => w[0].toUpperCase() + w.slice(1)).join(" ");
+  }
+  const trail = parts.map((p) => labels[p] || titleCase(p));
   return (
     <div className="text-[13px] text-ink-muted font-heading">
       {trail.map((label, i) => (
