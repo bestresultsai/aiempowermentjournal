@@ -140,8 +140,38 @@ export default function AdminLayout() {
         <main className="flex-1 px-5 lg:px-8 py-6 lg:py-8 max-w-[1280px] w-full mx-auto">
           <Outlet />
         </main>
+
+        {/* Admin footer — matches the sidebar so the dark shell wraps the
+            entire admin area. Kept minimal to not compete with page content. */}
+        <AdminFooter />
       </div>
     </div>
+  );
+}
+
+function AdminFooter() {
+  const year = new Date().getFullYear();
+  return (
+    <footer className="bg-ink text-white/70 border-t border-white/10 mt-8">
+      <div className="max-w-[1280px] mx-auto px-5 lg:px-8 py-5 flex items-center justify-between gap-4 flex-wrap text-[11.5px] font-heading">
+        <div className="flex items-center gap-2">
+          <Shield className="w-3.5 h-3.5 text-white/50" strokeWidth={2.5} />
+          <span>© {year} BestResults.AI · Admin panel</span>
+        </div>
+        <nav className="flex items-center gap-1.5">
+          <Link to="/home" className="px-2 py-1 rounded hover:bg-white/5 hover:text-white transition-colors">
+            Back to app
+          </Link>
+          <span className="text-white/20">·</span>
+          <a
+            href="mailto:support@bestresults.ai"
+            className="px-2 py-1 rounded hover:bg-white/5 hover:text-white transition-colors"
+          >
+            Support
+          </a>
+        </nav>
+      </div>
+    </footer>
   );
 }
 
