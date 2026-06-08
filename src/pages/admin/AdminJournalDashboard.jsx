@@ -43,13 +43,37 @@ import EngagementDonut from "../../components/admin/EngagementDonut";
 export default function AdminJournalDashboard() {
   const { user } = useAuth();
   const cohorts = getAccessibleCohorts(user, DEMO_COHORTS);
-  const cohortSlugs = cohorts.map((c) => c.slug);
 
-  // Date range — "all" by default. Filters every aggregate except the weekly
-  // trend chart (which always shows the last 8 weeks regardless).
+  // Filters: date range + org + cohort.
   const [range, setRange] = useState("all");
+  const [orgFilter, setOrgFilter] = useState(null);     // null = all orgs
+  const [cohortFilter, setCohortFilter] = useState(null); // null = all cohorts
+
   const sinceMs = getSinceMs(range);
   const rangeLabel = DATE_RANGES.find((r) => r.key === range)?.label || "All time";
+
+  // Distinct orgs in scope (used by the org chip row).
+  const orgsInScope = (() => {
+    const seen = new Map();
+    for (const c of cohorts) {
+      if (c.organization && !seen.has(c.organization.id)) {
+        seen.set(c.organization.id, c.organization);
+      }
+    }
+    return [...seen.values()];
+  })();
+
+  // Apply org + cohort filters. Org narrows cohort options; cohort picks one.
+  const effectiveCohorts = cohorts
+    .filter((c) => !orgFilter || c.organization?.id === orgFilter)
+    .filter((c) => !cohortFilter || c.slug === cohortFilter);
+  const cohortSlugs = effectiveCohorts.map((c) => c.slug);
+
+  // When org changes, drop a cohort filter that no longer matches.
+  if (cohortFilter && !effectiveCohorts.some((c) => c.slug === cohortFilter)) {
+    // Defer the state reset to a render-safe path.
+    setTimeout(() => setCohortFilter(null), 0);
+  }
 
   const stats = getScopeJournalStats(cohortSlugs, sinceMs);
   const topContributors = getTopContributorsInScope(cohortSlugs, 5, sinceMs);
@@ -59,8 +83,12 @@ export default function AdminJournalDashboard() {
   const weeklyTrend = getWeeklyTrend(cohortSlugs, 8);
   const segments = getEngagementSegments(cohortSlugs, sinceMs);
 
-  // Per-cohort breakdown for the comparison table.
-  const cohortRows = cohorts.map((c) => {
+  // Show filter rows only when they'd be meaningful.
+  const showOrgFilter = orgsInScope.length > 1;
+  const showCohortFilter = cohorts.length > 1;
+
+  // Per-cohort breakdown — only cohorts that pass the filters.
+  const cohortRows = effectiveCohorts.map((c) => {
     const roster = getParticipantsForCohort(c.slug);
     const cohortStats = getCohortJournalStats(c.slug, sinceMs);
     const activeCount = roster.filter((p) =>
@@ -117,11 +145,13 @@ export default function AdminJournalDashboard() {
         <div className="flex-1 min-w-0">
           <div className="h-eyebrow">Admin · Journal</div>
           <h1 className="font-heading text-[28px] lg:text-[34px] font-extrabold tracking-tight text-ink leading-tight">
-            AI Journal dashboard
+            AI Journal Dashboard
           </h1>
           <p className="text-[14px] text-ink-muted mt-1.5 max-w-2xl">
-            {rangeLabel} · {cohorts.length}{" "}
-            {cohorts.length === 1 ? "cohort" : "cohorts"} in scope.
+            {rangeLabel} · {effectiveCohorts.length} of {cohorts.length}{" "}
+            {cohorts.length === 1 ? "cohort" : "cohorts"} shown
+            {orgFilter && ` · org: ${orgsInScope.find((o) => o.id === orgFilter)?.shortName || ""}`}
+            {cohortFilter && ` · cohort: ${effectiveCohorts[0]?.name || ""}`}.
           </p>
         </div>
         <button
@@ -133,23 +163,56 @@ export default function AdminJournalDashboard() {
         </button>
       </header>
 
-      {/* Date range pills */}
-      <div className="flex items-center gap-2 flex-wrap">
-        {DATE_RANGES.map((r) => (
-          <button
-            key={r.key}
-            type="button"
-            onClick={() => setRange(r.key)}
-            className={
-              "inline-flex items-center px-3 py-1.5 rounded-full text-[12.5px] font-heading font-semibold transition-all duration-200 " +
-              (range === r.key
-                ? "bg-ink text-white"
-                : "bg-surface-card border border-soft text-ink-muted hover:text-ink hover:border-brand-500")
-            }
-          >
-            {r.label}
-          </button>
-        ))}
+      {/* Filter rows — date range, organization, cohort */}
+      <div className="space-y-2">
+        <FilterRow label="Time">
+          {DATE_RANGES.map((r) => (
+            <PillButton
+              key={r.key}
+              active={range === r.key}
+              onClick={() => setRange(r.key)}
+              label={r.label}
+            />
+          ))}
+        </FilterRow>
+
+        {showOrgFilter && (
+          <FilterRow label="Organization">
+            <PillButton
+              active={orgFilter === null}
+              onClick={() => setOrgFilter(null)}
+              label="All orgs"
+            />
+            {orgsInScope.map((org) => (
+              <PillButton
+                key={org.id}
+                active={orgFilter === org.id}
+                onClick={() => setOrgFilter(orgFilter === org.id ? null : org.id)}
+                label={org.shortName || org.name}
+              />
+            ))}
+          </FilterRow>
+        )}
+
+        {showCohortFilter && (
+          <FilterRow label="Cohort">
+            <PillButton
+              active={cohortFilter === null}
+              onClick={() => setCohortFilter(null)}
+              label="All cohorts"
+            />
+            {cohorts
+              .filter((c) => !orgFilter || c.organization?.id === orgFilter)
+              .map((c) => (
+                <PillButton
+                  key={c.slug}
+                  active={cohortFilter === c.slug}
+                  onClick={() => setCohortFilter(cohortFilter === c.slug ? null : c.slug)}
+                  label={c.name}
+                />
+              ))}
+          </FilterRow>
+        )}
       </div>
 
       {/* Hero KPIs */}
@@ -258,18 +321,20 @@ export default function AdminJournalDashboard() {
         <section>
           <SectionHeader title="By cohort" />
           <div className="rounded-2xl bg-surface-card border border-soft overflow-hidden">
-            <div className="hidden md:grid grid-cols-[1fr_auto_auto_auto_auto] gap-4 px-5 py-3 border-b border-soft bg-surface-soft text-[10.5px] font-heading font-bold uppercase tracking-wider text-ink-muted">
+            {/* Use explicit column widths in the grid template so header labels
+                sit directly above body cells (was misaligned with `auto`). */}
+            <div className="hidden md:grid grid-cols-[1fr_110px_90px_120px_130px] gap-4 px-5 py-3 border-b border-soft bg-surface-soft text-[10.5px] font-heading font-bold uppercase tracking-wider text-ink-muted">
               <div>Cohort</div>
-              <div className="w-28 text-right">Active</div>
-              <div className="w-24 text-right">Entries</div>
-              <div className="w-28 text-right">Hours saved</div>
-              <div className="w-32 text-right">Avg / person</div>
+              <div className="text-right">Active</div>
+              <div className="text-right">Entries</div>
+              <div className="text-right">Hours saved</div>
+              <div className="text-right">Avg / person</div>
             </div>
             {cohortRows.map((row) => (
               <Link
                 key={row.cohort.slug}
                 to={`/admin/cohorts/${row.cohort.slug}`}
-                className="group grid md:grid-cols-[1fr_auto_auto_auto_auto] gap-4 px-5 py-4 hover:bg-surface-soft transition-colors border-b border-soft last:border-b-0"
+                className="group grid md:grid-cols-[1fr_110px_90px_120px_130px] gap-4 px-5 py-4 hover:bg-surface-soft transition-colors border-b border-soft last:border-b-0"
               >
                 <div className="flex items-center gap-3 min-w-0">
                   <div className="w-9 h-9 rounded-xl bg-brand-50 text-brand-600 flex items-center justify-center shrink-0">
@@ -284,10 +349,10 @@ export default function AdminJournalDashboard() {
                     </div>
                   </div>
                 </div>
-                <RightCell value={`${row.activeCount}/${row.participants}`} width="w-28" />
-                <RightCell value={row.entries} width="w-24" />
-                <RightCell value={Math.round(row.minutesSaved / 60)} sub="hrs" width="w-28" accent="emerald" />
-                <RightCell value={formatMinutes(row.avgMinutesPerParticipant)} width="w-32" />
+                <RightCell value={`${row.activeCount}/${row.participants}`} />
+                <RightCell value={row.entries} />
+                <RightCell value={Math.round(row.minutesSaved / 60)} sub="hrs" accent="emerald" />
+                <RightCell value={formatMinutes(row.avgMinutesPerParticipant)} />
               </Link>
             ))}
           </div>
@@ -452,9 +517,9 @@ function SectionHeader({ title }) {
   );
 }
 
-function RightCell({ value, sub, width, accent }) {
+function RightCell({ value, sub, accent }) {
   return (
-    <div className={"w-full text-left md:text-right " + (width || "")}>
+    <div className="w-full text-left md:text-right">
       <div
         className={
           "font-heading font-extrabold text-[16px] tracking-tight " +
@@ -465,6 +530,34 @@ function RightCell({ value, sub, width, accent }) {
         {sub && <span className="text-[10.5px] text-ink-muted font-semibold ml-1">{sub}</span>}
       </div>
     </div>
+  );
+}
+
+function FilterRow({ label, children }) {
+  return (
+    <div className="flex items-center gap-2 flex-wrap">
+      <span className="text-[10.5px] font-heading font-bold uppercase tracking-wider text-ink-muted shrink-0 w-24">
+        {label}
+      </span>
+      {children}
+    </div>
+  );
+}
+
+function PillButton({ active, onClick, label }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={
+        "inline-flex items-center px-3 py-1.5 rounded-full text-[12.5px] font-heading font-semibold transition-all duration-200 " +
+        (active
+          ? "bg-ink text-white"
+          : "bg-surface-card border border-soft text-ink-muted hover:text-ink hover:border-brand-500")
+      }
+    >
+      {label}
+    </button>
   );
 }
 
