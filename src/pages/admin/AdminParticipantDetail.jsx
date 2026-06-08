@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, Navigate, useParams } from "react-router-dom";
 import {
   ArrowLeft, Mail, Building2, BookCheck, Check, Clock, GraduationCap,
-  ExternalLink, NotebookPen, Sparkles, Lightbulb, Target, Lock, Save,
+  ExternalLink, NotebookPen, Sparkles, Lightbulb, Target, Lock, Save, Crown,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { getAccessibleCohortSlugs } from "../../lib/adminRoles";
@@ -58,8 +58,14 @@ export default function AdminParticipantDetail() {
           {initials}
         </div>
         <div className="flex-1 min-w-[200px]">
-          <h1 className="font-heading text-[24px] lg:text-[28px] font-extrabold text-ink leading-tight">
+          <h1 className="font-heading text-[24px] lg:text-[28px] font-extrabold text-ink leading-tight inline-flex items-center gap-2 flex-wrap">
             {p.name}
+            {p.isCohortLead && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-heading font-bold uppercase tracking-wider bg-amber-100 text-amber-800">
+                <Crown className="w-3 h-3" strokeWidth={2.5} />
+                Cohort Leader
+              </span>
+            )}
           </h1>
           <div className="text-[13px] text-ink-muted mt-0.5">{p.title}</div>
           <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1.5 text-[12.5px] text-ink-muted">

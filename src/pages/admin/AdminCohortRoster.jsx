@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { Link, Navigate, useParams } from "react-router-dom";
 import {
   ArrowLeft, GraduationCap, BookCheck, NotebookPen, Sparkles, Clock, Users,
-  ChevronUp, ChevronDown, Download, Target, Pencil, UserPlus,
+  ChevronUp, ChevronDown, Download, Target, Pencil, UserPlus, Crown, Mail,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { getAccessibleCohorts, canEditCohort } from "../../lib/adminRoles";
@@ -147,6 +147,10 @@ export default function AdminCohortRoster() {
           </button>
         </div>
       </header>
+
+      {/* Cohort leader — when one is set among the roster, surface them
+          here so admins always know who the customer-side champion is. */}
+      <CohortLeaderCard leader={roster.find((p) => p.isCohortLead)} />
 
       {/* Cohort-level Journal summary */}
       {journal.totalEntries > 0 && (
@@ -318,6 +322,56 @@ function CohortJournalStat({ icon: Icon, label, value, sub }) {
       </div>
       {sub && <div className="text-[10.5px] text-emerald-700/70 mt-0.5">{sub}</div>}
     </div>
+  );
+}
+
+function CohortLeaderCard({ leader }) {
+  if (!leader) {
+    return (
+      <section className="rounded-2xl bg-surface-card border border-dashed border-soft p-4 flex items-center gap-3">
+        <div className="w-9 h-9 rounded-xl bg-ink/5 text-ink-subtle flex items-center justify-center shrink-0">
+          <Crown className="w-4 h-4" strokeWidth={2.25} />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="text-[10.5px] font-heading font-bold uppercase tracking-wider text-ink-subtle">
+            Cohort leader
+          </div>
+          <div className="text-[12.5px] text-ink-muted mt-0.5">
+            No leader assigned. Toggle "Cohort leader" on a participant to mark one.
+          </div>
+        </div>
+      </section>
+    );
+  }
+  const initials = leader.name.split(" ").slice(0, 2).map((w) => w[0]).join("").toUpperCase();
+  return (
+    <section className="rounded-2xl bg-gradient-to-r from-amber-50/60 to-surface-card border border-amber-200 p-4 flex items-center gap-3 flex-wrap">
+      <div className="w-11 h-11 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center font-heading font-extrabold text-[14px] shrink-0">
+        {initials}
+      </div>
+      <div className="flex-1 min-w-[180px]">
+        <div className="inline-flex items-center gap-1.5 text-[10.5px] font-heading font-bold uppercase tracking-wider text-amber-800">
+          <Crown className="w-3 h-3" strokeWidth={2.5} />
+          Cohort leader
+        </div>
+        <Link
+          to={`/admin/users/${leader.id}`}
+          className="block font-heading text-[15px] font-extrabold text-ink hover:text-amber-700 transition-colors mt-0.5"
+        >
+          {leader.name}
+        </Link>
+        {leader.title && (
+          <div className="text-[11.5px] text-ink-muted">{leader.title}</div>
+        )}
+      </div>
+      <a
+        href={`mailto:${leader.email}`}
+        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white border border-amber-200 text-[12px] font-heading font-semibold text-amber-800 hover:bg-amber-50 transition-colors shrink-0"
+      >
+        <Mail className="w-3.5 h-3.5" strokeWidth={2.5} />
+        Email
+      </a>
+    </section>
   );
 }
 

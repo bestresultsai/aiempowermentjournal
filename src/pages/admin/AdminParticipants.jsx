@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   Users, Search, ArrowRight, ArrowUpDown, NotebookPen, Sparkles, Plus,
-  Check, X, GraduationCap,
+  Check, X, GraduationCap, Crown, BookCheck, Clock, AlertTriangle,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { useScopeFilters } from "../../lib/useScopeFilters";
@@ -13,11 +13,13 @@ import {
   ADMIN_MOCK_PARTICIPANTS,
   getEngagementBucket,
   getParticipantJournalStat,
+  getParticipantCurrentSession,
+  getParticipantHomeworkStats,
   assignParticipantsToCohort,
   totalTimeSaved,
   formatMinutes,
 } from "../../lib/adminMockData";
-import { MOCK_SESSIONS } from "../../lib/mockCohort";
+import { MOCK_SESSIONS, BELT_COLORS } from "../../lib/mockCohort";
 
 const SORTS = {
   name:       { label: "Name (A–Z)",        compare: (a, b) => a.name.localeCompare(b.name) },
@@ -28,9 +30,9 @@ const SORTS = {
 
 const STATUS_FILTERS = [
   { key: null,         label: "All status" },
-  { key: "champion",   label: "Champions" },
-  { key: "engaged",    label: "Engaged" },
   { key: "at-risk",    label: "At risk" },
+  { key: "champion",   label: "Journal Champions" },
+  { key: "engaged",    label: "Journal Active" },
 ];
 
 // A participant is "at risk" when their journal is stale (>10d) or they're
@@ -196,10 +198,7 @@ export default function AdminParticipants() {
 
       <div className="rounded-2xl bg-surface-card border border-soft overflow-hidden">
         {filtered.map((p) => {
-          const cohort = cohortBySlug[p.cohortSlug];
-          const pct = Math.round(((p.progress?.length || 0) / MOCK_SESSIONS.length) * 100);
-          const { entriesCount, minutesSaved } = getParticipantJournalStat(p);
-          const bucket = bucketForFilter(p);
+          const bucket = bucketForFilter(p); // "at-risk" override applied here
           const checked = selectedIds.has(p.id);
           return (
             <div
@@ -220,51 +219,39 @@ export default function AdminParticipants() {
                 to={`/admin/users/${p.id}`}
                 className="flex items-center gap-3 flex-1 min-w-0"
               >
-              <div className="w-10 h-10 rounded-full bg-brand-700 text-white flex items-center justify-center text-[12px] font-heading font-bold shrink-0">
-                {p.name.split(" ").slice(0, 2).map((w) => w[0]).join("").toUpperCase()}
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <div className="font-heading text-[14px] font-bold text-ink truncate group-hover:text-brand-700 transition-colors">
-                    {p.name}
-                  </div>
-                  <StatusPill bucket={bucket} />
+                <div className="w-10 h-10 rounded-full bg-brand-700 text-white flex items-center justify-center text-[12px] font-heading font-bold shrink-0">
+                  {p.name.split(" ").slice(0, 2).map((w) => w[0]).join("").toUpperCase()}
                 </div>
-                <div className="text-[11.5px] text-ink-muted truncate mt-0.5">
-                  {p.email} · {p.organization}
-                </div>
-              </div>
-              {/* Journal stats — entries + hours saved */}
-              <div className="hidden md:flex flex-col items-end shrink-0">
-                <div className="inline-flex items-center gap-1.5 text-[12px] font-heading font-bold text-ink">
-                  <NotebookPen className="w-3.5 h-3.5 text-ink-muted" strokeWidth={2.25} />
-                  {entriesCount}
-                </div>
-                {minutesSaved > 0 && (
-                  <div className="inline-flex items-center gap-1 text-[11px] font-heading font-semibold text-emerald-700 mt-0.5">
-                    <Sparkles className="w-3 h-3" strokeWidth={3} />
-                    {formatMinutes(minutesSaved)} saved
-                  </div>
-                )}
-              </div>
-              {/* Cohort + progress */}
-              <div className="hidden sm:block text-right shrink-0">
-                {p.cohortSlug ? (
-                  <>
-                    <div className="text-[10.5px] font-heading font-bold uppercase tracking-wider text-ink-subtle">
-                      {cohort?.organization?.shortName || "Cohort"}
+
+                {/* Identity */}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <div className="font-heading text-[14px] font-bold text-ink truncate group-hover:text-brand-700 transition-colors">
+                      {p.name}
                     </div>
-                    <div className="text-[12.5px] font-heading font-semibold text-ink mt-0.5">
-                      {pct}%
-                    </div>
-                  </>
-                ) : (
-                  <span className="inline-flex items-center px-2 py-0.5 rounded text-[10.5px] font-heading font-bold uppercase tracking-wider bg-ink/5 text-ink-muted">
-                    No cohort
-                  </span>
-                )}
-              </div>
-              <ArrowRight className="w-4 h-4 text-ink-subtle shrink-0 group-hover:text-brand-600 transition-colors" strokeWidth={2.5} />
+                    {p.isCohortLead && (
+                      <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-heading font-bold uppercase tracking-wider bg-amber-100 text-amber-800">
+                        <Crown className="w-2.5 h-2.5" strokeWidth={3} />
+                        Leader
+                      </span>
+                    )}
+                    {bucket === "at-risk" && (
+                      <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-heading font-bold uppercase tracking-wider bg-red-50 text-red-700">
+                        <AlertTriangle className="w-2.5 h-2.5" strokeWidth={3} />
+                        At risk
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-[11.5px] text-ink-muted truncate mt-0.5">
+                    {p.email}{p.organization ? ` · ${p.organization}` : ""}
+                  </div>
+                </div>
+
+                {/* Three metric blocks — distinct color per dimension so engagement
+                    reads as journal-only, not cohort progression. */}
+                <ParticipantMetrics participant={p} />
+
+                <ArrowRight className="w-4 h-4 text-ink-subtle shrink-0 group-hover:text-brand-600 transition-colors" strokeWidth={2.5} />
               </Link>
             </div>
           );
@@ -355,22 +342,103 @@ function FilterChip({ active, onClick, label }) {
   );
 }
 
-function StatusPill({ bucket }) {
-  const cfg = {
-    "at-risk":  { label: "At risk",   cls: "bg-amber-100 text-amber-800" },
-    champion:   { label: "Champion",  cls: "bg-emerald-100 text-emerald-800" },
-    engaged:    { label: "Engaged",   cls: "bg-blue-100 text-blue-800" },
-    trying:     { label: "Trying",    cls: "bg-violet-100 text-violet-800" },
-    absent:     { label: "Absent",    cls: "bg-ink/5 text-ink-muted" },
-  }[bucket];
-  if (!cfg) return null;
+// ---------------------------------------------------------------------------
+// ParticipantMetrics — three distinct columns visualizing different signals.
+// Cohort (brand) | Homework (amber) | Journal (emerald). The intent is that
+// a glance shows three dimensions: where they are in the program, whether
+// the facilitator owes them feedback, and how journal-active they are.
+// ---------------------------------------------------------------------------
+function ParticipantMetrics({ participant }) {
+  const p = participant;
+  const cur = getParticipantCurrentSession(p);
+  const hw = getParticipantHomeworkStats(p);
+  const journal = getParticipantJournalStat(p);
+  const bucket = getEngagementBucket(p);
+  const belt = cur ? BELT_COLORS[cur.belt] : null;
+
+  // Journal labels are emerald + reference "Journal" explicitly so they
+  // never read as cohort progression.
+  const journalLabel = {
+    champion: "Champion",
+    engaged:  "Active",
+    trying:   "Starter",
+    absent:   "Silent",
+  }[bucket] || "—";
+
   return (
-    <span className={
-      "inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-heading font-bold uppercase tracking-wider shrink-0 " +
-      cfg.cls
-    }>
-      {cfg.label}
-    </span>
+    <div className="hidden md:flex items-stretch gap-1.5 shrink-0">
+      {/* Cohort block */}
+      <MetricBlock
+        accent="brand"
+        icon={GraduationCap}
+        label="Cohort"
+        value={
+          p.cohortSlug
+            ? cur
+              ? <span className="inline-flex items-center gap-1">
+                  <span
+                    style={{
+                      background: belt?.gradient,
+                      color: belt?.contrast,
+                      border: belt?.needsBorder ? "1px solid #D1D5DB" : "none",
+                    }}
+                    className="inline-block w-2.5 h-2.5 rounded-sm"
+                  />
+                  Sess {cur.order}
+                </span>
+              : "Complete"
+            : "—"
+        }
+        sub={p.cohortSlug ? (cur?.belt || "Done") : "No cohort"}
+      />
+
+      {/* Homework block */}
+      <MetricBlock
+        accent={hw.pending > 0 ? "amber" : "muted"}
+        icon={BookCheck}
+        label="Homework"
+        value={`${hw.submitted}/${MOCK_SESSIONS.length}`}
+        sub={
+          hw.pending > 0
+            ? `${hw.pending} pending review`
+            : hw.reviewed > 0 ? "All reviewed" : "None submitted"
+        }
+      />
+
+      {/* Journal block */}
+      <MetricBlock
+        accent="emerald"
+        icon={NotebookPen}
+        label="Journal"
+        value={journalLabel}
+        sub={
+          journal.entriesCount > 0
+            ? `${journal.entriesCount} entries · ${formatMinutes(journal.minutesSaved)}`
+            : "No entries"
+        }
+      />
+    </div>
+  );
+}
+
+function MetricBlock({ accent, icon: Icon, label, value, sub }) {
+  const cls = {
+    brand:   "bg-brand-50/60 text-brand-700",
+    amber:   "bg-amber-50 text-amber-800",
+    emerald: "bg-emerald-50/70 text-emerald-800",
+    muted:   "bg-ink/5 text-ink-muted",
+  }[accent] || "bg-ink/5 text-ink-muted";
+  return (
+    <div className={"rounded-lg px-2.5 py-1.5 min-w-[120px] " + cls}>
+      <div className="inline-flex items-center gap-1 text-[9.5px] font-heading font-bold uppercase tracking-wider opacity-80">
+        <Icon className="w-2.5 h-2.5" strokeWidth={2.5} />
+        {label}
+      </div>
+      <div className="font-heading font-bold text-[12.5px] leading-tight mt-0.5 whitespace-nowrap">
+        {value}
+      </div>
+      {sub && <div className="text-[10.5px] opacity-70 truncate mt-0.5">{sub}</div>}
+    </div>
   );
 }
 

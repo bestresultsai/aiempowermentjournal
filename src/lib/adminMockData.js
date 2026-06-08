@@ -11,6 +11,8 @@
 // All cohort slugs match DEMO_COHORTS so the scoping helpers work end-to-end.
 // ---------------------------------------------------------------------------
 
+import { MOCK_SESSIONS as MOCK_SESSIONS_FOR_HELPERS } from "./mockCohort";
+
 const COHORT_IAHE = "iahe-aiew3-2026q1";
 const COHORT_MAYO = "mayo-aiew3-2026q1";
 const COHORT_UCLA = "ucla-apfw-2026q1";
@@ -67,6 +69,7 @@ export const ADMIN_MOCK_PARTICIPANTS = [
     title: "Director of Education",
     organization: "IAHE",
     cohortSlug: COHORT_IAHE,
+    isCohortLead: true,
     whyAi: "Our credentialing intake is drowning the team. I'm convinced AI can take 70% of it off our plate without losing the human touch.",
     mainGoal: "Cut credentialing intake time by half before the next accreditation cycle.",
     progress: [1, 2, 3],
@@ -1076,12 +1079,37 @@ export function getParticipantJournalStat(p) {
 }
 
 // Engagement bucket for a single participant — used by status filter.
+// Strictly journal-volume based. Cohort progression is a separate signal
+// (see getParticipantCurrentSession + getParticipantHomeworkStats).
 export function getEngagementBucket(p) {
   const n = p.journalEntries?.length || 0;
   if (n >= 5)      return "champion";
   if (n >= 2)      return "engaged";
   if (n === 1)     return "trying";
   return "absent";
+}
+
+// Current session pointer for a participant — the next un-completed session.
+// Returns null if the cohort has been completed (all 8 done).
+export function getParticipantCurrentSession(p) {
+  const completed = new Set(p?.progress || []);
+  for (const s of MOCK_SESSIONS_FOR_HELPERS) {
+    if (!completed.has(s.order)) return { order: s.order, belt: s.belt };
+  }
+  return null; // completed every session
+}
+
+// Homework stats for a participant — submitted, reviewed, pending.
+// Pending = submitted but not yet reviewed.
+export function getParticipantHomeworkStats(p) {
+  const subs = Object.values(p?.submissions || {});
+  const submitted = subs.length;
+  const reviewed = subs.filter((s) => s.reviewedAt).length;
+  return {
+    submitted,
+    reviewed,
+    pending: submitted - reviewed,
+  };
 }
 
 // Most recent entries across scope (for the dashboard activity feed).
