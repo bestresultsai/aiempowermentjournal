@@ -5,7 +5,7 @@ import {
   TrendingUp, Building2, ArrowRight, Award, BarChart3, Download,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
-import { getAccessibleCohorts } from "../../lib/adminRoles";
+import { useScopeFilters } from "../../lib/useScopeFilters";
 import { DEMO_COHORTS } from "../../lib/demoData";
 import {
   ADMIN_MOCK_PARTICIPANTS,
@@ -29,7 +29,7 @@ import { downloadCSV } from "../../lib/csvExport";
 import WeeklyTrendChart from "../../components/admin/WeeklyTrendChart";
 import EngagementDonut from "../../components/admin/EngagementDonut";
 import SegmentedControl from "../../components/admin/SegmentedControl";
-import SelectChip from "../../components/admin/SelectChip";
+import ScopeFilterBar from "../../components/admin/ScopeFilterBar";
 
 // ---------------------------------------------------------------------------
 // /admin/journal — the AI Journal dashboard.
@@ -44,38 +44,13 @@ import SelectChip from "../../components/admin/SelectChip";
 
 export default function AdminJournalDashboard() {
   const { user } = useAuth();
-  const cohorts = getAccessibleCohorts(user, DEMO_COHORTS);
+  const scope = useScopeFilters(user, DEMO_COHORTS);
+  const { cohorts, effectiveCohorts, effectiveSlugs: cohortSlugs, orgs, facilitators } = scope;
 
-  // Filters: date range + org + cohort.
+  // Time filter is page-specific (not part of scope).
   const [range, setRange] = useState("all");
-  const [orgFilter, setOrgFilter] = useState(null);     // null = all orgs
-  const [cohortFilter, setCohortFilter] = useState(null); // null = all cohorts
-
   const sinceMs = getSinceMs(range);
   const rangeLabel = DATE_RANGES.find((r) => r.key === range)?.label || "All time";
-
-  // Distinct orgs in scope (used by the org chip row).
-  const orgsInScope = (() => {
-    const seen = new Map();
-    for (const c of cohorts) {
-      if (c.organization && !seen.has(c.organization.id)) {
-        seen.set(c.organization.id, c.organization);
-      }
-    }
-    return [...seen.values()];
-  })();
-
-  // Apply org + cohort filters. Org narrows cohort options; cohort picks one.
-  const effectiveCohorts = cohorts
-    .filter((c) => !orgFilter || c.organization?.id === orgFilter)
-    .filter((c) => !cohortFilter || c.slug === cohortFilter);
-  const cohortSlugs = effectiveCohorts.map((c) => c.slug);
-
-  // When org changes, drop a cohort filter that no longer matches.
-  if (cohortFilter && !effectiveCohorts.some((c) => c.slug === cohortFilter)) {
-    // Defer the state reset to a render-safe path.
-    setTimeout(() => setCohortFilter(null), 0);
-  }
 
   const stats = getScopeJournalStats(cohortSlugs, sinceMs);
   const topContributors = getTopContributorsInScope(cohortSlugs, 5, sinceMs);
@@ -85,9 +60,6 @@ export default function AdminJournalDashboard() {
   const weeklyTrend = getWeeklyTrend(cohortSlugs, 8);
   const segments = getEngagementSegments(cohortSlugs, sinceMs);
 
-  // Show filter rows only when they'd be meaningful.
-  const showOrgFilter = orgsInScope.length > 1;
-  const showCohortFilter = cohorts.length > 1;
 
   // Per-cohort breakdown — only cohorts that pass the filters.
   const cohortRows = effectiveCohorts.map((c) => {
@@ -152,8 +124,10 @@ export default function AdminJournalDashboard() {
           <p className="text-[14px] text-ink-muted mt-1.5 max-w-2xl">
             {rangeLabel} · {effectiveCohorts.length} of {cohorts.length}{" "}
             {cohorts.length === 1 ? "cohort" : "cohorts"} shown
-            {orgFilter && ` · org: ${orgsInScope.find((o) => o.id === orgFilter)?.shortName || ""}`}
-            {cohortFilter && ` · cohort: ${effectiveCohorts[0]?.name || ""}`}.
+            {scope.orgFilter && ` · org: ${orgs.find((o) => o.id === scope.orgFilter)?.shortName || ""}`}
+            {scope.cohortFilter && ` · cohort: ${effectiveCohorts[0]?.name || ""}`}
+            {scope.facilitatorFilter && ` · facilitator: ${facilitators.find((f) => f.id === scope.facilitatorFilter)?.name || ""}`}
+            .
           </p>
         </div>
         <button
@@ -165,48 +139,24 @@ export default function AdminJournalDashboard() {
         </button>
       </header>
 
-      {/* Compact filter toolbar — Time segmented control + Org/Cohort dropdowns. */}
+      {/* Filter toolbar — Time segmented control + universal scope chips. */}
       <div className="flex items-center gap-3 flex-wrap">
         <SegmentedControl
           options={DATE_RANGES.map((r) => ({ key: r.key, label: r.label }))}
           value={range}
           onChange={setRange}
         />
-        {showOrgFilter && (
-          <SelectChip
-            label="Organization"
-            value={orgFilter}
-            onChange={setOrgFilter}
-            active={orgFilter !== null}
-            options={[
-              { value: null, label: "All orgs" },
-              ...orgsInScope.map((o) => ({ value: o.id, label: o.shortName || o.name })),
-            ]}
-          />
-        )}
-        {showCohortFilter && (
-          <SelectChip
-            label="Cohort"
-            value={cohortFilter}
-            onChange={setCohortFilter}
-            active={cohortFilter !== null}
-            options={[
-              { value: null, label: "All cohorts" },
-              ...cohorts
-                .filter((c) => !orgFilter || c.organization?.id === orgFilter)
-                .map((c) => ({
-                  value: c.slug,
-                  // Drop the redundant "AIEW3 — " program-code prefix; the org
-                  // dropdown already disambiguates by org and there's currently
-                  // one cohort per org in scope. When multiple cohorts per org
-                  // land, fall back to "{org} · {programCode}".
-                  label: c.organization?.shortName
-                    ? `${c.organization.shortName} · ${c.programCode}`
-                    : c.name,
-                })),
-            ]}
-          />
-        )}
+        <ScopeFilterBar
+          cohorts={cohorts}
+          orgs={orgs}
+          facilitators={facilitators}
+          orgFilter={scope.orgFilter}
+          cohortFilter={scope.cohortFilter}
+          facilitatorFilter={scope.facilitatorFilter}
+          setOrgFilter={scope.setOrgFilter}
+          setCohortFilter={scope.setCohortFilter}
+          setFacilitatorFilter={scope.setFacilitatorFilter}
+        />
       </div>
 
       {/* Hero KPIs */}

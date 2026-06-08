@@ -5,7 +5,7 @@ import {
   Check, Clock, ChevronDown, ChevronUp, RotateCcw, Send, Loader2,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
-import { getAccessibleCohorts } from "../../lib/adminRoles";
+import { useScopeFilters } from "../../lib/useScopeFilters";
 import { DEMO_COHORTS } from "../../lib/demoData";
 import { MOCK_SESSIONS, BELT_COLORS } from "../../lib/mockCohort";
 import {
@@ -13,6 +13,8 @@ import {
   markHomeworkReviewed,
   unmarkHomeworkReviewed,
 } from "../../lib/adminMockData";
+import ScopeFilterBar from "../../components/admin/ScopeFilterBar";
+import SelectChip from "../../components/admin/SelectChip";
 
 // ---------------------------------------------------------------------------
 // /admin/homework — homework queue with full review workflow.
@@ -31,31 +33,29 @@ const TABS = [
 
 export default function AdminHomeworkQueue() {
   const { user } = useAuth();
-  const cohorts = getAccessibleCohorts(user, DEMO_COHORTS);
+  const scope = useScopeFilters(user, DEMO_COHORTS);
+  const { cohorts, effectiveSlugs: cohortSlugs, orgs, facilitators } = scope;
+
   const cohortBySlug = useMemo(
     () => Object.fromEntries(cohorts.map((c) => [c.slug, c])),
     [cohorts],
   );
-  const cohortSlugs = cohorts.map((c) => c.slug);
   const sessionByOrder = useMemo(
     () => Object.fromEntries(MOCK_SESSIONS.map((s) => [s.order, s])),
     [],
   );
 
-  // Filters
+  // Page-local filters (session + search + tab + expanded row + version).
   const [tab, setTab] = useState("pending");
-  const [cohortFilter, setCohortFilter] = useState(null);
   const [sessionFilter, setSessionFilter] = useState(null);
   const [q, setQ] = useState("");
   const [expandedKey, setExpandedKey] = useState(null);
-  // Bump to force a re-derive after a write.
   const [version, setVersion] = useState(0);
 
   const rows = useMemo(() => {
     const all = getHomeworkRows(cohortSlugs, tab);
     const lc = q.trim().toLowerCase();
     return all
-      .filter((r) => !cohortFilter || r.cohortSlug === cohortFilter)
       .filter((r) => !sessionFilter || r.sessionOrder === sessionFilter)
       .filter((r) => {
         if (!lc) return true;
@@ -66,7 +66,7 @@ export default function AdminHomeworkQueue() {
         );
       });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tab, cohortFilter, sessionFilter, q, version, cohortSlugs.join(",")]);
+  }, [tab, sessionFilter, q, version, cohortSlugs.join(",")]);
 
   // Counts per tab for the chips.
   const counts = useMemo(() => ({
@@ -76,7 +76,6 @@ export default function AdminHomeworkQueue() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }), [version, cohortSlugs.join(",")]);
 
-  const showCohortFilter = cohorts.length > 1;
   const usedSessions = Array.from(
     new Set(getHomeworkRows(cohortSlugs, "all").map((r) => r.sessionOrder)),
   ).sort((a, b) => a - b);
@@ -123,23 +122,26 @@ export default function AdminHomeworkQueue() {
         ))}
       </div>
 
-      {/* Secondary filters */}
+      {/* Scope filter — Org × Cohort × Facilitator */}
+      <ScopeFilterBar
+        cohorts={cohorts}
+        orgs={orgs}
+        facilitators={facilitators}
+        orgFilter={scope.orgFilter}
+        cohortFilter={scope.cohortFilter}
+        facilitatorFilter={scope.facilitatorFilter}
+        setOrgFilter={scope.setOrgFilter}
+        setCohortFilter={scope.setCohortFilter}
+        setFacilitatorFilter={scope.setFacilitatorFilter}
+      />
+
+      {/* Session-specific filter + search (page-local) */}
       <div className="flex items-center gap-3 flex-wrap">
-        {showCohortFilter && (
-          <SelectChip
-            label="Cohort"
-            value={cohortFilter}
-            onChange={setCohortFilter}
-            options={[
-              { value: null, label: "All cohorts" },
-              ...cohorts.map((c) => ({ value: c.slug, label: c.organization?.shortName || c.name })),
-            ]}
-          />
-        )}
         <SelectChip
           label="Session"
           value={sessionFilter}
           onChange={(v) => setSessionFilter(v === null ? null : Number(v))}
+          active={sessionFilter !== null}
           options={[
             { value: null, label: "All sessions" },
             ...usedSessions.map((n) => ({
@@ -368,27 +370,6 @@ function SubmissionCard({ row, session, belt, cohort, reviewed, expanded, onTogg
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-function SelectChip({ label, value, onChange, options }) {
-  return (
-    <div className="inline-flex items-center gap-2 px-2.5 py-1.5 rounded-xl border border-soft bg-surface-card">
-      <span className="text-[11px] font-heading font-bold uppercase tracking-wider text-ink-muted">
-        {label}:
-      </span>
-      <select
-        value={value === null ? "" : String(value)}
-        onChange={(e) => onChange(e.target.value === "" ? null : e.target.value)}
-        className="bg-transparent text-[12.5px] font-heading font-semibold text-ink focus:outline-none"
-      >
-        {options.map((opt) => (
-          <option key={String(opt.value)} value={opt.value === null ? "" : String(opt.value)}>
-            {opt.label}
-          </option>
-        ))}
-      </select>
-    </div>
-  );
-}
 
 function EmptyState({ tab }) {
   const copy = tab === "reviewed"

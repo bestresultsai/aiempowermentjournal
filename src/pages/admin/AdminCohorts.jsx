@@ -4,11 +4,12 @@ import {
   Calendar, Sparkles,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
-import { getAccessibleCohorts } from "../../lib/adminRoles";
+import { useScopeFilters } from "../../lib/useScopeFilters";
 import { DEMO_COHORTS } from "../../lib/demoData";
 import { MOCK_SESSIONS, BELT_COLORS } from "../../lib/mockCohort";
 import { getParticipantsForCohort } from "../../lib/adminMockData";
 import PipelineView, { stageForDelivered } from "../../components/admin/PipelineView";
+import ScopeFilterBar from "../../components/admin/ScopeFilterBar";
 
 // ---------------------------------------------------------------------------
 // /admin/cohorts — full list of cohorts the user can access.
@@ -49,11 +50,12 @@ function formatDate(iso) {
 
 export default function AdminCohorts() {
   const { user } = useAuth();
-  const cohorts = getAccessibleCohorts(user, DEMO_COHORTS);
+  const scope = useScopeFilters(user, DEMO_COHORTS);
+  const { cohorts, effectiveCohorts, orgs, facilitators } = scope;
   const delivery = getDeliveryInfo();
 
   // Compute the row data once so the pipeline + list share the same shape.
-  const rows = cohorts.map((c) => {
+  const rows = effectiveCohorts.map((c) => {
     const roster = getParticipantsForCohort(c.slug);
     const avgProgress =
       roster.length === 0
@@ -94,10 +96,26 @@ export default function AdminCohorts() {
             Cohorts
           </h1>
           <p className="text-[13px] text-ink-muted">
-            {cohorts.length} {cohorts.length === 1 ? "cohort" : "cohorts"} in your scope.
+            {effectiveCohorts.length === cohorts.length
+              ? `${cohorts.length} ${cohorts.length === 1 ? "cohort" : "cohorts"} in your scope.`
+              : `${effectiveCohorts.length} of ${cohorts.length} cohorts shown.`}
           </p>
         </div>
       </header>
+
+      {/* Scope filter — Org + Facilitator (cohort chip hidden on the cohorts list). */}
+      <ScopeFilterBar
+        cohorts={cohorts}
+        orgs={orgs}
+        facilitators={facilitators}
+        orgFilter={scope.orgFilter}
+        cohortFilter={scope.cohortFilter}
+        facilitatorFilter={scope.facilitatorFilter}
+        setOrgFilter={scope.setOrgFilter}
+        setCohortFilter={scope.setCohortFilter}
+        setFacilitatorFilter={scope.setFacilitatorFilter}
+        includeCohort={false}
+      />
 
       {/* Pipeline view — cohorts grouped by lifecycle stage. Shared component
           so the dashboard renders identical cards. */}

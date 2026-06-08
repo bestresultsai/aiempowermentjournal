@@ -212,6 +212,7 @@ export const DEMO_JOURNAL_ENTRIES = [
 // ---------------------------------------------------------------------------
 export const DEMO_COHORTS = [
   {
+    facilitator: { id: "fac-mike", name: "Mike Burkesmith", email: "mike@bestresults.ai" },
     slug: "iahe-aiew3-2026q1",
     name: "AIEW3 — IAHE Cohort",
     methodName: "AI Empowerment Method",
@@ -223,6 +224,7 @@ export const DEMO_COHORTS = [
     },
   },
   {
+    facilitator: { id: "fac-jess", name: "Jess Lee", email: "jess@bestresults.ai" },
     slug: "mayo-aiew3-2026q2",
     name: "AIEW3 — Mayo Clinic Education",
     methodName: "AI Empowerment Method",
@@ -234,6 +236,7 @@ export const DEMO_COHORTS = [
     },
   },
   {
+    facilitator: { id: "fac-carlos", name: "Carlos Mendez", email: "carlos@bestresults.ai" },
     slug: "ucla-apfw-2026q1",
     name: "APFW — UCLA Health",
     methodName: "AI Empowerment Method",

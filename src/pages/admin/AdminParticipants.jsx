@@ -4,8 +4,9 @@ import {
   Users, Search, ArrowRight, ArrowUpDown, NotebookPen, Sparkles,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
-import { getAccessibleCohorts, getAccessibleCohortSlugs } from "../../lib/adminRoles";
+import { useScopeFilters } from "../../lib/useScopeFilters";
 import { DEMO_COHORTS } from "../../lib/demoData";
+import ScopeFilterBar from "../../components/admin/ScopeFilterBar";
 import {
   ADMIN_MOCK_PARTICIPANTS,
   getEngagementBucket,
@@ -44,38 +45,25 @@ function bucketForFilter(p) {
 // admin can see).
 export default function AdminParticipants() {
   const { user } = useAuth();
+  const scope = useScopeFilters(user, DEMO_COHORTS);
+  const { cohorts, effectiveSlugs: cohortSlugs, orgs, facilitators } = scope;
+
   const [q, setQ] = useState("");
-  // null = "All cohorts"; otherwise a specific cohort slug.
-  const [cohortFilter, setCohortFilter] = useState(null);
   // null = "All status"; otherwise "champion" | "engaged" | "at-risk".
   const [statusFilter, setStatusFilter] = useState(null);
   // Sort key — see SORTS map above.
   const [sortKey, setSortKey] = useState("name");
-  const allowedSlugs = getAccessibleCohortSlugs(user, DEMO_COHORTS);
-  const accessibleCohorts = getAccessibleCohorts(user, DEMO_COHORTS);
 
   const cohortBySlug = useMemo(
     () => Object.fromEntries(DEMO_COHORTS.map((c) => [c.slug, c])),
     [],
   );
 
-  // Per-cohort participant counts for the filter chips.
-  const countsBySlug = useMemo(() => {
-    const counts = { __all__: 0 };
-    for (const p of ADMIN_MOCK_PARTICIPANTS) {
-      if (!allowedSlugs.includes(p.cohortSlug)) continue;
-      counts.__all__++;
-      counts[p.cohortSlug] = (counts[p.cohortSlug] || 0) + 1;
-    }
-    return counts;
-  }, [allowedSlugs]);
-
   const filtered = useMemo(() => {
     const lc = q.trim().toLowerCase();
     const sortFn = SORTS[sortKey]?.compare || SORTS.name.compare;
     return ADMIN_MOCK_PARTICIPANTS
-      .filter((p) => allowedSlugs.includes(p.cohortSlug))
-      .filter((p) => !cohortFilter || p.cohortSlug === cohortFilter)
+      .filter((p) => cohortSlugs.includes(p.cohortSlug))
       .filter((p) => !statusFilter || bucketForFilter(p) === statusFilter)
       .filter((p) =>
         !lc ||
@@ -84,11 +72,7 @@ export default function AdminParticipants() {
         (p.organization || "").toLowerCase().includes(lc),
       )
       .sort(sortFn);
-  }, [q, allowedSlugs, cohortFilter, statusFilter, sortKey]);
-
-  // Hide the filter row when the admin only has access to one cohort — it
-  // would just be "All" + that single chip, which is noise.
-  const showCohortFilter = accessibleCohorts.length > 1;
+  }, [q, cohortSlugs, statusFilter, sortKey]);
 
   return (
     <div className="space-y-6 animate-fade-in-up">
@@ -101,35 +85,23 @@ export default function AdminParticipants() {
             Participants
           </h1>
           <p className="text-[13px] text-ink-muted">
-            {filtered.length} {filtered.length === 1 ? "person" : "people"}{" "}
-            {cohortFilter
-              ? `in ${cohortBySlug[cohortFilter]?.organization?.shortName || "this cohort"}`
-              : "across your scope"}
-            .
+            {filtered.length} {filtered.length === 1 ? "person" : "people"} in your current scope.
           </p>
         </div>
       </header>
 
-      {/* Cohort filter chips (only when admin can see more than one cohort) */}
-      {showCohortFilter && (
-        <div className="flex items-center gap-2 flex-wrap">
-          <FilterChip
-            active={cohortFilter === null}
-            onClick={() => setCohortFilter(null)}
-            label="All cohorts"
-            count={countsBySlug.__all__}
-          />
-          {accessibleCohorts.map((c) => (
-            <FilterChip
-              key={c.slug}
-              active={cohortFilter === c.slug}
-              onClick={() => setCohortFilter(c.slug)}
-              label={c.organization?.shortName || c.name}
-              count={countsBySlug[c.slug] || 0}
-            />
-          ))}
-        </div>
-      )}
+      {/* Scope filter — Org × Cohort × Facilitator */}
+      <ScopeFilterBar
+        cohorts={cohorts}
+        orgs={orgs}
+        facilitators={facilitators}
+        orgFilter={scope.orgFilter}
+        cohortFilter={scope.cohortFilter}
+        facilitatorFilter={scope.facilitatorFilter}
+        setOrgFilter={scope.setOrgFilter}
+        setCohortFilter={scope.setCohortFilter}
+        setFacilitatorFilter={scope.setFacilitatorFilter}
+      />
 
       {/* Status filter + sort */}
       <div className="flex items-center gap-2 flex-wrap">
@@ -235,6 +207,23 @@ export default function AdminParticipants() {
   );
 }
 
+function FilterChip({ active, onClick, label }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={
+        "inline-flex items-center px-3 py-1.5 rounded-full text-[12.5px] font-heading font-semibold transition-all duration-200 " +
+        (active
+          ? "bg-ink text-white"
+          : "bg-surface-card border border-soft text-ink-muted hover:text-ink hover:border-brand-500")
+      }
+    >
+      {label}
+    </button>
+  );
+}
+
 function StatusPill({ bucket }) {
   const cfg = {
     "at-risk":  { label: "At risk",   cls: "bg-amber-100 text-amber-800" },
@@ -254,27 +243,3 @@ function StatusPill({ bucket }) {
   );
 }
 
-function FilterChip({ active, onClick, label, count }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={
-        "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12.5px] font-heading font-semibold transition-all duration-200 " +
-        (active
-          ? "bg-ink text-white"
-          : "bg-surface-card border border-soft text-ink-muted hover:text-ink hover:border-brand-500")
-      }
-    >
-      {label}
-      <span
-        className={
-          "inline-flex items-center justify-center min-w-[20px] px-1 rounded-full text-[10.5px] font-bold " +
-          (active ? "bg-white/15 text-white" : "bg-ink/5 text-ink-muted")
-        }
-      >
-        {count}
-      </span>
-    </button>
-  );
-}

@@ -110,3 +110,34 @@ export function getAccessibleOrgIds(user, allCohorts = []) {
     ),
   ];
 }
+
+// Distinct organizations in scope (returns the full org objects).
+export function getAccessibleOrgs(user, allCohorts = []) {
+  const seen = new Map();
+  for (const c of getAccessibleCohorts(user, allCohorts)) {
+    if (c.organization && !seen.has(c.organization.id)) {
+      seen.set(c.organization.id, c.organization);
+    }
+  }
+  return [...seen.values()];
+}
+
+// Distinct facilitators in scope (returns the facilitator objects).
+export function getAccessibleFacilitators(user, allCohorts = []) {
+  const seen = new Map();
+  for (const c of getAccessibleCohorts(user, allCohorts)) {
+    if (c.facilitator && !seen.has(c.facilitator.id)) {
+      seen.set(c.facilitator.id, c.facilitator);
+    }
+  }
+  return [...seen.values()];
+}
+
+// Apply Org + Cohort + Facilitator filters in one pass. Each filter is
+// optional — null means "no filter on this dimension".
+export function applyScopeFilters(cohorts, { orgId = null, cohortSlug = null, facilitatorId = null } = {}) {
+  return cohorts
+    .filter((c) => !orgId || c.organization?.id === orgId)
+    .filter((c) => !cohortSlug || c.slug === cohortSlug)
+    .filter((c) => !facilitatorId || c.facilitator?.id === facilitatorId);
+}

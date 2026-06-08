@@ -5,7 +5,8 @@ import {
   Activity, Award, CheckCircle2, MessageSquare, Trophy,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
-import { getAccessibleCohorts, hasGlobalScope, getRoleLabel } from "../../lib/adminRoles";
+import { hasGlobalScope, getRoleLabel } from "../../lib/adminRoles";
+import { useScopeFilters } from "../../lib/useScopeFilters";
 import { DEMO_COHORTS } from "../../lib/demoData";
 import { MOCK_SESSIONS, BELT_COLORS } from "../../lib/mockCohort";
 import {
@@ -28,6 +29,7 @@ import { downloadCSV } from "../../lib/csvExport";
 import Sparkline from "../../components/admin/Sparkline";
 import DeltaBadge from "../../components/admin/DeltaBadge";
 import PipelineView from "../../components/admin/PipelineView";
+import ScopeFilterBar from "../../components/admin/ScopeFilterBar";
 
 // ---------------------------------------------------------------------------
 // /admin — Admin landing dashboard. Top to bottom:
@@ -76,9 +78,8 @@ function formatShortDate(iso) {
 
 export default function AdminDashboard() {
   const { user } = useAuth();
-  const allCohorts = DEMO_COHORTS;
-  const cohorts = getAccessibleCohorts(user, allCohorts);
-  const cohortSlugs = cohorts.map((c) => c.slug);
+  const scope = useScopeFilters(user, DEMO_COHORTS);
+  const { cohorts, effectiveCohorts, effectiveSlugs: cohortSlugs, orgs, facilitators } = scope;
 
   const participants = ADMIN_MOCK_PARTICIPANTS.filter((p) => cohortSlugs.includes(p.cohortSlug));
   const pending = getPendingHomework(cohortSlugs);
@@ -124,7 +125,9 @@ export default function AdminDashboard() {
           <p className="text-[14px] text-ink-muted mt-1.5 max-w-2xl">
             {hasGlobalScope(user)
               ? "All orgs, all cohorts. Drill in below."
-              : `Showing the ${cohorts.length === 1 ? "cohort" : `${cohorts.length} cohorts`} you have access to.`}
+              : (effectiveCohorts.length === cohorts.length
+                  ? `Showing the ${cohorts.length === 1 ? "cohort" : `${cohorts.length} cohorts`} you have access to.`
+                  : `Showing ${effectiveCohorts.length} of ${cohorts.length} cohorts.`)}
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
@@ -152,6 +155,20 @@ export default function AdminDashboard() {
           </Link>
         </div>
       </header>
+
+      {/* Scope filter — Org × Cohort × Facilitator. Auto-hides chips when
+          there's only one option in a dimension. */}
+      <ScopeFilterBar
+        cohorts={cohorts}
+        orgs={orgs}
+        facilitators={facilitators}
+        orgFilter={scope.orgFilter}
+        cohortFilter={scope.cohortFilter}
+        facilitatorFilter={scope.facilitatorFilter}
+        setOrgFilter={scope.setOrgFilter}
+        setCohortFilter={scope.setCohortFilter}
+        setFacilitatorFilter={scope.setFacilitatorFilter}
+      />
 
       {/* ---------- 2. Top win banner ---------- */}
       {topWin && (
@@ -191,7 +208,7 @@ export default function AdminDashboard() {
         <KpiCard
           icon={GraduationCap}
           label="Cohorts"
-          value={cohorts.length}
+          value={effectiveCohorts.length}
           accent="brand"
         />
         <KpiCard
@@ -307,7 +324,7 @@ export default function AdminDashboard() {
                       {formatShortDate(s.date)}
                     </div>
                     <div className="text-[11px] text-brand-700 font-heading font-semibold mt-0.5">
-                      {timeUntil(s.date)} · {cohorts.length} {cohorts.length === 1 ? "cohort" : "cohorts"}
+                      {timeUntil(s.date)} · {effectiveCohorts.length} {effectiveCohorts.length === 1 ? "cohort" : "cohorts"}
                     </div>
                   </div>
                 </div>
@@ -321,7 +338,7 @@ export default function AdminDashboard() {
       <section>
         <SectionHeader title="Pipeline" cta={{ to: "/admin/cohorts", label: "Full view" }} />
         <PipelineView
-          rows={cohorts.map((c) => ({ cohort: c, delivered }))}
+          rows={effectiveCohorts.map((c) => ({ cohort: c, delivered }))}
         />
       </section>
 
@@ -329,7 +346,7 @@ export default function AdminDashboard() {
       <section>
         <SectionHeader title="Your cohorts" cta={{ to: "/admin/cohorts", label: "View all" }} />
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-3">
-          {cohorts.map((c) => {
+          {effectiveCohorts.map((c) => {
             const roster = getParticipantsForCohort(c.slug);
             const totalParticipants = roster.length;
             const avgProgress =
