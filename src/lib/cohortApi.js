@@ -12,6 +12,11 @@ import {
   isSessionUnlocked,
 } from "./mockCohort";
 import { DEMO_COHORTS } from "./demoData";
+import {
+  getParticipantByEmail,
+  submitHomeworkAsParticipant,
+  markSessionCompleteForParticipant,
+} from "./adminMockData";
 
 export const USE_MOCK_DATA = true; // flip to false once Notion DBs + functions are live
 
@@ -79,8 +84,25 @@ export async function getCohortBySlug(slug) {
     }
 
     const key = currentUserKey();
-    const completed = inMemoryProgress[key] || [];
-    const homework = inMemoryHomework[key] || {};
+
+    // Prefer the unified ADMIN_MOCK_PARTICIPANTS record when one exists for
+    // the current email — that way submissions + admin reviews flow both
+    // directions through the same store. Fall back to the legacy in-memory
+    // map for unknown users.
+    const adminParticipant = getParticipantByEmail(key);
+    let completed;
+    let homework;
+    if (adminParticipant) {
+      completed = adminParticipant.progress || [];
+      homework = {};
+      for (const [orderStr, sub] of Object.entries(adminParticipant.submissions || {})) {
+        if (!sub.submittedAt) continue;
+        homework[Number(orderStr)] = sub;
+      }
+    } else {
+      completed = inMemoryProgress[key] || [];
+      homework = inMemoryHomework[key] || {};
+    }
 
     return {
       ...MOCK_COHORT,
@@ -117,6 +139,11 @@ export async function getSession(slug, order) {
 export async function markSessionComplete(slug, order, completed = true) {
   if (USE_MOCK_DATA) {
     const key = currentUserKey();
+    // Prefer the unified participant record so admin views reflect progress.
+    const updated = markSessionCompleteForParticipant(key, order, completed);
+    if (updated) {
+      return { success: true, completed: updated };
+    }
     const list = new Set(inMemoryProgress[key] || []);
     if (completed) list.add(Number(order));
     else list.delete(Number(order));
@@ -132,6 +159,13 @@ export async function markSessionComplete(slug, order, completed = true) {
 export async function submitHomework(slug, order, { response, link }) {
   if (USE_MOCK_DATA) {
     const key = currentUserKey();
+    // Route through the unified store when the user matches a known
+    // participant — that way admin homework queue + participant submission
+    // share one record + reviews flow back to /session/:order.
+    const adminWrite = submitHomeworkAsParticipant(key, order, { response, link });
+    if (adminWrite) {
+      return { success: true, submission: adminWrite };
+    }
     if (!inMemoryHomework[key]) inMemoryHomework[key] = {};
     inMemoryHomework[key][order] = {
       response: response || "",

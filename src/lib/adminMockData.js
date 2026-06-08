@@ -276,6 +276,107 @@ export function getParticipantById(id) {
   return ADMIN_MOCK_PARTICIPANTS.find((p) => p.id === id) || null;
 }
 
+// Lookup by email — used by the participant-facing flow to find the same
+// participant record the admin sees. Lets one demo write reflect in both views.
+export function getParticipantByEmail(email) {
+  if (!email) return null;
+  const lc = email.toLowerCase();
+  return ADMIN_MOCK_PARTICIPANTS.find((p) => p.email?.toLowerCase() === lc) || null;
+}
+
+// ---------------------------------------------------------------------------
+// Add participants to a cohort — mock mode. Persists to localStorage so a
+// refresh keeps them around during demos.
+//
+// Accepts either { email, name?, title? } or an array of those. Returns the
+// created participants (skipping anyone whose email already exists in scope).
+// ---------------------------------------------------------------------------
+
+const PARTICIPANT_STORAGE_KEY = "brai_admin_participants_added";
+
+function loadAddedParticipants() {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = window.localStorage.getItem(PARTICIPANT_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+function persistAddedParticipants(list) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(PARTICIPANT_STORAGE_KEY, JSON.stringify(list));
+  } catch { /* ignore */ }
+}
+
+// Hydrate on module load.
+(function hydrateAddedParticipants() {
+  for (const p of loadAddedParticipants()) {
+    if (!ADMIN_MOCK_PARTICIPANTS.some((x) => x.id === p.id)) {
+      ADMIN_MOCK_PARTICIPANTS.push(p);
+    }
+  }
+})();
+
+function nameFromEmail(email) {
+  // Mirrors the welcome-wizard heuristic. Cheap derive when no name provided.
+  if (!email) return "";
+  const local = (email.split("@")[0] || "").trim();
+  if (!/[._\-+]/.test(local)) return "";
+  const parts = local
+    .split(/[._+\-0-9]/)
+    .filter(Boolean)
+    .filter((p) => p.length >= 2 && /^[a-z]+$/i.test(p))
+    .map((p) => p[0].toUpperCase() + p.slice(1).toLowerCase());
+  return parts.slice(0, 2).join(" ");
+}
+
+export function addParticipantsToCohort(cohortSlug, payloads) {
+  if (!Array.isArray(payloads)) payloads = [payloads];
+  const added = [];
+  const skipped = [];
+
+  for (const raw of payloads) {
+    const email = (raw.email || "").trim().toLowerCase();
+    if (!email) continue;
+
+    const existing = ADMIN_MOCK_PARTICIPANTS.find(
+      (p) => p.email?.toLowerCase() === email && p.cohortSlug === cohortSlug,
+    );
+    if (existing) {
+      skipped.push({ email, reason: "already in cohort" });
+      continue;
+    }
+
+    const id = `user-${cohortSlug}-${email.replace(/[^a-z0-9]/g, "-").slice(0, 32)}-${Date.now().toString(36).slice(-4)}`;
+    const participant = {
+      id,
+      name: (raw.name || "").trim() || nameFromEmail(email) || email.split("@")[0],
+      email,
+      title: (raw.title || "").trim() || "",
+      organization: (raw.organization || "").trim() || "",
+      cohortSlug,
+      whyAi: "",
+      mainGoal: "",
+      progress: [],
+      lastJournalDaysAgo: 999,
+      submissions: {},
+      journalEntries: [],
+      addedAt: new Date().toISOString(),
+    };
+    ADMIN_MOCK_PARTICIPANTS.push(participant);
+    added.push(participant);
+  }
+
+  // Persist only the newly-added ones — base ADMIN_MOCK_PARTICIPANTS isn't
+  // mutated on disk, so on next refresh hydration adds these back.
+  const stored = loadAddedParticipants();
+  persistAddedParticipants([...stored, ...added]);
+
+  return { added, skipped };
+}
+
 // Pending = submitted but no reviewedAt. Returns rows flattened across all
 // scoped cohorts so the queue can render in one table.
 export function getPendingHomework(cohortSlugs) {
@@ -338,20 +439,82 @@ function persistStoredReviews(map) {
   } catch { /* ignore */ }
 }
 
-// Hydrate on module load so a refresh shows previously-reviewed items.
+// Hydrate on module load so a refresh shows previously-saved writes —
+// both admin reviews and participant submissions.
 (function hydrate() {
   const stored = loadStoredReviews();
-  for (const [key, review] of Object.entries(stored)) {
+  for (const [key, payload] of Object.entries(stored)) {
+    if (key.startsWith("__participant__::")) {
+      // Participant submission overlay.
+      const parts = key.split("::");
+      const participantId = parts[1];
+      const orderStr = parts[2];
+      const p = ADMIN_MOCK_PARTICIPANTS.find((x) => x.id === participantId);
+      if (!p) continue;
+      if (!p.submissions) p.submissions = {};
+      p.submissions[orderStr] = {
+        ...(p.submissions[orderStr] || {}),
+        response: payload.response,
+        link: payload.link,
+        submittedAt: payload.submittedAt,
+        updatedAt: payload.updatedAt,
+      };
+      continue;
+    }
+    // Admin review overlay.
     const [participantId, orderStr] = key.split("::");
     const p = ADMIN_MOCK_PARTICIPANTS.find((x) => x.id === participantId);
     if (!p || !p.submissions || !p.submissions[orderStr]) continue;
     p.submissions[orderStr] = {
       ...p.submissions[orderStr],
-      reviewedAt: review.reviewedAt,
-      feedback: review.feedback,
+      reviewedAt: payload.reviewedAt,
+      feedback: payload.feedback,
     };
   }
 })();
+
+// ---------------------------------------------------------------------------
+// Participant-side homework write — mirrors the admin write so both views see
+// the same submission. Called from the participant SessionDetail.
+// ---------------------------------------------------------------------------
+export function submitHomeworkAsParticipant(email, sessionOrder, { response, link }) {
+  const p = getParticipantByEmail(email);
+  if (!p) return null;
+  const order = String(sessionOrder);
+  if (!p.submissions) p.submissions = {};
+  const existing = p.submissions[order] || {};
+  // Preserve any existing reviewedAt + feedback so an edit doesn't blow away
+  // the facilitator's response. Updating only the user-editable fields.
+  p.submissions[order] = {
+    ...existing,
+    response: (response || "").trim(),
+    link: (link || "").trim(),
+    submittedAt: existing.submittedAt || new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+  // Persist alongside admin reviews under the same storage key so refresh
+  // round-trips both directions.
+  const stored = loadStoredReviews();
+  stored[`__participant__::${p.id}::${order}`] = {
+    response: p.submissions[order].response,
+    link: p.submissions[order].link,
+    submittedAt: p.submissions[order].submittedAt,
+    updatedAt: p.submissions[order].updatedAt,
+  };
+  persistStoredReviews(stored);
+  return p.submissions[order];
+}
+
+// Mark a session complete for a participant identified by email.
+export function markSessionCompleteForParticipant(email, sessionOrder, completed = true) {
+  const p = getParticipantByEmail(email);
+  if (!p) return null;
+  const ord = Number(sessionOrder);
+  const set = new Set(p.progress || []);
+  if (completed) set.add(ord); else set.delete(ord);
+  p.progress = [...set].sort((a, b) => a - b);
+  return p.progress;
+}
 
 export function markHomeworkReviewed(participantId, sessionOrder, feedback) {
   const p = getParticipantById(participantId);

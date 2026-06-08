@@ -179,6 +179,7 @@ export default function SessionDetail() {
                     session={session}
                     pending={homework.isPending}
                     onSubmit={(payload) => homework.mutate(payload)}
+                    facilitator={cohort?.trainer}
                   />
                 )}
               </div>

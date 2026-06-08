@@ -121,13 +121,22 @@ export default function AdminCohortRoster() {
         </div>
         <div className="flex items-center gap-2 shrink-0">
           {canEditCohort(user, cohort) && (
-            <Link
-              to={`/admin/cohorts/${cohort.slug}/edit`}
-              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white border border-soft text-[12.5px] font-heading font-semibold text-ink hover:bg-surface-soft hover:border-brand-500 transition-all duration-200"
-            >
-              <Pencil className="w-3.5 h-3.5 text-brand-600" strokeWidth={2.5} />
-              Edit cohort
-            </Link>
+            <>
+              <Link
+                to={`/admin/cohorts/${cohort.slug}/participants/add`}
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-brand-600 text-white text-[12.5px] font-heading font-semibold hover:bg-brand-700 transition-colors duration-200"
+              >
+                <UserPlus className="w-3.5 h-3.5" strokeWidth={2.5} />
+                Add participants
+              </Link>
+              <Link
+                to={`/admin/cohorts/${cohort.slug}/edit`}
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white border border-soft text-[12.5px] font-heading font-semibold text-ink hover:bg-surface-soft hover:border-brand-500 transition-all duration-200"
+              >
+                <Pencil className="w-3.5 h-3.5 text-brand-600" strokeWidth={2.5} />
+                Edit cohort
+              </Link>
+            </>
           )}
           <button
             onClick={handleExportCSV}
@@ -281,18 +290,15 @@ export default function AdminCohortRoster() {
               No participants in this cohort yet.
             </h3>
             <p className="text-[13px] text-ink-muted mt-1 max-w-md mx-auto">
-              Add participants by email or invite them in bulk. The participant management flow
-              ships in the next round.
+              Add participants by email or paste a list of emails to bulk-add.
             </p>
-            <button
-              type="button"
-              disabled
-              title="Participant management lands in the next round"
-              className="mt-4 inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-ink/5 text-ink-subtle text-[12.5px] font-heading font-semibold cursor-not-allowed"
+            <Link
+              to={`/admin/cohorts/${cohort.slug}/participants/add`}
+              className="mt-4 inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-brand-600 text-white text-[12.5px] font-heading font-semibold hover:bg-brand-700 transition-colors"
             >
               <UserPlus className="w-3.5 h-3.5" strokeWidth={2.5} />
               Add participants
-            </button>
+            </Link>
           </div>
         )}
       </div>

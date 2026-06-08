@@ -1,17 +1,31 @@
 import { useState, useEffect } from "react";
+import {
+  Check, Pencil, ExternalLink, Sparkles, Loader2, MessageSquare,
+  Send, X,
+} from "lucide-react";
 
-// Lets a participant submit (or re-submit) the homework for a session.
-// `session.homework`        = { prompt, dueDate, submissionType }
-// `session.homeworkSubmission` = { response, link, submittedAt } | null
-export default function HomeworkSubmission({ session, onSubmit, pending }) {
+// ---------------------------------------------------------------------------
+// HomeworkSubmission — participant-facing homework form on /session/:order.
+//
+// Props:
+//   session: {
+//     homework: { prompt, dueDate, submissionType },
+//     homeworkSubmission: { response, link, submittedAt, reviewedAt?, feedback? }
+//   }
+//   onSubmit:  (payload) => void
+//   pending:   boolean
+//   facilitator: { name, headshotUrl? }  — for the feedback callout header
+// ---------------------------------------------------------------------------
+
+export default function HomeworkSubmission({ session, onSubmit, pending, facilitator }) {
   const hw = session?.homework;
   const existing = session?.homeworkSubmission;
+  const reviewed = !!existing?.reviewedAt;
 
   const [response, setResponse] = useState(existing?.response || "");
   const [link, setLink] = useState(existing?.link || "");
   const [editing, setEditing] = useState(!existing);
 
-  // Refresh when navigating between sessions
   useEffect(() => {
     setResponse(existing?.response || "");
     setLink(existing?.link || "");
@@ -20,7 +34,7 @@ export default function HomeworkSubmission({ session, onSubmit, pending }) {
 
   if (!hw?.prompt) {
     return (
-      <div style={{ fontSize: 14, color: "#64748B" }}>
+      <div className="rounded-2xl bg-surface-card border border-soft p-5 text-[13.5px] text-ink-muted">
         No homework for this session.
       </div>
     );
@@ -28,7 +42,7 @@ export default function HomeworkSubmission({ session, onSubmit, pending }) {
 
   const due = hw.dueDate ? new Date(hw.dueDate) : null;
   const dueLabel = due
-    ? due.toLocaleDateString("en-US", { weekday: "short", month: "long", day: "numeric" })
+    ? due.toLocaleDateString(undefined, { weekday: "short", month: "long", day: "numeric" })
     : null;
 
   function handleSubmit(e) {
@@ -39,59 +53,102 @@ export default function HomeworkSubmission({ session, onSubmit, pending }) {
   }
 
   return (
-    <div>
-      <div style={{ fontSize: 12, fontWeight: 700, color: "#64748B", letterSpacing: 0.4, marginBottom: 6 }}>
-        ASSIGNMENT
-      </div>
-      <p style={{ fontSize: 15, color: "#334155", lineHeight: 1.65, margin: "0 0 6px" }}>
-        {hw.prompt}
-      </p>
-      {dueLabel && (
-        <div style={{ fontSize: 12, color: "#64748B", marginBottom: 18 }}>
-          Due {dueLabel}
+    <div className="space-y-4">
+      {/* Assignment prompt */}
+      <div className="rounded-2xl bg-surface-card border border-soft p-5">
+        <div className="text-[10.5px] font-heading font-bold uppercase tracking-wider text-ink-subtle mb-2">
+          Assignment
         </div>
+        <p className="text-[14.5px] text-ink leading-relaxed">{hw.prompt}</p>
+        {dueLabel && (
+          <div className="mt-3 inline-flex items-center gap-1.5 text-[11.5px] font-heading font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded">
+            Due {dueLabel}
+          </div>
+        )}
+      </div>
+
+      {/* Facilitator feedback — shown above the submission view when reviewed */}
+      {reviewed && existing.feedback && (
+        <FacilitatorFeedback
+          feedback={existing.feedback}
+          reviewedAt={existing.reviewedAt}
+          facilitator={facilitator}
+        />
       )}
 
-      {existing && !editing && <SubmittedView submission={existing} onEdit={() => setEditing(true)} />}
+      {existing && !editing && (
+        <SubmittedView
+          submission={existing}
+          reviewed={reviewed}
+          onEdit={() => setEditing(true)}
+        />
+      )}
 
       {(editing || !existing) && (
-        <form onSubmit={handleSubmit}>
-          <label style={labelStyle}>Your response</label>
-          <textarea
-            value={response}
-            onChange={(e) => setResponse(e.target.value)}
-            placeholder="Type your answer here, or paste a link below if your work lives elsewhere."
-            rows={6}
-            style={textareaStyle}
-          />
+        <form
+          onSubmit={handleSubmit}
+          className="rounded-2xl bg-surface-card border border-soft p-5 space-y-4"
+        >
+          <label className="block">
+            <span className="block text-[11.5px] font-heading font-semibold tracking-wider uppercase text-ink-muted mb-1.5">
+              Your response
+            </span>
+            <textarea
+              value={response}
+              onChange={(e) => setResponse(e.target.value)}
+              placeholder="Type your answer here, or paste a link below if your work lives elsewhere."
+              rows={6}
+              className="w-full px-4 py-3 rounded-xl border border-soft bg-surface-card text-ink text-[14px] font-body placeholder:text-ink-subtle focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 resize-y leading-relaxed"
+            />
+          </label>
 
-          <label style={{ ...labelStyle, marginTop: 14 }}>Optional link (Google Doc, Notion, file)</label>
-          <input
-            type="url"
-            value={link}
-            onChange={(e) => setLink(e.target.value)}
-            placeholder="https://docs.google.com/..."
-            style={inputStyle}
-          />
+          <label className="block">
+            <span className="block text-[11.5px] font-heading font-semibold tracking-wider uppercase text-ink-muted mb-1.5">
+              Optional link (Google Doc, Notion, file)
+            </span>
+            <input
+              type="url"
+              value={link}
+              onChange={(e) => setLink(e.target.value)}
+              placeholder="https://docs.google.com/..."
+              className="w-full px-4 py-2.5 rounded-xl border border-soft bg-surface-card text-ink text-[14px] font-body placeholder:text-ink-subtle focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15"
+            />
+          </label>
 
-          <div style={{ display: "flex", gap: 10, marginTop: 16, alignItems: "center" }}>
+          <div className="flex items-center gap-3 flex-wrap">
             <button
               type="submit"
               disabled={pending || (!response.trim() && !link.trim())}
-              style={{
-                ...btnPrimary,
-                opacity: pending || (!response.trim() && !link.trim()) ? 0.5 : 1,
-                cursor: pending ? "wait" : "pointer",
-              }}
+              className={
+                "inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-[13px] font-heading font-semibold transition-colors " +
+                (pending || (!response.trim() && !link.trim())
+                  ? "bg-ink/5 text-ink-subtle cursor-not-allowed"
+                  : "bg-brand-600 text-white hover:bg-brand-700")
+              }
             >
-              {pending ? "Submitting…" : existing ? "Update submission" : "Submit homework"}
+              {pending ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" strokeWidth={2.5} />
+                  Submitting…
+                </>
+              ) : (
+                <>
+                  <Send className="w-4 h-4" strokeWidth={2.5} />
+                  {existing ? "Update submission" : "Submit homework"}
+                </>
+              )}
             </button>
             {existing && (
-              <button type="button" onClick={() => setEditing(false)} style={btnSecondary}>
+              <button
+                type="button"
+                onClick={() => setEditing(false)}
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-[12.5px] font-heading font-semibold text-ink-muted hover:text-ink hover:bg-ink/5 transition-colors"
+              >
+                <X className="w-3.5 h-3.5" strokeWidth={2.5} />
                 Cancel
               </button>
             )}
-            <div style={{ fontSize: 12, color: "#64748B", marginLeft: "auto" }}>
+            <div className="ml-auto text-[11.5px] text-ink-muted">
               Either field is fine — text, link, or both.
             </div>
           </div>
@@ -101,28 +158,34 @@ export default function HomeworkSubmission({ session, onSubmit, pending }) {
   );
 }
 
-function SubmittedView({ submission, onEdit }) {
+// ---- Submitted view ----
+function SubmittedView({ submission, reviewed, onEdit }) {
   const ts = submission.submittedAt ? new Date(submission.submittedAt) : null;
   const tsLabel = ts
-    ? ts.toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" })
+    ? ts.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })
     : "";
 
   return (
-    <div
-      style={{
-        background: "#ECFDF5",
-        border: "1px solid #A7F3D0",
-        borderRadius: 12,
-        padding: "14px 16px",
-      }}
-    >
-      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
-        <div style={{ fontSize: 18 }}>✅</div>
-        <div style={{ fontSize: 14, fontWeight: 800, color: "#065F46" }}>Homework submitted</div>
-        <div style={{ fontSize: 12, color: "#047857", marginLeft: "auto" }}>{tsLabel}</div>
+    <div className={
+      "rounded-2xl border p-5 " +
+      (reviewed
+        ? "bg-surface-card border-soft"
+        : "bg-emerald-50/40 border-emerald-100")
+    }>
+      <div className="flex items-center gap-2 mb-3 flex-wrap">
+        <span className={
+          "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-heading font-bold " +
+          (reviewed
+            ? "bg-brand-50 text-brand-700"
+            : "bg-emerald-100 text-emerald-800")
+        }>
+          <Check className="w-3 h-3" strokeWidth={3} />
+          {reviewed ? "Reviewed" : "Submitted"}
+        </span>
+        <span className="text-[11.5px] text-ink-muted">{tsLabel}</span>
       </div>
       {submission.response && (
-        <p style={{ fontSize: 14, color: "#0F172A", whiteSpace: "pre-wrap", margin: "0 0 10px", lineHeight: 1.55 }}>
+        <p className="text-[14px] text-ink leading-relaxed whitespace-pre-wrap mb-3">
           {submission.response}
         </p>
       )}
@@ -130,93 +193,63 @@ function SubmittedView({ submission, onEdit }) {
         <a
           href={submission.link}
           target="_blank"
-          rel="noreferrer"
-          style={{
-            display: "inline-block",
-            fontSize: 13,
-            fontWeight: 700,
-            color: "#1D4ED8",
-            textDecoration: "none",
-            background: "#DBEAFE",
-            padding: "6px 10px",
-            borderRadius: 8,
-            marginBottom: 12,
-          }}
+          rel="noreferrer noopener"
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-brand-50 text-brand-700 text-[12.5px] font-heading font-semibold hover:bg-brand-100 transition-colors"
         >
-          Open link →
+          <ExternalLink className="w-3.5 h-3.5" strokeWidth={2.5} />
+          Open link
         </a>
       )}
-      <button
-        type="button"
-        onClick={onEdit}
-        style={{
-          background: "none",
-          border: "none",
-          color: "#047857",
-          fontSize: 13,
-          fontWeight: 700,
-          cursor: "pointer",
-          padding: 0,
-        }}
-      >
-        Edit submission
-      </button>
+      <div className="mt-4">
+        <button
+          type="button"
+          onClick={onEdit}
+          className="inline-flex items-center gap-1 text-[12px] font-heading font-semibold text-ink-muted hover:text-ink transition-colors"
+        >
+          <Pencil className="w-3.5 h-3.5" strokeWidth={2.5} />
+          Edit submission
+        </button>
+      </div>
     </div>
   );
 }
 
-const labelStyle = {
-  display: "block",
-  fontSize: 12,
-  fontWeight: 700,
-  color: "#475569",
-  letterSpacing: 0.3,
-  marginBottom: 6,
-};
-
-const textareaStyle = {
-  width: "100%",
-  padding: "10px 12px",
-  fontSize: 14,
-  fontFamily: "inherit",
-  border: "1px solid #CBD5E1",
-  borderRadius: 10,
-  background: "#F8FAFC",
-  color: "#0F172A",
-  resize: "vertical",
-  lineHeight: 1.55,
-  boxSizing: "border-box",
-};
-
-const inputStyle = {
-  width: "100%",
-  padding: "10px 12px",
-  fontSize: 14,
-  fontFamily: "inherit",
-  border: "1px solid #CBD5E1",
-  borderRadius: 10,
-  background: "#F8FAFC",
-  color: "#0F172A",
-  boxSizing: "border-box",
-};
-
-const btnPrimary = {
-  background: "#2563EB",
-  color: "#fff",
-  border: "none",
-  padding: "10px 18px",
-  borderRadius: 10,
-  fontSize: 13,
-  fontWeight: 700,
-};
-
-const btnSecondary = {
-  background: "#fff",
-  color: "#475569",
-  border: "1px solid #CBD5E1",
-  padding: "10px 14px",
-  borderRadius: 10,
-  fontSize: 13,
-  fontWeight: 700,
-  cursor: "pointer",
-};
+// ---- Facilitator feedback callout ----
+function FacilitatorFeedback({ feedback, reviewedAt, facilitator }) {
+  const ts = reviewedAt ? new Date(reviewedAt) : null;
+  const tsLabel = ts
+    ? ts.toLocaleDateString(undefined, { month: "short", day: "numeric" })
+    : "";
+  const facName = facilitator?.name || "Your facilitator";
+  const initials = (facName || "?")
+    .split(" ").filter(Boolean).slice(0, 2)
+    .map((w) => w[0]).join("").toUpperCase();
+  return (
+    <div className="rounded-2xl bg-gradient-to-br from-emerald-50/70 to-brand-50/40 border border-emerald-200 p-5">
+      <div className="flex items-center gap-3 mb-3">
+        {facilitator?.headshotUrl ? (
+          <img
+            src={facilitator.headshotUrl}
+            alt=""
+            className="w-9 h-9 rounded-full object-cover"
+          />
+        ) : (
+          <div className="w-9 h-9 rounded-full bg-brand-700 text-white flex items-center justify-center text-[11px] font-heading font-bold">
+            {initials}
+          </div>
+        )}
+        <div className="flex-1 min-w-0">
+          <div className="inline-flex items-center gap-1.5 text-[10.5px] font-heading font-bold uppercase tracking-wider text-emerald-700">
+            <MessageSquare className="w-3 h-3" strokeWidth={3} />
+            Facilitator feedback
+          </div>
+          <div className="text-[13px] font-heading font-bold text-ink mt-0.5">
+            {facName}{tsLabel && <span className="font-medium text-ink-muted"> · {tsLabel}</span>}
+          </div>
+        </div>
+        <Sparkles className="w-4 h-4 text-emerald-600 shrink-0" strokeWidth={2.25} />
+      </div>
+      <p className="text-[14px] text-ink leading-relaxed whitespace-pre-wrap">{feedback}</p>
+    </div>
+  );
+}
