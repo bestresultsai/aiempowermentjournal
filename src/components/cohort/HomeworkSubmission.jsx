@@ -1,8 +1,16 @@
-import { useState, useEffect } from "react";
+import { useRef, useState, useEffect } from "react";
 import {
   Check, Pencil, ExternalLink, Sparkles, Loader2, MessageSquare,
-  Send, X,
+  Send, X, Paperclip, Download, FileText,
 } from "lucide-react";
+
+const MAX_ATTACHMENT_BYTES = 4 * 1024 * 1024; // 4MB cap for mock-mode base64
+function formatBytes(n) {
+  if (!n) return "";
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+}
 
 // ---------------------------------------------------------------------------
 // HomeworkSubmission — participant-facing homework form on /session/:order.
@@ -24,13 +32,40 @@ export default function HomeworkSubmission({ session, onSubmit, pending, facilit
 
   const [response, setResponse] = useState(existing?.response || "");
   const [link, setLink] = useState(existing?.link || "");
+  const [attachment, setAttachment] = useState(existing?.attachment || null);
+  const [attachmentError, setAttachmentError] = useState(null);
+  const fileRef = useRef(null);
   const [editing, setEditing] = useState(!existing);
 
   useEffect(() => {
     setResponse(existing?.response || "");
     setLink(existing?.link || "");
+    setAttachment(existing?.attachment || null);
+    setAttachmentError(null);
     setEditing(!existing);
   }, [session?.order, existing]);
+
+  function handleFilePick(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setAttachmentError(null);
+    if (file.size > MAX_ATTACHMENT_BYTES) {
+      setAttachmentError(`Attachment too large (max ${formatBytes(MAX_ATTACHMENT_BYTES)}).`);
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      setAttachment({
+        name: file.name,
+        size: file.size,
+        type: file.type || "application/octet-stream",
+        dataUrl: reader.result,
+      });
+    };
+    reader.onerror = () => setAttachmentError("Couldn't read that file. Try another.");
+    reader.readAsDataURL(file);
+    e.target.value = "";
+  }
 
   if (!hw?.prompt) {
     return (
@@ -47,8 +82,8 @@ export default function HomeworkSubmission({ session, onSubmit, pending, facilit
 
   function handleSubmit(e) {
     e.preventDefault();
-    if (!response.trim() && !link.trim()) return;
-    onSubmit({ response: response.trim(), link: link.trim() });
+    if (!response.trim() && !link.trim() && !attachment) return;
+    onSubmit({ response: response.trim(), link: link.trim(), attachment });
     setEditing(false);
   }
 
@@ -115,13 +150,67 @@ export default function HomeworkSubmission({ session, onSubmit, pending, facilit
             />
           </label>
 
+          {/* Attachment */}
+          <div>
+            <span className="block text-[11.5px] font-heading font-semibold tracking-wider uppercase text-ink-muted mb-1.5">
+              Attach a file (optional)
+            </span>
+            <input
+              ref={fileRef}
+              type="file"
+              onChange={handleFilePick}
+              className="hidden"
+            />
+            {attachment ? (
+              <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl border border-soft bg-surface-soft">
+                <div className="w-9 h-9 rounded-lg bg-brand-50 text-brand-600 flex items-center justify-center shrink-0">
+                  <FileText className="w-4 h-4" strokeWidth={2} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="font-heading text-[13px] font-semibold text-ink truncate">{attachment.name}</div>
+                  <div className="text-[11px] text-ink-muted">{formatBytes(attachment.size)}</div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => fileRef.current?.click()}
+                  className="px-2.5 py-1.5 rounded-lg text-[11.5px] font-heading font-semibold text-ink-muted hover:text-ink hover:bg-white"
+                >
+                  Replace
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAttachment(null)}
+                  className="p-1.5 rounded-lg text-ink-muted hover:text-ink hover:bg-white"
+                  title="Remove attachment"
+                >
+                  <X className="w-3.5 h-3.5" strokeWidth={2.5} />
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => fileRef.current?.click()}
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white border border-soft text-[12.5px] font-heading font-semibold text-ink hover:bg-surface-soft hover:border-brand-500 transition-all"
+              >
+                <Paperclip className="w-3.5 h-3.5 text-brand-600" strokeWidth={2.5} />
+                Choose file
+              </button>
+            )}
+            {attachmentError && (
+              <p className="text-[12px] text-red-600 mt-2 font-heading font-medium">{attachmentError}</p>
+            )}
+            <p className="text-[11px] text-ink-muted mt-1.5">
+              PDF, DOCX, images, anything. Under {formatBytes(MAX_ATTACHMENT_BYTES)}.
+            </p>
+          </div>
+
           <div className="flex items-center gap-3 flex-wrap">
             <button
               type="submit"
-              disabled={pending || (!response.trim() && !link.trim())}
+              disabled={pending || (!response.trim() && !link.trim() && !attachment)}
               className={
                 "inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-[13px] font-heading font-semibold transition-colors " +
-                (pending || (!response.trim() && !link.trim())
+                (pending || (!response.trim() && !link.trim() && !attachment)
                   ? "bg-ink/5 text-ink-subtle cursor-not-allowed"
                   : "bg-brand-600 text-white hover:bg-brand-700")
               }
@@ -189,17 +278,30 @@ function SubmittedView({ submission, reviewed, onEdit }) {
           {submission.response}
         </p>
       )}
-      {submission.link && (
-        <a
-          href={submission.link}
-          target="_blank"
-          rel="noreferrer noopener"
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-brand-50 text-brand-700 text-[12.5px] font-heading font-semibold hover:bg-brand-100 transition-colors"
-        >
-          <ExternalLink className="w-3.5 h-3.5" strokeWidth={2.5} />
-          Open link
-        </a>
-      )}
+      <div className="flex items-center gap-2 flex-wrap">
+        {submission.link && (
+          <a
+            href={submission.link}
+            target="_blank"
+            rel="noreferrer noopener"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-brand-50 text-brand-700 text-[12.5px] font-heading font-semibold hover:bg-brand-100 transition-colors"
+          >
+            <ExternalLink className="w-3.5 h-3.5" strokeWidth={2.5} />
+            Open link
+          </a>
+        )}
+        {submission.attachment?.dataUrl && (
+          <a
+            href={submission.attachment.dataUrl}
+            download={submission.attachment.name}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-brand-50 text-brand-700 text-[12.5px] font-heading font-semibold hover:bg-brand-100 transition-colors"
+          >
+            <Download className="w-3.5 h-3.5" strokeWidth={2.5} />
+            {submission.attachment.name}
+            <span className="text-ink-muted font-normal">({formatBytes(submission.attachment.size)})</span>
+          </a>
+        )}
+      </div>
       <div className="mt-4">
         <button
           type="button"

@@ -341,22 +341,31 @@ export function addParticipantsToCohort(cohortSlug, payloads) {
     const email = (raw.email || "").trim().toLowerCase();
     if (!email) continue;
 
-    const existing = ADMIN_MOCK_PARTICIPANTS.find(
-      (p) => p.email?.toLowerCase() === email && p.cohortSlug === cohortSlug,
-    );
-    if (existing) {
-      skipped.push({ email, reason: "already in cohort" });
+    // For standalone (cohortSlug=null) creation we just check email uniqueness
+    // across all participants; for cohort-scoped, only within that cohort.
+    const dup = cohortSlug
+      ? ADMIN_MOCK_PARTICIPANTS.find(
+          (p) => p.email?.toLowerCase() === email && p.cohortSlug === cohortSlug,
+        )
+      : ADMIN_MOCK_PARTICIPANTS.find(
+          (p) => p.email?.toLowerCase() === email && !p.cohortSlug,
+        );
+    if (dup) {
+      skipped.push({ email, reason: cohortSlug ? "already in cohort" : "already exists" });
       continue;
     }
 
-    const id = `user-${cohortSlug}-${email.replace(/[^a-z0-9]/g, "-").slice(0, 32)}-${Date.now().toString(36).slice(-4)}`;
+    const idSeed = cohortSlug || "standalone";
+    const id = `user-${idSeed}-${email.replace(/[^a-z0-9]/g, "-").slice(0, 32)}-${Date.now().toString(36).slice(-4)}`;
     const participant = {
       id,
       name: (raw.name || "").trim() || nameFromEmail(email) || email.split("@")[0],
       email,
       title: (raw.title || "").trim() || "",
       organization: (raw.organization || "").trim() || "",
-      cohortSlug,
+      phone: (raw.phone || "").trim() || "",
+      isCohortLead: !!raw.isCohortLead,
+      cohortSlug: cohortSlug || null,
       whyAi: "",
       mainGoal: "",
       progress: [],
@@ -375,6 +384,27 @@ export function addParticipantsToCohort(cohortSlug, payloads) {
   persistAddedParticipants([...stored, ...added]);
 
   return { added, skipped };
+}
+
+// Bulk-assign existing participants to a cohort. Useful for moving standalone
+// participants into a cohort, or migrating across cohorts.
+export function assignParticipantsToCohort(participantIds, cohortSlug) {
+  if (!Array.isArray(participantIds)) participantIds = [participantIds];
+  const updated = [];
+  const stored = loadAddedParticipants();
+  for (const id of participantIds) {
+    const p = ADMIN_MOCK_PARTICIPANTS.find((x) => x.id === id);
+    if (!p) continue;
+    p.cohortSlug = cohortSlug;
+    updated.push(p);
+
+    // Mirror into the persisted-added list so reassigns survive refresh.
+    const idx = stored.findIndex((x) => x.id === id);
+    if (idx >= 0) stored[idx] = { ...stored[idx], cohortSlug };
+    else stored.push({ ...p });
+  }
+  persistAddedParticipants(stored);
+  return updated;
 }
 
 // Pending = submitted but no reviewedAt. Returns rows flattened across all
@@ -456,6 +486,7 @@ function persistStoredReviews(map) {
         ...(p.submissions[orderStr] || {}),
         response: payload.response,
         link: payload.link,
+        attachment: payload.attachment || null,
         submittedAt: payload.submittedAt,
         updatedAt: payload.updatedAt,
       };
@@ -477,7 +508,7 @@ function persistStoredReviews(map) {
 // Participant-side homework write — mirrors the admin write so both views see
 // the same submission. Called from the participant SessionDetail.
 // ---------------------------------------------------------------------------
-export function submitHomeworkAsParticipant(email, sessionOrder, { response, link }) {
+export function submitHomeworkAsParticipant(email, sessionOrder, { response, link, attachment }) {
   const p = getParticipantByEmail(email);
   if (!p) return null;
   const order = String(sessionOrder);
@@ -489,6 +520,7 @@ export function submitHomeworkAsParticipant(email, sessionOrder, { response, lin
     ...existing,
     response: (response || "").trim(),
     link: (link || "").trim(),
+    attachment: attachment || null,
     submittedAt: existing.submittedAt || new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };
@@ -498,6 +530,7 @@ export function submitHomeworkAsParticipant(email, sessionOrder, { response, lin
   stored[`__participant__::${p.id}::${order}`] = {
     response: p.submissions[order].response,
     link: p.submissions[order].link,
+    attachment: p.submissions[order].attachment,
     submittedAt: p.submissions[order].submittedAt,
     updatedAt: p.submissions[order].updatedAt,
   };
@@ -566,6 +599,7 @@ export function getHomeworkRows(cohortSlugs, status = "pending") {
         reviewedAt: sub.reviewedAt || null,
         response: sub.response,
         link: sub.link,
+        attachment: sub.attachment || null,
         feedback: sub.feedback || "",
       });
     }

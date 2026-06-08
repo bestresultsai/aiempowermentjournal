@@ -15,6 +15,7 @@ import AdminJournalDashboard from "./pages/admin/AdminJournalDashboard";
 import AdminHomeworkQueue from "./pages/admin/AdminHomeworkQueue";
 import AdminParticipants from "./pages/admin/AdminParticipants";
 import AdminParticipantDetail from "./pages/admin/AdminParticipantDetail";
+import AdminParticipantNew from "./pages/admin/AdminParticipantNew";
 import Home from "./pages/Home";
 import Login from "./pages/Login";
 import AuthVerify from "./pages/AuthVerify";
@@ -123,6 +124,7 @@ export default function App() {
               <Route path="journal" element={<AdminJournalDashboard />} />
               <Route path="homework" element={<AdminHomeworkQueue />} />
               <Route path="users" element={<AdminParticipants />} />
+              <Route path="users/new" element={<AdminParticipantNew />} />
               <Route path="users/:id" element={<AdminParticipantDetail />} />
             </Route>
 

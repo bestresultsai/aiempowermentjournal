@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import {
-  BookCheck, ExternalLink, ArrowRight, ListChecks, Search,
+  BookCheck, ExternalLink, ArrowRight, ListChecks, Search, Paperclip,
   Check, Clock, ChevronDown, ChevronUp, RotateCcw, Send, Loader2,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
@@ -291,6 +291,16 @@ function SubmissionCard({ row, session, belt, cohort, reviewed, expanded, onTogg
               >
                 <ExternalLink className="w-3 h-3" strokeWidth={2.5} />
                 Open submission
+              </a>
+            )}
+            {row.attachment?.dataUrl && (
+              <a
+                href={row.attachment.dataUrl}
+                download={row.attachment.name}
+                className="inline-flex items-center gap-1 font-heading font-semibold text-brand-600 hover:text-brand-700"
+              >
+                <Paperclip className="w-3 h-3" strokeWidth={2.5} />
+                {row.attachment.name}
               </a>
             )}
           </div>

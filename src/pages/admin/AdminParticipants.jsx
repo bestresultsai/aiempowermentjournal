@@ -1,16 +1,19 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import {
-  Users, Search, ArrowRight, ArrowUpDown, NotebookPen, Sparkles,
+  Users, Search, ArrowRight, ArrowUpDown, NotebookPen, Sparkles, Plus,
+  Check, X, GraduationCap,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { useScopeFilters } from "../../lib/useScopeFilters";
+import { canAccessAdmin } from "../../lib/adminRoles";
 import { getAllCohortsForAdmin } from "../../lib/cohortAdmin";
 import ScopeFilterBar from "../../components/admin/ScopeFilterBar";
 import {
   ADMIN_MOCK_PARTICIPANTS,
   getEngagementBucket,
   getParticipantJournalStat,
+  assignParticipantsToCohort,
   totalTimeSaved,
   formatMinutes,
 } from "../../lib/adminMockData";
@@ -53,6 +56,11 @@ export default function AdminParticipants() {
   const [statusFilter, setStatusFilter] = useState(null);
   // Sort key — see SORTS map above.
   const [sortKey, setSortKey] = useState("name");
+  // Bulk selection — set of participant ids checked.
+  const [selectedIds, setSelectedIds] = useState(() => new Set());
+  const [assigning, setAssigning] = useState(false);
+  // Bumps to force re-derive after a bulk assign.
+  const [version, setVersion] = useState(0);
 
   const cohortBySlug = useMemo(
     () => Object.fromEntries(getAllCohortsForAdmin().map((c) => [c.slug, c])),
@@ -63,7 +71,9 @@ export default function AdminParticipants() {
     const lc = q.trim().toLowerCase();
     const sortFn = SORTS[sortKey]?.compare || SORTS.name.compare;
     return ADMIN_MOCK_PARTICIPANTS
-      .filter((p) => cohortSlugs.includes(p.cohortSlug))
+      // Unassigned participants (cohortSlug=null) are visible to anyone with
+      // global scope; otherwise gate by cohort slug.
+      .filter((p) => !p.cohortSlug || cohortSlugs.includes(p.cohortSlug))
       .filter((p) => !statusFilter || bucketForFilter(p) === statusFilter)
       .filter((p) =>
         !lc ||
@@ -72,7 +82,29 @@ export default function AdminParticipants() {
         (p.organization || "").toLowerCase().includes(lc),
       )
       .sort(sortFn);
-  }, [q, cohortSlugs, statusFilter, sortKey]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [q, cohortSlugs, statusFilter, sortKey, version]);
+
+  function toggleSelected(id) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+  function clearSelection() { setSelectedIds(new Set()); }
+  async function handleBulkAssign(targetSlug) {
+    setAssigning(true);
+    await new Promise((r) => setTimeout(r, 300));
+    const slug = targetSlug === "__unassigned__" ? null : (targetSlug || null);
+    assignParticipantsToCohort([...selectedIds], slug);
+    setVersion((v) => v + 1);
+    setSelectedIds(new Set());
+    setAssigning(false);
+  }
+
+  const accessibleCohorts = scope.cohorts;
 
   return (
     <div className="space-y-6 animate-fade-in-up">
@@ -80,7 +112,7 @@ export default function AdminParticipants() {
         <div className="w-10 h-10 rounded-xl bg-brand-50 text-brand-600 flex items-center justify-center">
           <Users className="w-5 h-5" strokeWidth={2} />
         </div>
-        <div>
+        <div className="flex-1">
           <h1 className="font-heading text-[24px] lg:text-[28px] font-extrabold text-ink leading-tight">
             Participants
           </h1>
@@ -88,6 +120,15 @@ export default function AdminParticipants() {
             {filtered.length} {filtered.length === 1 ? "person" : "people"} in your current scope.
           </p>
         </div>
+        {canAccessAdmin(user) && (
+          <Link
+            to="/admin/users/new"
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-brand-600 text-white text-[12.5px] font-heading font-semibold hover:bg-brand-700 transition-colors shrink-0"
+          >
+            <Plus className="w-3.5 h-3.5" strokeWidth={2.5} />
+            New participant
+          </Link>
+        )}
       </header>
 
       {/* Scope filter — Org × Cohort × Facilitator */}
@@ -142,18 +183,43 @@ export default function AdminParticipants() {
         />
       </div>
 
+      {/* Bulk action bar — shows when 1+ rows selected */}
+      {selectedIds.size > 0 && (
+        <BulkActionBar
+          count={selectedIds.size}
+          cohorts={accessibleCohorts}
+          assigning={assigning}
+          onAssign={handleBulkAssign}
+          onClear={clearSelection}
+        />
+      )}
+
       <div className="rounded-2xl bg-surface-card border border-soft overflow-hidden">
         {filtered.map((p) => {
           const cohort = cohortBySlug[p.cohortSlug];
           const pct = Math.round(((p.progress?.length || 0) / MOCK_SESSIONS.length) * 100);
           const { entriesCount, minutesSaved } = getParticipantJournalStat(p);
           const bucket = bucketForFilter(p);
+          const checked = selectedIds.has(p.id);
           return (
-            <Link
+            <div
               key={p.id}
-              to={`/admin/users/${p.id}`}
-              className="group flex items-center gap-3 px-5 py-3.5 hover:bg-surface-soft transition-colors border-b border-soft last:border-b-0"
+              className={
+                "group flex items-center gap-3 px-5 py-3.5 transition-colors border-b border-soft last:border-b-0 " +
+                (checked ? "bg-brand-50/40" : "hover:bg-surface-soft")
+              }
             >
+              <input
+                type="checkbox"
+                checked={checked}
+                onChange={() => toggleSelected(p.id)}
+                aria-label={`Select ${p.name}`}
+                className="w-4 h-4 rounded border-soft text-brand-600 focus:ring-brand-500 cursor-pointer shrink-0"
+              />
+              <Link
+                to={`/admin/users/${p.id}`}
+                className="flex items-center gap-3 flex-1 min-w-0"
+              >
               <div className="w-10 h-10 rounded-full bg-brand-700 text-white flex items-center justify-center text-[12px] font-heading font-bold shrink-0">
                 {p.name.split(" ").slice(0, 2).map((w) => w[0]).join("").toUpperCase()}
               </div>
@@ -183,15 +249,24 @@ export default function AdminParticipants() {
               </div>
               {/* Cohort + progress */}
               <div className="hidden sm:block text-right shrink-0">
-                <div className="text-[10.5px] font-heading font-bold uppercase tracking-wider text-ink-subtle">
-                  {cohort?.organization?.shortName || "Cohort"}
-                </div>
-                <div className="text-[12.5px] font-heading font-semibold text-ink mt-0.5">
-                  {pct}%
-                </div>
+                {p.cohortSlug ? (
+                  <>
+                    <div className="text-[10.5px] font-heading font-bold uppercase tracking-wider text-ink-subtle">
+                      {cohort?.organization?.shortName || "Cohort"}
+                    </div>
+                    <div className="text-[12.5px] font-heading font-semibold text-ink mt-0.5">
+                      {pct}%
+                    </div>
+                  </>
+                ) : (
+                  <span className="inline-flex items-center px-2 py-0.5 rounded text-[10.5px] font-heading font-bold uppercase tracking-wider bg-ink/5 text-ink-muted">
+                    No cohort
+                  </span>
+                )}
               </div>
               <ArrowRight className="w-4 h-4 text-ink-subtle shrink-0 group-hover:text-brand-600 transition-colors" strokeWidth={2.5} />
-            </Link>
+              </Link>
+            </div>
           );
         })}
 
@@ -203,6 +278,62 @@ export default function AdminParticipants() {
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+function BulkActionBar({ count, cohorts, assigning, onAssign, onClear }) {
+  const [targetSlug, setTargetSlug] = useState("");
+  function handle() {
+    if (assigning) return;
+    onAssign(targetSlug);
+    setTargetSlug("");
+  }
+  return (
+    <div className="rounded-2xl bg-ink text-white p-3 flex items-center gap-3 flex-wrap shadow-lift">
+      <div className="inline-flex items-center gap-2 px-2 py-1 rounded-lg bg-white/10">
+        <Check className="w-3.5 h-3.5" strokeWidth={3} />
+        <span className="text-[12.5px] font-heading font-bold">
+          {count} selected
+        </span>
+      </div>
+      <div className="flex items-center gap-2">
+        <GraduationCap className="w-3.5 h-3.5 text-white/70" strokeWidth={2.25} />
+        <select
+          value={targetSlug}
+          onChange={(e) => setTargetSlug(e.target.value)}
+          className="bg-white/10 border border-white/15 rounded-lg px-2.5 py-1.5 text-[12.5px] font-heading font-semibold text-white focus:outline-none focus:border-white/30 appearance-none"
+        >
+          <option value="" className="text-ink">Pick a cohort…</option>
+          <option value="__unassigned__" className="text-ink">Remove from cohort</option>
+          {cohorts.map((c) => (
+            <option key={c.slug} value={c.slug} className="text-ink">
+              {c.name}
+            </option>
+          ))}
+        </select>
+        <button
+          type="button"
+          onClick={() => handle()}
+          disabled={!targetSlug || assigning}
+          className={
+            "inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-[12.5px] font-heading font-bold transition-colors " +
+            (!targetSlug || assigning
+              ? "bg-white/10 text-white/40 cursor-not-allowed"
+              : "bg-emerald-500 text-white hover:bg-emerald-400")
+          }
+        >
+          {assigning ? "Assigning…" : "Assign"}
+        </button>
+      </div>
+      <button
+        type="button"
+        onClick={onClear}
+        className="ml-auto inline-flex items-center gap-1 px-2 py-1 rounded text-[12px] font-heading font-semibold text-white/70 hover:text-white"
+      >
+        <X className="w-3 h-3" strokeWidth={2.5} />
+        Clear
+      </button>
     </div>
   );
 }
