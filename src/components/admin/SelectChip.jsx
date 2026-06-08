@@ -3,36 +3,54 @@ import { ChevronDown } from "lucide-react";
 // ---------------------------------------------------------------------------
 // SelectChip — a compact filter dropdown styled as a chip.
 //
-// Inline label + native <select> for zero-dependency keyboard + a11y.
-// Use across the admin panel as a consistent filter affordance.
+// Implementation note: the native <select> is layered on top of the chip and
+// rendered invisible (opacity-0), but it covers the whole pill including the
+// chevron. That means clicking ANYWHERE on the chip — label, value, or arrow —
+// opens the OS dropdown. The visible text + chevron we render are purely for
+// styling (browsers don't let you restyle the native dropdown well).
 //
 // Props:
-//   label: short label shown before the value (e.g., "Org", "Cohort")
+//   label: short label shown before the value (e.g., "Organization", "Cohort")
 //   value: current value (null = "all")
-//   onChange: (newValue) => void  — receives null when user picks the All option
-//   options: [{ value, label }]  — first option should be the "All …" entry
+//   onChange: (newValue) => void — receives null when user picks the "All" option
+//   options: [{ value, label }] — first option should be the "All …" entry
 //   active: boolean — set true when a non-null value is selected; styles accordingly
 // ---------------------------------------------------------------------------
 
 export default function SelectChip({ label, value, onChange, options, active }) {
-  // Build a stable map of string-keys → real values so the native select can
-  // round-trip null + non-string values.
   const keyFor = (v) => (v === null || v === undefined ? "__null__" : String(v));
+  const currentOption = options.find((o) => keyFor(o.value) === keyFor(value));
+  const currentLabel = currentOption?.label || "—";
+
   return (
-    <label
+    <span
       className={
-        "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border transition-all duration-200 cursor-pointer " +
+        "relative inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border transition-all duration-200 " +
         (active
           ? "bg-ink text-white border-ink"
           : "bg-surface-card border-soft text-ink-muted hover:text-ink hover:border-brand-500")
       }
     >
+      {/* Visible styled label + value + chevron — purely decorative. */}
       <span className={
-        "text-[10.5px] font-heading font-bold uppercase tracking-wider " +
+        "text-[10.5px] font-heading font-bold uppercase tracking-wider pointer-events-none " +
         (active ? "text-white/70" : "text-ink-subtle")
       }>
         {label}
       </span>
+      <span className={
+        "text-[12.5px] font-heading font-semibold pointer-events-none " +
+        (active ? "text-white" : "text-ink")
+      }>
+        {currentLabel}
+      </span>
+      <ChevronDown
+        className={"w-3.5 h-3.5 pointer-events-none " + (active ? "text-white/80" : "text-ink-muted")}
+        strokeWidth={2.5}
+      />
+
+      {/* Real <select> stretched over the whole chip + invisible. Catches every
+          click — including on the chevron — and opens the native dropdown. */}
       <select
         value={keyFor(value)}
         onChange={(e) => {
@@ -40,29 +58,19 @@ export default function SelectChip({ label, value, onChange, options, active }) 
           const opt = options.find((o) => keyFor(o.value) === k);
           onChange(opt ? opt.value : null);
         }}
-        className={
-          "bg-transparent text-[12.5px] font-heading font-semibold focus:outline-none appearance-none pr-1 " +
-          (active ? "text-white" : "text-ink")
-        }
-        style={{
-          // Hide the default arrow — we render our own Lucide chevron below.
-          WebkitAppearance: "none",
-          MozAppearance: "none",
-          appearance: "none",
-        }}
+        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+        aria-label={label}
       >
         {options.map((opt) => (
           <option
             key={keyFor(opt.value)}
             value={keyFor(opt.value)}
-            // Style the option text so it stays readable on the OS-native dropdown.
             style={{ color: "#111", background: "#fff" }}
           >
             {opt.label}
           </option>
         ))}
       </select>
-      <ChevronDown className={"w-3.5 h-3.5 " + (active ? "text-white/80" : "text-ink-muted")} strokeWidth={2.5} />
-    </label>
+    </span>
   );
 }

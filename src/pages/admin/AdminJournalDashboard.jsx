@@ -174,7 +174,7 @@ export default function AdminJournalDashboard() {
         />
         {showOrgFilter && (
           <SelectChip
-            label="Org"
+            label="Organization"
             value={orgFilter}
             onChange={setOrgFilter}
             active={orgFilter !== null}
