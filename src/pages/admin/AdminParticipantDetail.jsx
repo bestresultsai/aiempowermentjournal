@@ -3,6 +3,7 @@ import { Link, Navigate, useParams } from "react-router-dom";
 import {
   ArrowLeft, Mail, Building2, BookCheck, Check, Clock, GraduationCap,
   ExternalLink, NotebookPen, Sparkles, Lightbulb, Target, Lock, Save, Crown,
+  AlertTriangle, X, Download, MessageSquare, Paperclip,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { getAccessibleCohortSlugs } from "../../lib/adminRoles";
@@ -41,6 +42,15 @@ export default function AdminParticipantDetail() {
   const minutesSaved = totalTimeSaved(journalEntries);
   const initials = p.name.split(" ").slice(0, 2).map((w) => w[0]).join("").toUpperCase();
 
+  // At-risk flag — combined signal that mirrors the Participants list.
+  const isStale = (p.lastJournalDaysAgo ?? 0) > 10;
+  const isBehind = (p.progress?.length || 0) <= 2;
+  const atRisk = isStale || isBehind;
+
+  // Modal state for click-to-view on journal entries + homework submissions.
+  const [openEntry, setOpenEntry] = useState(null);
+  const [openSubmission, setOpenSubmission] = useState(null);
+
   return (
     <div className="space-y-7 animate-fade-in-up">
       {/* Back */}
@@ -64,6 +74,12 @@ export default function AdminParticipantDetail() {
               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-heading font-bold uppercase tracking-wider bg-amber-100 text-amber-800">
                 <Crown className="w-3 h-3" strokeWidth={2.5} />
                 Cohort Leader
+              </span>
+            )}
+            {atRisk && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-heading font-bold uppercase tracking-wider bg-red-50 text-red-700">
+                <AlertTriangle className="w-3 h-3" strokeWidth={2.5} />
+                At risk
               </span>
             )}
           </h1>
@@ -187,9 +203,11 @@ export default function AdminParticipantDetail() {
             {journalEntries.map((e) => {
               const saved = timeSavedFor(e);
               return (
-                <article
+                <button
+                  type="button"
                   key={e.id}
-                  className="rounded-2xl bg-surface-card border border-soft p-5"
+                  onClick={() => setOpenEntry(e)}
+                  className="block w-full text-left rounded-2xl bg-surface-card border border-soft p-5 hover:border-brand-500 hover:shadow-card transition-all duration-200"
                 >
                   <div className="flex items-start justify-between gap-3 flex-wrap">
                     <div>
@@ -220,7 +238,7 @@ export default function AdminParticipantDetail() {
                       </span>
                     </div>
                   )}
-                </article>
+                </button>
               );
             })}
           </div>
@@ -243,9 +261,14 @@ export default function AdminParticipantDetail() {
               const belt = session ? BELT_COLORS[session.belt] : null;
               const reviewed = !!s.reviewedAt;
               return (
-                <article
+                <button
+                  type="button"
                   key={s.order}
-                  className="rounded-2xl bg-surface-card border border-soft p-5"
+                  onClick={() => setOpenSubmission({ submission: s, session, belt })}
+                  className="block w-full text-left"
+                >
+                <article
+                  className="rounded-2xl bg-surface-card border border-soft p-5 hover:border-brand-500 hover:shadow-card transition-all duration-200"
                 >
                   <div className="flex items-start justify-between gap-3 flex-wrap">
                     <div className="flex items-center gap-2">
@@ -277,32 +300,52 @@ export default function AdminParticipantDetail() {
                       Submitted {timeAgo(s.submittedAt)}
                     </div>
                   </div>
-                  <p className="mt-3 text-[13.5px] text-ink leading-relaxed">{s.response}</p>
-                  {s.link && (
-                    <a
-                      href={s.link}
-                      target="_blank"
-                      rel="noreferrer noopener"
-                      className="mt-3 inline-flex items-center gap-1 text-[12px] font-heading font-semibold text-brand-600 hover:text-brand-700"
-                    >
-                      <ExternalLink className="w-3 h-3" strokeWidth={2.5} />
-                      Open submission
-                    </a>
-                  )}
-                  {s.feedback && (
-                    <div className="mt-4 p-3 rounded-xl bg-emerald-50/40 border border-emerald-100">
-                      <div className="text-[10.5px] font-heading font-bold uppercase tracking-wider text-emerald-700 mb-1">
-                        Facilitator feedback
-                      </div>
-                      <p className="text-[13px] text-ink leading-relaxed">{s.feedback}</p>
-                    </div>
-                  )}
+                  <p className="mt-3 text-[13.5px] text-ink leading-relaxed line-clamp-3">{s.response}</p>
+                  {/* Affordances live in the modal — keep card non-nested-interactive */}
+                  <div className="mt-3 flex items-center gap-3 text-[11.5px] text-ink-muted">
+                    {s.link && (
+                      <span className="inline-flex items-center gap-1">
+                        <ExternalLink className="w-3 h-3" strokeWidth={2.5} />
+                        Link attached
+                      </span>
+                    )}
+                    {s.attachment?.dataUrl && (
+                      <span className="inline-flex items-center gap-1">
+                        <Paperclip className="w-3 h-3" strokeWidth={2.5} />
+                        {s.attachment.name}
+                      </span>
+                    )}
+                    {s.feedback && (
+                      <span className="inline-flex items-center gap-1 text-emerald-700">
+                        <MessageSquare className="w-3 h-3" strokeWidth={2.5} />
+                        Feedback added
+                      </span>
+                    )}
+                    <span className="ml-auto text-brand-700 font-heading font-semibold">View →</span>
+                  </div>
                 </article>
+                </button>
               );
             })}
           </div>
         )}
       </section>
+
+      {/* Modals — open when a journal entry or homework submission is clicked */}
+      <Modal open={!!openEntry} onClose={() => setOpenEntry(null)}>
+        {openEntry && <JournalEntryDetail entry={openEntry} onClose={() => setOpenEntry(null)} />}
+      </Modal>
+      <Modal open={!!openSubmission} onClose={() => setOpenSubmission(null)}>
+        {openSubmission && (
+          <SubmissionDetail
+            submission={openSubmission.submission}
+            session={openSubmission.session}
+            belt={openSubmission.belt}
+            participantName={p.name}
+            onClose={() => setOpenSubmission(null)}
+          />
+        )}
+      </Modal>
     </div>
   );
 }
@@ -335,6 +378,210 @@ function SmallKpi({ label, value, accent, sub }) {
         </div>
       )}
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Modal — overlay + click-outside + ESC to close.
+// ---------------------------------------------------------------------------
+function Modal({ open, onClose, children }) {
+  useEffect(() => {
+    if (!open) return;
+    function onKey(e) {
+      if (e.key === "Escape") onClose();
+    }
+    document.addEventListener("keydown", onKey);
+    // Lock body scroll while modal is open.
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prev;
+    };
+  }, [open, onClose]);
+  if (!open) return null;
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      onClick={onClose}
+      className="fixed inset-0 z-50 flex items-start justify-center px-4 py-8 sm:py-12 bg-ink/60 backdrop-blur-sm animate-fade-in-up"
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="w-full max-w-2xl rounded-2xl bg-surface-card shadow-lift max-h-[85vh] overflow-y-auto"
+      >
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function ModalHeader({ eyebrow, title, onClose }) {
+  return (
+    <div className="px-6 py-4 border-b border-soft flex items-start justify-between gap-4">
+      <div className="min-w-0">
+        {eyebrow && (
+          <div className="text-[10.5px] font-heading font-bold uppercase tracking-wider text-ink-subtle">
+            {eyebrow}
+          </div>
+        )}
+        <h2 className="font-heading text-[18px] font-extrabold text-ink leading-snug mt-0.5">
+          {title}
+        </h2>
+      </div>
+      <button
+        type="button"
+        onClick={onClose}
+        className="p-1.5 rounded-lg text-ink-muted hover:text-ink hover:bg-ink/5 shrink-0"
+        aria-label="Close"
+      >
+        <X className="w-4 h-4" strokeWidth={2.5} />
+      </button>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// JournalEntryDetail — full content of a journal entry inside a modal.
+// ---------------------------------------------------------------------------
+function JournalEntryDetail({ entry, onClose }) {
+  const saved = timeSavedFor(entry);
+  return (
+    <>
+      <ModalHeader
+        eyebrow={`Journal entry · ${dateLabel(entry.date)}`}
+        title={entry.title}
+        onClose={onClose}
+      />
+      <div className="p-6 space-y-5">
+        {saved > 0 && (
+          <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-50 text-emerald-700 text-[12.5px] font-heading font-bold">
+            <Sparkles className="w-3.5 h-3.5" strokeWidth={3} />
+            {formatMinutes(saved)} saved
+          </div>
+        )}
+        <p className="text-[14.5px] text-ink leading-relaxed whitespace-pre-wrap">
+          {entry.description}
+        </p>
+        {(entry.timeBeforeAI > 0 || entry.timeWithAI > 0) && (
+          <div className="grid grid-cols-2 gap-3">
+            <SmallKpi label="Before AI" value={formatMinutes(entry.timeBeforeAI)} />
+            <SmallKpi label="With AI" value={formatMinutes(entry.timeWithAI)} accent="emerald" />
+          </div>
+        )}
+      </div>
+    </>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// SubmissionDetail — full homework submission inside a modal.
+// ---------------------------------------------------------------------------
+function SubmissionDetail({ submission, session, belt, participantName, onClose }) {
+  const reviewed = !!submission.reviewedAt;
+  return (
+    <>
+      <ModalHeader
+        eyebrow={session ? `Session ${session.order} · ${session.belt} belt` : "Homework submission"}
+        title={session?.title || `Session ${submission.order} homework`}
+        onClose={onClose}
+      />
+      <div className="p-6 space-y-5">
+        {/* Status row */}
+        <div className="flex items-center gap-2 flex-wrap">
+          {belt && (
+            <span
+              style={{
+                background: belt.gradient,
+                color: belt.contrast,
+                border: belt.needsBorder ? "1px solid #D1D5DB" : "none",
+              }}
+              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-heading font-bold tracking-wide"
+            >
+              {session.belt}
+            </span>
+          )}
+          <span
+            className={
+              "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-heading font-semibold " +
+              (reviewed
+                ? "bg-emerald-50 text-emerald-700"
+                : "bg-amber-50 text-amber-700")
+            }
+          >
+            {reviewed ? <Check className="w-3 h-3" strokeWidth={3} /> : <Clock className="w-3 h-3" strokeWidth={3} />}
+            {reviewed ? "Reviewed" : "Pending review"}
+          </span>
+          <span className="ml-auto text-[11.5px] text-ink-muted">
+            Submitted {timeAgo(submission.submittedAt)}
+            {reviewed && ` · Reviewed ${timeAgo(submission.reviewedAt)}`}
+          </span>
+        </div>
+
+        {/* Response */}
+        {submission.response && (
+          <div>
+            <div className="text-[10.5px] font-heading font-bold uppercase tracking-wider text-ink-subtle mb-2">
+              {participantName}'s submission
+            </div>
+            <p className="text-[14px] text-ink leading-relaxed whitespace-pre-wrap">
+              {submission.response}
+            </p>
+          </div>
+        )}
+
+        {/* Link + attachment */}
+        {(submission.link || submission.attachment?.dataUrl) && (
+          <div className="flex items-center gap-2 flex-wrap">
+            {submission.link && (
+              <a
+                href={submission.link}
+                target="_blank"
+                rel="noreferrer noopener"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-brand-50 text-brand-700 text-[12.5px] font-heading font-semibold hover:bg-brand-100 transition-colors"
+              >
+                <ExternalLink className="w-3.5 h-3.5" strokeWidth={2.5} />
+                Open link
+              </a>
+            )}
+            {submission.attachment?.dataUrl && (
+              <a
+                href={submission.attachment.dataUrl}
+                download={submission.attachment.name}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-brand-50 text-brand-700 text-[12.5px] font-heading font-semibold hover:bg-brand-100 transition-colors"
+              >
+                <Download className="w-3.5 h-3.5" strokeWidth={2.5} />
+                {submission.attachment.name}
+              </a>
+            )}
+          </div>
+        )}
+
+        {/* Feedback */}
+        {submission.feedback && (
+          <div className="rounded-xl bg-gradient-to-br from-emerald-50/70 to-brand-50/40 border border-emerald-200 p-4">
+            <div className="inline-flex items-center gap-1.5 text-[10.5px] font-heading font-bold uppercase tracking-wider text-emerald-700 mb-2">
+              <MessageSquare className="w-3 h-3" strokeWidth={3} />
+              Facilitator feedback
+            </div>
+            <p className="text-[14px] text-ink leading-relaxed whitespace-pre-wrap">
+              {submission.feedback}
+            </p>
+          </div>
+        )}
+      </div>
+
+      <div className="px-6 py-4 border-t border-soft flex items-center justify-end gap-2">
+        <Link
+          to="/admin/homework"
+          className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-brand-600 text-white text-[12.5px] font-heading font-semibold hover:bg-brand-700 transition-colors"
+        >
+          <BookCheck className="w-3.5 h-3.5" strokeWidth={2.5} />
+          Open homework queue
+        </Link>
+      </div>
+    </>
   );
 }
 
