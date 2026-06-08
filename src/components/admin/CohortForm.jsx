@@ -18,18 +18,10 @@ import {
   formatDatetimeLocal,
 } from "../../lib/cohortAdmin";
 import { PROGRAMS, getProgramByCode } from "../../lib/programs";
+import { groupTimeZones, guessLocalTimeZone } from "../../lib/timeZones";
 import { useAuth } from "../../context/AuthContext";
 import DateTimeField from "./DateTimeField";
 import FacilitatorPicker from "./FacilitatorPicker";
-
-function groupTimeZones() {
-  const groups = {};
-  for (const z of TIME_ZONES) {
-    if (!groups[z.group]) groups[z.group] = [];
-    groups[z.group].push(z);
-  }
-  return Object.entries(groups);
-}
 
 // ---------------------------------------------------------------------------
 // CohortForm — shared between /admin/cohorts/new and /admin/cohorts/:slug/edit.
@@ -52,33 +44,7 @@ const CADENCE_OPTIONS = [
   { value: 0,  label: "Custom — set each session" },
 ];
 
-// Curated list of common cohort time zones. When real data ships, this can
-// be expanded — we have facilitators across most US zones plus UK/EU/AU.
-const TIME_ZONES = [
-  { group: "US",            value: "America/New_York",     label: "Eastern (New York)" },
-  { group: "US",            value: "America/Chicago",      label: "Central (Chicago)" },
-  { group: "US",            value: "America/Denver",       label: "Mountain (Denver)" },
-  { group: "US",            value: "America/Los_Angeles",  label: "Pacific (Los Angeles)" },
-  { group: "US",            value: "America/Phoenix",      label: "Arizona (Phoenix)" },
-  { group: "Americas",      value: "America/Mexico_City",  label: "Mexico City" },
-  { group: "Americas",      value: "America/Sao_Paulo",    label: "São Paulo" },
-  { group: "Europe",        value: "Europe/London",        label: "London" },
-  { group: "Europe",        value: "Europe/Berlin",        label: "Central Europe (Berlin)" },
-  { group: "Europe",        value: "Europe/Madrid",        label: "Madrid" },
-  { group: "Middle East",   value: "Asia/Dubai",           label: "Dubai" },
-  { group: "Asia",          value: "Asia/Singapore",       label: "Singapore" },
-  { group: "Asia",          value: "Asia/Tokyo",           label: "Tokyo" },
-  { group: "Australia",     value: "Australia/Sydney",     label: "Sydney" },
-  { group: "Other",         value: "UTC",                  label: "UTC" },
-];
-
-function guessLocalTimeZone() {
-  try {
-    return Intl.DateTimeFormat().resolvedOptions().timeZone;
-  } catch {
-    return "America/New_York";
-  }
-}
+// Time zone list lives in lib/timeZones.js so it's shared with /settings.
 
 export default function CohortForm({ mode, initial = null, orgs: passedOrgs, facilitators, canArchive }) {
   const isCreate = mode === "create";

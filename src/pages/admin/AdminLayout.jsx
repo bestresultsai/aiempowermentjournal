@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard, Users, BookCheck, GraduationCap, ArrowLeft,
-  Shield, LogOut, ChevronDown, NotebookPen, Plus, User as UserIcon, Settings as SettingsIcon,
+  Shield, LogOut, ChevronDown, NotebookPen, Plus, User as UserIcon,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { getRoleLabel, canCreateCohorts } from "../../lib/adminRoles";
@@ -246,13 +246,16 @@ function AdminUserMenu({ user, roleLabel, onLogout }) {
             <UserIcon className="w-4 h-4 text-ink-muted" strokeWidth={2} />
             View profile
           </button>
+          {/* Participant view — symmetric to "Admin panel" on the participant
+              NavBar. Lets admins jump back to the participant-facing platform
+              (their cohort journey, journal, etc.) without signing out. */}
           <button
             type="button"
-            onClick={() => { setOpen(false); navigate("/settings"); }}
+            onClick={() => { setOpen(false); navigate("/home"); }}
             className="w-full px-4 py-2.5 text-left text-[13.5px] font-heading font-medium text-ink hover:bg-surface-soft transition-colors inline-flex items-center gap-2.5"
           >
-            <SettingsIcon className="w-4 h-4 text-ink-muted" strokeWidth={2} />
-            Settings
+            <ArrowLeft className="w-4 h-4 text-brand-600" strokeWidth={2} />
+            Participant view
           </button>
           <div className="border-t border-soft" />
           <button
