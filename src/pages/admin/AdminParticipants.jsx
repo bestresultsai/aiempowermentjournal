@@ -55,7 +55,7 @@ export default function AdminParticipants() {
   const [sortKey, setSortKey] = useState("name");
 
   const cohortBySlug = useMemo(
-    () => Object.fromEntries(DEMO_COHORTS.map((c) => [c.slug, c])),
+    () => Object.fromEntries(getAllCohortsForAdmin().map((c) => [c.slug, c])),
     [],
   );
 

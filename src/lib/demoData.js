@@ -212,7 +212,12 @@ export const DEMO_JOURNAL_ENTRIES = [
 // ---------------------------------------------------------------------------
 export const DEMO_COHORTS = [
   {
-    facilitator: { id: "fac-mike", name: "Mike Burkesmith", email: "mike@bestresults.ai" },
+    facilitator: {
+      id: "fac-mike",
+      name: "Mike Burkesmith",
+      email: "mike@bestresults.ai",
+      headshotUrl: "https://48031831.fs1.hubspotusercontent-na1.net/hubfs/48031831/Design/Headshots/Mike%20Burkesmith%20Headshot%201X1.png",
+    },
     slug: "iahe-aiew3-2026q1",
     name: "AIEW3 — IAHE Cohort",
     methodName: "AI Empowerment Method",

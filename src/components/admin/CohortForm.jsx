@@ -18,6 +18,17 @@ import {
   formatDatetimeLocal,
 } from "../../lib/cohortAdmin";
 import { PROGRAMS, getProgramByCode } from "../../lib/programs";
+import DateTimeField from "./DateTimeField";
+import FacilitatorPicker from "./FacilitatorPicker";
+
+function groupTimeZones() {
+  const groups = {};
+  for (const z of TIME_ZONES) {
+    if (!groups[z.group]) groups[z.group] = [];
+    groups[z.group].push(z);
+  }
+  return Object.entries(groups);
+}
 
 // ---------------------------------------------------------------------------
 // CohortForm — shared between /admin/cohorts/new and /admin/cohorts/:slug/edit.
@@ -35,7 +46,38 @@ import { PROGRAMS, getProgramByCode } from "../../lib/programs";
 const CADENCE_OPTIONS = [
   { value: 7,  label: "Weekly" },
   { value: 14, label: "Every 2 weeks" },
+  { value: 21, label: "Every 3 weeks" },
+  { value: 28, label: "Monthly (every 4 weeks)" },
+  { value: 0,  label: "Custom — set each session" },
 ];
+
+// Curated list of common cohort time zones. When real data ships, this can
+// be expanded — we have facilitators across most US zones plus UK/EU/AU.
+const TIME_ZONES = [
+  { group: "US",            value: "America/New_York",     label: "Eastern (New York)" },
+  { group: "US",            value: "America/Chicago",      label: "Central (Chicago)" },
+  { group: "US",            value: "America/Denver",       label: "Mountain (Denver)" },
+  { group: "US",            value: "America/Los_Angeles",  label: "Pacific (Los Angeles)" },
+  { group: "US",            value: "America/Phoenix",      label: "Arizona (Phoenix)" },
+  { group: "Americas",      value: "America/Mexico_City",  label: "Mexico City" },
+  { group: "Americas",      value: "America/Sao_Paulo",    label: "São Paulo" },
+  { group: "Europe",        value: "Europe/London",        label: "London" },
+  { group: "Europe",        value: "Europe/Berlin",        label: "Central Europe (Berlin)" },
+  { group: "Europe",        value: "Europe/Madrid",        label: "Madrid" },
+  { group: "Middle East",   value: "Asia/Dubai",           label: "Dubai" },
+  { group: "Asia",          value: "Asia/Singapore",       label: "Singapore" },
+  { group: "Asia",          value: "Asia/Tokyo",           label: "Tokyo" },
+  { group: "Australia",     value: "Australia/Sydney",     label: "Sydney" },
+  { group: "Other",         value: "UTC",                  label: "UTC" },
+];
+
+function guessLocalTimeZone() {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone;
+  } catch {
+    return "America/New_York";
+  }
+}
 
 export default function CohortForm({ mode, initial = null, orgs: passedOrgs, facilitators, canArchive }) {
   const isCreate = mode === "create";
@@ -56,6 +98,7 @@ export default function CohortForm({ mode, initial = null, orgs: passedOrgs, fac
       ? toDatetimeLocal(initial.sessions[0].date)
       : defaultStartDateTime(),
     cadenceDays: 7,
+    timeZone: initial?.timeZone || guessLocalTimeZone(),
     sessionDates: initial?.sessions?.map((s) => toDatetimeLocal(s.date)) || [],
   }));
   const [slugTouched, setSlugTouched] = useState(!isCreate);
@@ -114,13 +157,22 @@ export default function CohortForm({ mode, initial = null, orgs: passedOrgs, fac
   }, [form.name]);
 
   // ---- Auto-fill session schedule from start datetime + cadence ----
-  // Only re-runs when start or cadence change; per-session edits are preserved.
+  // Custom cadence (0) populates only session 1 and leaves the rest for the
+  // user to set by hand. Other cadences populate all 8.
   useEffect(() => {
     if (!form.startDateTime) return;
-    setForm((f) => ({
-      ...f,
-      sessionDates: defaultSessionSchedule(f.startDateTime, f.cadenceDays, 8),
-    }));
+    setForm((f) => {
+      if (f.cadenceDays === 0) {
+        // Set session 1 to startDateTime; preserve any existing later dates.
+        const dates = [...(f.sessionDates.length ? f.sessionDates : Array(8).fill(""))];
+        dates[0] = f.startDateTime;
+        return { ...f, sessionDates: dates };
+      }
+      return {
+        ...f,
+        sessionDates: defaultSessionSchedule(f.startDateTime, f.cadenceDays, 8),
+      };
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form.startDateTime, form.cadenceDays]);
 
@@ -168,6 +220,7 @@ export default function CohortForm({ mode, initial = null, orgs: passedOrgs, fac
         organizationId: form.cohortType === "open" ? null : form.organizationId,
         facilitatorId: form.facilitatorId,
         sequenceNumber,
+        timeZone: form.timeZone,
         sessionDates: form.sessionDates,
       };
       const opts = { orgs, facilitators, program: selectedProgram };
@@ -371,12 +424,14 @@ export default function CohortForm({ mode, initial = null, orgs: passedOrgs, fac
 
       {/* ---------- 3. Facilitator ---------- */}
       <Section title="Facilitator" icon={User}>
-        <SelectField
-          label="Facilitator"
-          icon={User}
+        <span className="block text-[11.5px] font-heading font-semibold tracking-wider uppercase text-ink-muted mb-1.5">
+          Facilitator <span className="text-brand-600">*</span>
+        </span>
+        <FacilitatorPicker
           value={form.facilitatorId}
           onChange={(v) => set("facilitatorId", v)}
-          options={facilitators.map((f) => ({ value: f.id, label: f.name }))}
+          facilitators={facilitators}
+          required
         />
       </Section>
 
@@ -387,20 +442,18 @@ export default function CohortForm({ mode, initial = null, orgs: passedOrgs, fac
           the rest. You can manually adjust any session below.
         </p>
 
-        <div className="grid sm:grid-cols-2 gap-3 mb-5">
-          <div>
+        <div className="grid sm:grid-cols-3 gap-3 mb-5">
+          <div className="sm:col-span-2">
             <span className="block text-[11.5px] font-heading font-semibold tracking-wider uppercase text-ink-muted mb-1.5">
               First session <span className="text-brand-600">*</span>
             </span>
-            <input
-              type="datetime-local"
+            <DateTimeField
               value={form.startDateTime}
-              onChange={(e) => set("startDateTime", e.target.value)}
+              onChange={(v) => set("startDateTime", v)}
               required
-              className="w-full px-3 py-2.5 rounded-xl border border-soft bg-surface-card text-ink text-[14px] font-body focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15"
             />
             <p className="text-[11.5px] text-ink-muted mt-1.5">
-              Uses your local time zone. Same time will repeat every session.
+              Same time will repeat every session.
             </p>
           </div>
           <div>
@@ -422,6 +475,33 @@ export default function CohortForm({ mode, initial = null, orgs: passedOrgs, fac
           </div>
         </div>
 
+        {/* Time zone — important for cross-tz facilitators + participants */}
+        <div className="mb-5">
+          <span className="block text-[11.5px] font-heading font-semibold tracking-wider uppercase text-ink-muted mb-1.5">
+            Time zone <span className="text-brand-600">*</span>
+          </span>
+          <div className="relative">
+            <Globe className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-subtle pointer-events-none" strokeWidth={2} />
+            <select
+              value={form.timeZone}
+              onChange={(e) => set("timeZone", e.target.value)}
+              required
+              className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-soft bg-surface-card text-ink text-[14px] font-body focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 appearance-none"
+            >
+              {groupTimeZones().map(([group, zones]) => (
+                <optgroup key={group} label={group}>
+                  {zones.map((z) => (
+                    <option key={z.value} value={z.value}>{z.label}</option>
+                  ))}
+                </optgroup>
+              ))}
+            </select>
+          </div>
+          <p className="text-[11.5px] text-ink-muted mt-1.5">
+            All session times above are expressed in this cohort's time zone.
+          </p>
+        </div>
+
         <div className="space-y-2">
           {MOCK_SESSIONS.map((s, i) => {
             const belt = BELT_COLORS[s.belt];
@@ -437,19 +517,17 @@ export default function CohortForm({ mode, initial = null, orgs: passedOrgs, fac
                 >
                   {s.order}
                 </div>
-                <div className="flex-1 min-w-0 grid sm:grid-cols-[1fr_auto] gap-3 items-center">
+                <div className="flex-1 min-w-0 grid sm:grid-cols-[1fr_minmax(220px,auto)] gap-3 items-center">
                   <div className="min-w-0">
                     <div className="text-[10.5px] font-heading font-bold uppercase tracking-wider text-ink-subtle">
                       {s.belt} belt · Session {s.order}
                     </div>
                     <div className="text-[11px] text-ink-muted truncate">{s.title}</div>
                   </div>
-                  <input
-                    type="datetime-local"
+                  <DateTimeField
                     value={form.sessionDates[i] || ""}
-                    onChange={(e) => setSessionDate(i, e.target.value)}
+                    onChange={(v) => setSessionDate(i, v)}
                     required
-                    className="px-3 py-2 rounded-lg border border-soft bg-white text-[13px] font-body text-ink focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15"
                   />
                 </div>
               </div>

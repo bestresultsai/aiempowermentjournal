@@ -6,7 +6,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { getAccessibleCohortSlugs } from "../../lib/adminRoles";
-import { DEMO_COHORTS } from "../../lib/demoData";
+import { getAllCohortsForAdmin } from "../../lib/cohortAdmin";
 import { MOCK_SESSIONS, BELT_COLORS } from "../../lib/mockCohort";
 import {
   getParticipantById,
@@ -27,12 +27,12 @@ export default function AdminParticipantDetail() {
   const p = getParticipantById(id);
 
   // Scope check — the participant must belong to a cohort the admin can see.
-  const allowedSlugs = getAccessibleCohortSlugs(user, DEMO_COHORTS);
+  const allowedSlugs = getAccessibleCohortSlugs(user, getAllCohortsForAdmin());
   if (!p || !allowedSlugs.includes(p.cohortSlug)) {
     return <Navigate to="/admin" replace />;
   }
 
-  const cohort = DEMO_COHORTS.find((c) => c.slug === p.cohortSlug);
+  const cohort = getAllCohortsForAdmin().find((c) => c.slug === p.cohortSlug);
   const submissions = getSubmissionsForParticipant(id);
   const journalEntries = getJournalEntriesForParticipant(id);
   const submittedCount = submissions.length;

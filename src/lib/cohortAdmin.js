@@ -232,6 +232,7 @@ function buildCohort(payload, { orgs, facilitators, program }) {
     programName: program?.name || null,
     organization: org,
     facilitator,
+    timeZone: payload.timeZone || "America/New_York",
     sessions,
   };
 }
