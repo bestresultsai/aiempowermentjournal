@@ -485,6 +485,153 @@ export function filterEntriesByRange(entries, sinceMs) {
 }
 
 // ---------------------------------------------------------------------------
+// Dashboard helpers — deltas, upcoming sessions, activity stream, sparklines.
+// ---------------------------------------------------------------------------
+
+// Compare current period vs previous period of the same length, in days.
+// Returns counts + change for each metric.
+export function getDeltaStats(cohortSlugs, periodDays = 7) {
+  const allowed = new Set(cohortSlugs);
+  const now = Date.now();
+  const currentSince = now - periodDays * 86400000;
+  const previousSince = now - 2 * periodDays * 86400000;
+
+  let curEntries = 0, prevEntries = 0;
+  let curMinutes = 0, prevMinutes = 0;
+  let curHomework = 0, prevHomework = 0;
+  let curReviews = 0, prevReviews = 0;
+
+  for (const p of ADMIN_MOCK_PARTICIPANTS) {
+    if (!allowed.has(p.cohortSlug)) continue;
+
+    for (const e of p.journalEntries || []) {
+      const t = new Date(e.date).getTime();
+      const saved = Math.max(0, (e.timeBeforeAI || 0) - (e.timeWithAI || 0));
+      if (t >= currentSince) {
+        curEntries++;
+        curMinutes += saved;
+      } else if (t >= previousSince) {
+        prevEntries++;
+        prevMinutes += saved;
+      }
+    }
+
+    for (const sub of Object.values(p.submissions || {})) {
+      const t = sub.submittedAt ? new Date(sub.submittedAt).getTime() : 0;
+      if (t >= currentSince) curHomework++;
+      else if (t >= previousSince) prevHomework++;
+
+      const r = sub.reviewedAt ? new Date(sub.reviewedAt).getTime() : 0;
+      if (r >= currentSince) curReviews++;
+      else if (r >= previousSince) prevReviews++;
+    }
+  }
+
+  return {
+    entries: { current: curEntries, previous: prevEntries, delta: curEntries - prevEntries },
+    minutesSaved: { current: curMinutes, previous: prevMinutes, delta: curMinutes - prevMinutes },
+    homework: { current: curHomework, previous: prevHomework, delta: curHomework - prevHomework },
+    reviews: { current: curReviews, previous: prevReviews, delta: curReviews - prevReviews },
+  };
+}
+
+// Sessions whose date falls in [today, today + daysAhead]. Sorted earliest first.
+export function getUpcomingSessions(daysAhead = 14) {
+  // Avoid circular import — pass MOCK_SESSIONS to caller instead.
+  // (Caller wires this; we just expose the filter logic.)
+  return (mockSessions) => {
+    const now = new Date();
+    now.setHours(0, 0, 0, 0);
+    const todayMs = now.getTime();
+    const cutoffMs = todayMs + daysAhead * 86400000;
+    return mockSessions
+      .filter((s) => {
+        const t = new Date(s.date).getTime();
+        return t >= todayMs && t <= cutoffMs;
+      })
+      .sort((a, b) => new Date(a.date) - new Date(b.date));
+  };
+}
+
+// Merged activity stream — journal entries + homework submissions + reviews.
+// Returns events sorted newest first.
+export function getActivityStream(cohortSlugs, limit = 20) {
+  const allowed = new Set(cohortSlugs);
+  const events = [];
+
+  for (const p of ADMIN_MOCK_PARTICIPANTS) {
+    if (!allowed.has(p.cohortSlug)) continue;
+    for (const e of p.journalEntries || []) {
+      events.push({
+        kind: "journal",
+        date: e.date,
+        participantId: p.id,
+        participantName: p.name,
+        organization: p.organization,
+        cohortSlug: p.cohortSlug,
+        title: e.title,
+        meta: { saved: Math.max(0, (e.timeBeforeAI || 0) - (e.timeWithAI || 0)) },
+      });
+    }
+    for (const [orderStr, sub] of Object.entries(p.submissions || {})) {
+      if (sub.submittedAt) {
+        events.push({
+          kind: "homework-submitted",
+          date: sub.submittedAt,
+          participantId: p.id,
+          participantName: p.name,
+          organization: p.organization,
+          cohortSlug: p.cohortSlug,
+          title: `Submitted Session ${orderStr} homework`,
+          meta: { sessionOrder: Number(orderStr) },
+        });
+      }
+      if (sub.reviewedAt) {
+        events.push({
+          kind: "homework-reviewed",
+          date: sub.reviewedAt,
+          participantId: p.id,
+          participantName: p.name,
+          organization: p.organization,
+          cohortSlug: p.cohortSlug,
+          title: `Session ${orderStr} homework reviewed`,
+          meta: { sessionOrder: Number(orderStr) },
+        });
+      }
+    }
+  }
+  events.sort((a, b) => new Date(b.date) - new Date(a.date));
+  return events.slice(0, limit);
+}
+
+// Tiny per-cohort sparkline data — entries per week, last N weeks. Inline
+// version of getWeeklyTrend for use on each cohort card.
+export function getCohortSparkline(slug, weeks = 8) {
+  const roster = getParticipantsForCohort(slug);
+  const now = new Date();
+  now.setHours(0, 0, 0, 0);
+  const dayOfWeek = (now.getDay() + 6) % 7;
+  now.setDate(now.getDate() - dayOfWeek);
+
+  const buckets = [];
+  for (let i = weeks - 1; i >= 0; i--) {
+    const start = new Date(now);
+    start.setDate(start.getDate() - i * 7);
+    const end = new Date(start);
+    end.setDate(end.getDate() + 7);
+    buckets.push({ startMs: start.getTime(), endMs: end.getTime(), count: 0 });
+  }
+  for (const p of roster) {
+    for (const e of p.journalEntries || []) {
+      const t = new Date(e.date).getTime();
+      const bucket = buckets.find((b) => t >= b.startMs && t < b.endMs);
+      if (bucket) bucket.count++;
+    }
+  }
+  return buckets.map((b) => b.count);
+}
+
+// ---------------------------------------------------------------------------
 // AI Journal aggregates — used across the admin views to surface the journal
 // data alongside session progress + homework.
 // ---------------------------------------------------------------------------
