@@ -2,10 +2,10 @@ import { useState } from "react";
 import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
 import {
   LayoutDashboard, Users, BookCheck, GraduationCap, ArrowLeft,
-  Shield, LogOut, ChevronDown, NotebookPen,
+  Shield, LogOut, ChevronDown, NotebookPen, Plus,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
-import { getRoleLabel } from "../../lib/adminRoles";
+import { getRoleLabel, canCreateCohorts } from "../../lib/adminRoles";
 import Logo from "../../components/Logo";
 
 // ---------------------------------------------------------------------------
@@ -51,6 +51,18 @@ export default function AdminLayout() {
           {NAV.map((item) => (
             <SidebarLink key={item.to} {...item} />
           ))}
+
+          {/* Quick create — visually distinct from the rest of the nav so a new
+              cohort is always one click away. Only visible to roles that can. */}
+          {canCreateCohorts(user) && (
+            <Link
+              to="/admin/cohorts/new"
+              className="mt-3 flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-[13.5px] font-heading font-bold transition-all duration-200 bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/25 hover:text-emerald-200 hover:border-emerald-400/40"
+            >
+              <Plus className="w-4 h-4" strokeWidth={3} />
+              New cohort
+            </Link>
+          )}
         </nav>
 
         <div className="px-3 py-4 border-t border-white/10 space-y-1">

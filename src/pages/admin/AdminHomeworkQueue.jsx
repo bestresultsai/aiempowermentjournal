@@ -6,7 +6,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { useScopeFilters } from "../../lib/useScopeFilters";
-import { DEMO_COHORTS } from "../../lib/demoData";
+import { getAllCohortsForAdmin } from "../../lib/cohortAdmin";
 import { MOCK_SESSIONS, BELT_COLORS } from "../../lib/mockCohort";
 import {
   getHomeworkRows,
@@ -33,7 +33,7 @@ const TABS = [
 
 export default function AdminHomeworkQueue() {
   const { user } = useAuth();
-  const scope = useScopeFilters(user, DEMO_COHORTS);
+  const scope = useScopeFilters(user, getAllCohortsForAdmin());
   const { cohorts, effectiveSlugs: cohortSlugs, orgs, facilitators } = scope;
 
   const cohortBySlug = useMemo(

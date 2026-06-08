@@ -7,7 +7,7 @@ import {
 import { useAuth } from "../../context/AuthContext";
 import { hasGlobalScope, getRoleLabel } from "../../lib/adminRoles";
 import { useScopeFilters } from "../../lib/useScopeFilters";
-import { DEMO_COHORTS } from "../../lib/demoData";
+import { getAllCohortsForAdmin } from "../../lib/cohortAdmin";
 import { MOCK_SESSIONS, BELT_COLORS } from "../../lib/mockCohort";
 import {
   ADMIN_MOCK_PARTICIPANTS,
@@ -78,7 +78,7 @@ function formatShortDate(iso) {
 
 export default function AdminDashboard() {
   const { user } = useAuth();
-  const scope = useScopeFilters(user, DEMO_COHORTS);
+  const scope = useScopeFilters(user, getAllCohortsForAdmin());
   const { cohorts, effectiveCohorts, effectiveSlugs: cohortSlugs, orgs, facilitators } = scope;
 
   const participants = ADMIN_MOCK_PARTICIPANTS.filter((p) => cohortSlugs.includes(p.cohortSlug));

@@ -2,11 +2,10 @@ import { useMemo, useState } from "react";
 import { Link, Navigate, useParams } from "react-router-dom";
 import {
   ArrowLeft, GraduationCap, BookCheck, NotebookPen, Sparkles, Clock, Users,
-  ChevronUp, ChevronDown, Download, Target, Pencil,
+  ChevronUp, ChevronDown, Download, Target, Pencil, UserPlus,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { getAccessibleCohorts, canEditCohort } from "../../lib/adminRoles";
-import { DEMO_COHORTS } from "../../lib/demoData";
 import { MOCK_SESSIONS, BELT_COLORS } from "../../lib/mockCohort";
 import {
   getParticipantsForCohort, getCohortJournalStats,
@@ -274,8 +273,26 @@ export default function AdminCohortRoster() {
         })}
 
         {roster.length === 0 && (
-          <div className="p-8 text-center text-[14px] text-ink-muted">
-            No participants in this cohort yet.
+          <div className="p-10 text-center">
+            <div className="w-12 h-12 rounded-2xl bg-brand-50 text-brand-600 flex items-center justify-center mx-auto mb-3">
+              <Users className="w-6 h-6" strokeWidth={2} />
+            </div>
+            <h3 className="font-heading text-[16px] font-extrabold text-ink">
+              No participants in this cohort yet.
+            </h3>
+            <p className="text-[13px] text-ink-muted mt-1 max-w-md mx-auto">
+              Add participants by email or invite them in bulk. The participant management flow
+              ships in the next round.
+            </p>
+            <button
+              type="button"
+              disabled
+              title="Participant management lands in the next round"
+              className="mt-4 inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-ink/5 text-ink-subtle text-[12.5px] font-heading font-semibold cursor-not-allowed"
+            >
+              <UserPlus className="w-3.5 h-3.5" strokeWidth={2.5} />
+              Add participants
+            </button>
           </div>
         )}
       </div>

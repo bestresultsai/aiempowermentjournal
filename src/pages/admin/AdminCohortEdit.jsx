@@ -3,11 +3,14 @@ import { useAuth } from "../../context/AuthContext";
 import {
   canEditCohort,
   canArchiveCohort,
-  getAccessibleOrgs,
   getAccessibleFacilitators,
 } from "../../lib/adminRoles";
 import { DEMO_COHORTS } from "../../lib/demoData";
-import { getCohortForAdmin, getSessionsForCohort } from "../../lib/cohortAdmin";
+import {
+  getCohortForAdmin,
+  getSessionsForCohort,
+  getAllOrganizations,
+} from "../../lib/cohortAdmin";
 import CohortForm from "../../components/admin/CohortForm";
 
 // /admin/cohorts/:slug/edit — edit an existing cohort.
@@ -29,7 +32,7 @@ export default function AdminCohortEdit() {
   // Pull the universe of orgs + facilitators the admin can assign. Always
   // includes the current cohort's org/facilitator so editing without changing
   // them still works even if those have been removed from scope.
-  const orgs = ensureIncluded(getAccessibleOrgs(user, DEMO_COHORTS), cohort.organization);
+  const orgs = ensureIncluded(getAllOrganizations(), cohort.organization);
   const facilitators = ensureIncluded(
     getAccessibleFacilitators(user, DEMO_COHORTS),
     cohort.facilitator,

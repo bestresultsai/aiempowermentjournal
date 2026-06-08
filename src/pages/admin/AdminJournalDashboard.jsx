@@ -6,7 +6,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { useScopeFilters } from "../../lib/useScopeFilters";
-import { DEMO_COHORTS } from "../../lib/demoData";
+import { getAllCohortsForAdmin } from "../../lib/cohortAdmin";
 import {
   ADMIN_MOCK_PARTICIPANTS,
   getCohortJournalStats,
@@ -44,7 +44,7 @@ import ScopeFilterBar from "../../components/admin/ScopeFilterBar";
 
 export default function AdminJournalDashboard() {
   const { user } = useAuth();
-  const scope = useScopeFilters(user, DEMO_COHORTS);
+  const scope = useScopeFilters(user, getAllCohortsForAdmin());
   const { cohorts, effectiveCohorts, effectiveSlugs: cohortSlugs, orgs, facilitators } = scope;
 
   // Time filter is page-specific (not part of scope).
@@ -85,7 +85,7 @@ export default function AdminJournalDashboard() {
       "Title", "Description",
       "Time before AI (min)", "Time with AI (min)", "Time saved (min)",
     ];
-    const cohortBySlug = Object.fromEntries(DEMO_COHORTS.map((c) => [c.slug, c]));
+    const cohortBySlug = Object.fromEntries(getAllCohortsForAdmin().map((c) => [c.slug, c]));
     const rows = [];
     for (const p of ADMIN_MOCK_PARTICIPANTS) {
       if (!cohortSlugs.includes(p.cohortSlug)) continue;

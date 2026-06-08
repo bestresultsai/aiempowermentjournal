@@ -5,6 +5,7 @@ import {
   getAccessibleFacilitators,
   applyScopeFilters,
 } from "./adminRoles";
+import { useCohortVersion } from "./cohortAdmin";
 
 // ---------------------------------------------------------------------------
 // useScopeFilters — single hook that returns everything an admin page needs
@@ -19,14 +20,24 @@ import {
 // ---------------------------------------------------------------------------
 
 export function useScopeFilters(user, allCohorts) {
+  // Subscribe to cohort writes so this hook (and every consumer) re-renders
+  // after a create / update / archive — no manual refresh needed.
+  const cohortVersion = useCohortVersion();
+
   const cohorts = useMemo(
     () => getAccessibleCohorts(user, allCohorts),
-    [user, allCohorts],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [user, allCohorts, cohortVersion],
   );
-  const orgs = useMemo(() => getAccessibleOrgs(user, allCohorts), [user, allCohorts]);
+  const orgs = useMemo(
+    () => getAccessibleOrgs(user, allCohorts),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [user, allCohorts, cohortVersion],
+  );
   const facilitators = useMemo(
     () => getAccessibleFacilitators(user, allCohorts),
-    [user, allCohorts],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [user, allCohorts, cohortVersion],
   );
 
   const [orgFilter, setOrgFilter] = useState(null);

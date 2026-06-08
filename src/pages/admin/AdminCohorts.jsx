@@ -6,7 +6,6 @@ import {
 import { useAuth } from "../../context/AuthContext";
 import { useScopeFilters } from "../../lib/useScopeFilters";
 import { canCreateCohorts } from "../../lib/adminRoles";
-import { DEMO_COHORTS } from "../../lib/demoData";
 import { MOCK_SESSIONS, BELT_COLORS } from "../../lib/mockCohort";
 import { getParticipantsForCohort } from "../../lib/adminMockData";
 import { getAllCohortsForAdmin } from "../../lib/cohortAdmin";
