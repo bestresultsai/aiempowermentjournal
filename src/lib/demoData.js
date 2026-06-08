@@ -284,7 +284,7 @@ const STORAGE_KEY = "brai_demo_mode";
 //   "facilitator" — Mike Burkesmith — sees only IAHE cohort, can grade
 
 const VALID_VALUES = new Set([
-  "1", "multi", "onboarding", "super", "admin", "org", "facilitator",
+  "1", "multi", "onboarding", "super", "admin", "org", "facilitator", "leader",
 ]);
 
 export function isDemoModeActive() {
@@ -312,6 +312,7 @@ export function isSuperDemo()        { return readDemoFlavor() === "super"; }
 export function isAdminDemo()        { return readDemoFlavor() === "admin"; }
 export function isOrgDemo()          { return readDemoFlavor() === "org"; }
 export function isFacilitatorDemo()  { return readDemoFlavor() === "facilitator"; }
+export function isLeaderDemo()       { return readDemoFlavor() === "leader"; }
 
 // True when the demo flavor is any admin-tier role.
 export function isAnyAdminDemo() {
@@ -324,11 +325,11 @@ export function getDemoFlavor() { return readDemoFlavor(); }
 export function activateDemoMode({
   multi = false,
   onboarding = false,
-  role = null, // "super" | "admin" | "org" | "facilitator"
+  role = null, // "super" | "admin" | "org" | "facilitator" | "leader"
 } = {}) {
   if (typeof window === "undefined") return;
   let value = "1";
-  if (role && ["super", "admin", "org", "facilitator"].includes(role)) value = role;
+  if (role && ["super", "admin", "org", "facilitator", "leader"].includes(role)) value = role;
   else if (onboarding) value = "onboarding";
   else if (multi) value = "multi";
   try {
@@ -390,5 +391,16 @@ export const DEMO_USER_OVERRIDES = {
     assignedCohorts: ["iahe-aiew3-2026q1"],
     defaultTimeZone: "America/New_York",
     defaultZoomLink: "https://us02web.zoom.us/j/9876543210",
+  },
+  // Cohort leader — a participant from the customer side with extra
+  // aggregate-only visibility into their cohort. Stays at participant role;
+  // the email matches the seeded participant record (Sarah Patel, IAHE) so
+  // useCohortLeader() finds isCohortLead=true and unlocks /leader/cohort.
+  leader: {
+    name: "Sarah Patel",
+    email: "sarah.patel@iahe.org",
+    title: "Director of Education, IAHE",
+    organization: "IAHE",
+    role: "participant",
   },
 };

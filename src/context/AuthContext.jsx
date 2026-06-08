@@ -38,7 +38,7 @@ export function AuthProvider({ children }) {
         activateDemoMode({ multi: true });
       } else if (demoParam === "onboarding") {
         activateDemoMode({ onboarding: true });
-      } else if (["super", "admin", "org", "facilitator"].includes(demoParam)) {
+      } else if (["super", "admin", "org", "facilitator", "leader"].includes(demoParam)) {
         activateDemoMode({ role: demoParam });
       }
     } catch {
@@ -68,6 +68,15 @@ export function AuthProvider({ children }) {
           ...DEMO_USER,
           ...DEMO_USER_OVERRIDES[flavor],
           userId: `demo-${flavor}`,
+        };
+      } else if (flavor === "leader" && DEMO_USER_OVERRIDES.leader) {
+        // Cohort leader — still a participant, but identity matches a seeded
+        // participant record with isCohortLead=true so useCohortLeader()
+        // unlocks the /leader/cohort dashboard.
+        demoUser = {
+          ...DEMO_USER,
+          ...DEMO_USER_OVERRIDES.leader,
+          userId: "demo-leader",
         };
       }
 

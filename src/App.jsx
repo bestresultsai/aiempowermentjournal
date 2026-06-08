@@ -28,6 +28,7 @@ import Settings from "./pages/Settings";
 import WelcomeWizard from "./pages/WelcomeWizard";
 import CohortLanding from "./pages/cohort/CohortLanding";
 import SessionDetail from "./pages/cohort/SessionDetail";
+import CohortLeaderDashboard from "./pages/leader/CohortLeaderDashboard";
 import BeltsPreview from "./pages/design/BeltsPreview";
 
 // ---------------------------------------------------------------------------
@@ -101,6 +102,9 @@ export default function App() {
             {/* Resources + Settings */}
             <Route path="/resources" element={<Resources />} />
             <Route path="/settings" element={<Settings />} />
+
+            {/* COHORT LEADER — aggregate view, only for participants flagged as leader */}
+            <Route path="/leader/cohort" element={<CohortLeaderDashboard />} />
 
             {/* Explicit cohort routes (admin / multi-cohort) */}
             <Route path="/cohort/:slug" element={<CohortLanding />} />
