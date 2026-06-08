@@ -1,8 +1,8 @@
-import { useState } from "react";
-import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
+import { useEffect, useRef, useState } from "react";
+import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard, Users, BookCheck, GraduationCap, ArrowLeft,
-  Shield, LogOut, ChevronDown, NotebookPen, Plus,
+  Shield, LogOut, ChevronDown, NotebookPen, Plus, User as UserIcon, Settings as SettingsIcon,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { getRoleLabel, canCreateCohorts } from "../../lib/adminRoles";
@@ -109,18 +109,9 @@ export default function AdminLayout() {
             <BreadCrumb path={pathname} />
           </div>
 
-          {/* Identity chip */}
-          <div className="flex items-center gap-3">
-            <div className="hidden sm:flex flex-col items-end leading-tight">
-              <span className="text-[13px] font-heading font-bold text-ink">
-                {user?.name}
-              </span>
-              <span className="text-[11px] text-ink-muted">{roleLabel}</span>
-            </div>
-            <div className="w-10 h-10 rounded-full bg-brand-700 text-white flex items-center justify-center text-[12px] font-heading font-bold">
-              {(user?.name || "?").split(" ").filter(Boolean).slice(0, 2).map((w) => w[0]).join("").toUpperCase()}
-            </div>
-          </div>
+          {/* Identity chip — opens a small dropdown with Settings + Sign out
+              so admins can manage their own profile without leaving /admin. */}
+          <AdminUserMenu user={user} roleLabel={roleLabel} onLogout={logout} />
         </header>
 
         {/* Mobile collapse nav */}
@@ -189,6 +180,92 @@ function AdminFooter() {
         </nav>
       </div>
     </footer>
+  );
+}
+
+// ---- Admin user menu (top bar avatar dropdown) ----
+function AdminUserMenu({ user, roleLabel, onLogout }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!open) return;
+    function onDocClick(e) {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+    }
+    document.addEventListener("mousedown", onDocClick);
+    return () => document.removeEventListener("mousedown", onDocClick);
+  }, [open]);
+
+  const initials = (user?.name || "?")
+    .split(" ").filter(Boolean).slice(0, 2)
+    .map((w) => w[0]).join("").toUpperCase();
+  const hasHeadshot = !!user?.headshotUrl;
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="flex items-center gap-3 group"
+      >
+        <div className="hidden sm:flex flex-col items-end leading-tight">
+          <span className="text-[13px] font-heading font-bold text-ink">
+            {user?.name}
+          </span>
+          <span className="text-[11px] text-ink-muted">{roleLabel}</span>
+        </div>
+        {hasHeadshot ? (
+          <img
+            src={user.headshotUrl}
+            alt=""
+            className="w-10 h-10 rounded-full object-cover transition-transform duration-200 group-hover:scale-105"
+          />
+        ) : (
+          <div className="w-10 h-10 rounded-full bg-brand-700 text-white flex items-center justify-center text-[12px] font-heading font-bold transition-transform duration-200 group-hover:scale-105">
+            {initials}
+          </div>
+        )}
+      </button>
+
+      {open && (
+        <div className="absolute top-full right-0 mt-2 min-w-[240px] rounded-xl bg-surface-card border border-soft shadow-lift overflow-hidden z-50 animate-fade-in-up">
+          <div className="px-4 py-3 border-b border-soft">
+            <div className="text-[13.5px] font-heading font-bold text-ink truncate">{user?.name}</div>
+            <div className="text-[11.5px] text-ink-muted truncate mt-0.5">{user?.email}</div>
+            <div className="inline-flex items-center gap-1 mt-1.5 px-1.5 py-0.5 rounded text-[10px] font-heading font-bold uppercase tracking-wider bg-brand-50 text-brand-700">
+              {roleLabel}
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => { setOpen(false); navigate("/settings"); }}
+            className="w-full px-4 py-2.5 text-left text-[13.5px] font-heading font-medium text-ink hover:bg-surface-soft transition-colors inline-flex items-center gap-2.5"
+          >
+            <UserIcon className="w-4 h-4 text-ink-muted" strokeWidth={2} />
+            View profile
+          </button>
+          <button
+            type="button"
+            onClick={() => { setOpen(false); navigate("/settings"); }}
+            className="w-full px-4 py-2.5 text-left text-[13.5px] font-heading font-medium text-ink hover:bg-surface-soft transition-colors inline-flex items-center gap-2.5"
+          >
+            <SettingsIcon className="w-4 h-4 text-ink-muted" strokeWidth={2} />
+            Settings
+          </button>
+          <div className="border-t border-soft" />
+          <button
+            type="button"
+            onClick={() => { setOpen(false); onLogout(); window.location.href = "/"; }}
+            className="w-full px-4 py-2.5 text-left text-[13.5px] font-heading font-medium text-ink hover:bg-surface-soft transition-colors inline-flex items-center gap-2.5"
+          >
+            <LogOut className="w-4 h-4 text-ink-muted" strokeWidth={2} />
+            Sign out
+          </button>
+        </div>
+      )}
+    </div>
   );
 }
 
