@@ -27,6 +27,7 @@ import {
 import { downloadCSV } from "../../lib/csvExport";
 import Sparkline from "../../components/admin/Sparkline";
 import DeltaBadge from "../../components/admin/DeltaBadge";
+import PipelineView from "../../components/admin/PipelineView";
 
 // ---------------------------------------------------------------------------
 // /admin — Admin landing dashboard. Top to bottom:
@@ -43,13 +44,6 @@ import DeltaBadge from "../../components/admin/DeltaBadge";
 //  10. Activity stream
 // ---------------------------------------------------------------------------
 
-const STAGES = [
-  { key: "pre-launch", label: "Pre-launch",  accent: "bg-ink/5 text-ink-muted" },
-  { key: "in-progress", label: "In progress", accent: "bg-brand-100 text-brand-700" },
-  { key: "wrapping-up", label: "Wrapping up", accent: "bg-amber-100 text-amber-700" },
-  { key: "completed",  label: "Completed",   accent: "bg-emerald-100 text-emerald-700" },
-];
-
 function getDelivered() {
   const now = new Date();
   now.setHours(0, 0, 0, 0);
@@ -59,13 +53,6 @@ function getDelivered() {
     if (new Date(s.date).getTime() <= todayMs) delivered++;
   }
   return delivered;
-}
-
-function stageForDelivered(d) {
-  if (d === 0) return "pre-launch";
-  if (d >= MOCK_SESSIONS.length) return "completed";
-  if (d >= MOCK_SESSIONS.length - 1) return "wrapping-up";
-  return "in-progress";
 }
 
 function timeAgo(iso) {
@@ -104,7 +91,6 @@ export default function AdminDashboard() {
   const activity = getActivityStream(cohortSlugs, 10);
 
   const delivered = getDelivered();
-  const stage = stageForDelivered(delivered);
 
   function handleExportWeek() {
     const since = Date.now() - 7 * 86400000;
@@ -331,47 +317,12 @@ export default function AdminDashboard() {
         </section>
       )}
 
-      {/* ---------- 6. Pipeline view (condensed) ---------- */}
+      {/* ---------- 6. Pipeline view — same rich cards as /admin/cohorts ---------- */}
       <section>
         <SectionHeader title="Pipeline" cta={{ to: "/admin/cohorts", label: "Full view" }} />
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-          {STAGES.map((s) => {
-            const stageCohorts = cohorts.filter((c) => stageForDelivered(delivered) === s.key);
-            return (
-              <div
-                key={s.key}
-                className="rounded-2xl bg-surface-card border border-soft p-4"
-              >
-                <div className="flex items-center justify-between mb-2">
-                  <span className={
-                    "inline-flex items-center px-2 py-0.5 rounded text-[10.5px] font-heading font-bold uppercase tracking-wider " +
-                    s.accent
-                  }>
-                    {s.label}
-                  </span>
-                  <span className="text-[11px] font-heading font-bold text-ink-muted">
-                    {stageCohorts.length}
-                  </span>
-                </div>
-                <div className="space-y-1.5">
-                  {stageCohorts.length === 0 ? (
-                    <div className="text-[11.5px] text-ink-subtle">—</div>
-                  ) : (
-                    stageCohorts.map((c) => (
-                      <Link
-                        key={c.slug}
-                        to={`/admin/cohorts/${c.slug}`}
-                        className="block text-[12px] font-heading font-semibold text-ink hover:text-brand-700 truncate transition-colors"
-                      >
-                        {c.organization?.shortName || c.name}
-                      </Link>
-                    ))
-                  )}
-                </div>
-              </div>
-            );
-          })}
-        </div>
+        <PipelineView
+          rows={cohorts.map((c) => ({ cohort: c, delivered }))}
+        />
       </section>
 
       {/* ---------- 7. Cohorts in scope (with sparklines) ---------- */}

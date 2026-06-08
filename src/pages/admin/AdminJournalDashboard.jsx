@@ -28,6 +28,8 @@ import {
 import { downloadCSV } from "../../lib/csvExport";
 import WeeklyTrendChart from "../../components/admin/WeeklyTrendChart";
 import EngagementDonut from "../../components/admin/EngagementDonut";
+import SegmentedControl from "../../components/admin/SegmentedControl";
+import SelectChip from "../../components/admin/SelectChip";
 
 // ---------------------------------------------------------------------------
 // /admin/journal — the AI Journal dashboard.
@@ -163,55 +165,47 @@ export default function AdminJournalDashboard() {
         </button>
       </header>
 
-      {/* Filter rows — date range, organization, cohort */}
-      <div className="space-y-2">
-        <FilterRow label="Time">
-          {DATE_RANGES.map((r) => (
-            <PillButton
-              key={r.key}
-              active={range === r.key}
-              onClick={() => setRange(r.key)}
-              label={r.label}
-            />
-          ))}
-        </FilterRow>
-
+      {/* Compact filter toolbar — Time segmented control + Org/Cohort dropdowns. */}
+      <div className="flex items-center gap-3 flex-wrap">
+        <SegmentedControl
+          options={DATE_RANGES.map((r) => ({ key: r.key, label: r.label }))}
+          value={range}
+          onChange={setRange}
+        />
         {showOrgFilter && (
-          <FilterRow label="Organization">
-            <PillButton
-              active={orgFilter === null}
-              onClick={() => setOrgFilter(null)}
-              label="All orgs"
-            />
-            {orgsInScope.map((org) => (
-              <PillButton
-                key={org.id}
-                active={orgFilter === org.id}
-                onClick={() => setOrgFilter(orgFilter === org.id ? null : org.id)}
-                label={org.shortName || org.name}
-              />
-            ))}
-          </FilterRow>
+          <SelectChip
+            label="Org"
+            value={orgFilter}
+            onChange={setOrgFilter}
+            active={orgFilter !== null}
+            options={[
+              { value: null, label: "All orgs" },
+              ...orgsInScope.map((o) => ({ value: o.id, label: o.shortName || o.name })),
+            ]}
+          />
         )}
-
         {showCohortFilter && (
-          <FilterRow label="Cohort">
-            <PillButton
-              active={cohortFilter === null}
-              onClick={() => setCohortFilter(null)}
-              label="All cohorts"
-            />
-            {cohorts
-              .filter((c) => !orgFilter || c.organization?.id === orgFilter)
-              .map((c) => (
-                <PillButton
-                  key={c.slug}
-                  active={cohortFilter === c.slug}
-                  onClick={() => setCohortFilter(cohortFilter === c.slug ? null : c.slug)}
-                  label={c.name}
-                />
-              ))}
-          </FilterRow>
+          <SelectChip
+            label="Cohort"
+            value={cohortFilter}
+            onChange={setCohortFilter}
+            active={cohortFilter !== null}
+            options={[
+              { value: null, label: "All cohorts" },
+              ...cohorts
+                .filter((c) => !orgFilter || c.organization?.id === orgFilter)
+                .map((c) => ({
+                  value: c.slug,
+                  // Drop the redundant "AIEW3 — " program-code prefix; the org
+                  // dropdown already disambiguates by org and there's currently
+                  // one cohort per org in scope. When multiple cohorts per org
+                  // land, fall back to "{org} · {programCode}".
+                  label: c.organization?.shortName
+                    ? `${c.organization.shortName} · ${c.programCode}`
+                    : c.name,
+                })),
+            ]}
+          />
         )}
       </div>
 
@@ -530,34 +524,6 @@ function RightCell({ value, sub, accent }) {
         {sub && <span className="text-[10.5px] text-ink-muted font-semibold ml-1">{sub}</span>}
       </div>
     </div>
-  );
-}
-
-function FilterRow({ label, children }) {
-  return (
-    <div className="flex items-center gap-2 flex-wrap">
-      <span className="text-[10.5px] font-heading font-bold uppercase tracking-wider text-ink-muted shrink-0 w-24">
-        {label}
-      </span>
-      {children}
-    </div>
-  );
-}
-
-function PillButton({ active, onClick, label }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={
-        "inline-flex items-center px-3 py-1.5 rounded-full text-[12.5px] font-heading font-semibold transition-all duration-200 " +
-        (active
-          ? "bg-ink text-white"
-          : "bg-surface-card border border-soft text-ink-muted hover:text-ink hover:border-brand-500")
-      }
-    >
-      {label}
-    </button>
   );
 }
 

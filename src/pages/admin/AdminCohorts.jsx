@@ -8,6 +8,7 @@ import { getAccessibleCohorts } from "../../lib/adminRoles";
 import { DEMO_COHORTS } from "../../lib/demoData";
 import { MOCK_SESSIONS, BELT_COLORS } from "../../lib/mockCohort";
 import { getParticipantsForCohort } from "../../lib/adminMockData";
+import PipelineView, { stageForDelivered } from "../../components/admin/PipelineView";
 
 // ---------------------------------------------------------------------------
 // /admin/cohorts — full list of cohorts the user can access.
@@ -19,12 +20,8 @@ import { getParticipantsForCohort } from "../../lib/adminMockData";
 // "where is every cohort right now?" at a glance.
 // ---------------------------------------------------------------------------
 
-const STAGES = [
-  { key: "pre-launch", label: "Pre-launch",  accent: "bg-ink/5 text-ink-muted" },
-  { key: "in-progress", label: "In progress", accent: "bg-brand-100 text-brand-700" },
-  { key: "wrapping-up", label: "Wrapping up", accent: "bg-amber-100 text-amber-700" },
-  { key: "completed",  label: "Completed",   accent: "bg-emerald-100 text-emerald-700" },
-];
+// STAGES + stageForDelivered now live in components/admin/PipelineView.jsx so
+// both the dashboard and the cohorts page render the same stage taxonomy.
 
 // Last delivered = latest session with date <= today.
 // Next session  = earliest session with date >  today.
@@ -43,13 +40,6 @@ function getDeliveryInfo() {
     }
   }
   return { last, next, delivered: last ? last.order : 0 };
-}
-
-function stageForCohort(deliveredCount) {
-  if (deliveredCount === 0) return "pre-launch";
-  if (deliveredCount >= MOCK_SESSIONS.length) return "completed";
-  if (deliveredCount >= MOCK_SESSIONS.length - 1) return "wrapping-up";
-  return "in-progress";
 }
 
 function formatDate(iso) {
@@ -81,9 +71,17 @@ export default function AdminCohorts() {
       delivered: delivery.delivered,
       last: delivery.last,
       next: delivery.next,
-      stage: stageForCohort(delivery.delivered),
+      stage: stageForDelivered(delivery.delivered),
     };
   });
+
+  // STAGES is needed locally for the status pill on each row.
+  const stageMeta = {
+    "pre-launch":  { label: "Pre-launch",  accent: "bg-ink/5 text-ink-muted" },
+    "in-progress": { label: "In progress", accent: "bg-brand-100 text-brand-700" },
+    "wrapping-up": { label: "Wrapping up", accent: "bg-amber-100 text-amber-700" },
+    "completed":   { label: "Completed",   accent: "bg-emerald-100 text-emerald-700" },
+  };
 
   return (
     <div className="space-y-8 animate-fade-in-up">
@@ -101,8 +99,16 @@ export default function AdminCohorts() {
         </div>
       </header>
 
-      {/* Pipeline view — cohorts grouped by lifecycle stage */}
-      {rows.length > 0 && <PipelineView rows={rows} />}
+      {/* Pipeline view — cohorts grouped by lifecycle stage. Shared component
+          so the dashboard renders identical cards. */}
+      {rows.length > 0 && (
+        <section>
+          <h2 className="font-heading text-[14px] font-extrabold text-ink mb-3">
+            Pipeline
+          </h2>
+          <PipelineView rows={rows} />
+        </section>
+      )}
 
       {/* Full list */}
       <section>
@@ -111,7 +117,7 @@ export default function AdminCohorts() {
         </h2>
         <div className="rounded-2xl bg-surface-card border border-soft overflow-hidden">
           {rows.map(({ cohort: c, participants, avgProgress, delivered, last, next, stage }) => {
-            const stageCfg = STAGES.find((s) => s.key === stage);
+            const stageCfg = stageMeta[stage];
             return (
               <Link
                 key={c.slug}
@@ -180,80 +186,6 @@ export default function AdminCohorts() {
         </div>
       </section>
     </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// PipelineView — Kanban-style stages strip
-// ---------------------------------------------------------------------------
-function PipelineView({ rows }) {
-  return (
-    <section>
-      <h2 className="font-heading text-[14px] font-extrabold text-ink mb-3">
-        Pipeline
-      </h2>
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        {STAGES.map((stage) => {
-          const stageRows = rows.filter((r) => r.stage === stage.key);
-          return (
-            <div
-              key={stage.key}
-              className="rounded-2xl bg-surface-card border border-soft p-4 min-h-[120px]"
-            >
-              <div className="flex items-center justify-between mb-3">
-                <span className={
-                  "inline-flex items-center px-2 py-0.5 rounded text-[10.5px] font-heading font-bold uppercase tracking-wider " +
-                  stage.accent
-                }>
-                  {stage.label}
-                </span>
-                <span className="text-[11px] font-heading font-bold text-ink-muted">
-                  {stageRows.length}
-                </span>
-              </div>
-              <div className="space-y-2">
-                {stageRows.length === 0 ? (
-                  <div className="text-[11.5px] text-ink-subtle">—</div>
-                ) : (
-                  stageRows.map(({ cohort: c, delivered }) => (
-                    <Link
-                      key={c.slug}
-                      to={`/admin/cohorts/${c.slug}`}
-                      className="block rounded-xl bg-surface-soft hover:bg-white border border-transparent hover:border-brand-500 p-3 transition-all duration-200"
-                    >
-                      <div className="text-[10.5px] font-heading font-bold uppercase tracking-wider text-ink-subtle truncate">
-                        {c.organization?.shortName || ""}
-                      </div>
-                      <div className="font-heading text-[12.5px] font-bold text-ink truncate mt-0.5">
-                        {c.name}
-                      </div>
-                      {/* Belt-progress pip strip */}
-                      <div className="flex items-center gap-0.5 mt-2">
-                        {MOCK_SESSIONS.map((s) => {
-                          const done = s.order <= delivered;
-                          const belt = BELT_COLORS[s.belt];
-                          return (
-                            <div
-                              key={s.order}
-                              title={`${s.belt} — Session ${s.order}`}
-                              style={{
-                                background: done ? belt.gradient : "#E5E7EB",
-                                border: done && belt.needsBorder ? "1px solid #D1D5DB" : "none",
-                              }}
-                              className="h-2 flex-1 rounded-sm"
-                            />
-                          );
-                        })}
-                      </div>
-                    </Link>
-                  ))
-                )}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </section>
   );
 }
 
