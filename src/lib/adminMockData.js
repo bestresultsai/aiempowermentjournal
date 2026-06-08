@@ -313,6 +313,178 @@ export function getSubmissionsForParticipant(id) {
 }
 
 // ---------------------------------------------------------------------------
+// Homework write actions — mock-mode only.
+//
+// Mutates the in-memory participant + persists to localStorage so a refresh
+// preserves the review state during demos. When real Notion writes ship, this
+// should POST to /api/homework/{id}/review and the page state should refetch.
+// ---------------------------------------------------------------------------
+
+const HOMEWORK_STORAGE_KEY = "brai_admin_homework_reviews";
+
+function loadStoredReviews() {
+  if (typeof window === "undefined") return {};
+  try {
+    const raw = window.localStorage.getItem(HOMEWORK_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+function persistStoredReviews(map) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(HOMEWORK_STORAGE_KEY, JSON.stringify(map));
+  } catch { /* ignore */ }
+}
+
+// Hydrate on module load so a refresh shows previously-reviewed items.
+(function hydrate() {
+  const stored = loadStoredReviews();
+  for (const [key, review] of Object.entries(stored)) {
+    const [participantId, orderStr] = key.split("::");
+    const p = ADMIN_MOCK_PARTICIPANTS.find((x) => x.id === participantId);
+    if (!p || !p.submissions || !p.submissions[orderStr]) continue;
+    p.submissions[orderStr] = {
+      ...p.submissions[orderStr],
+      reviewedAt: review.reviewedAt,
+      feedback: review.feedback,
+    };
+  }
+})();
+
+export function markHomeworkReviewed(participantId, sessionOrder, feedback) {
+  const p = getParticipantById(participantId);
+  if (!p || !p.submissions?.[sessionOrder]) return null;
+  const reviewedAt = new Date().toISOString();
+  p.submissions[sessionOrder] = {
+    ...p.submissions[sessionOrder],
+    reviewedAt,
+    feedback: (feedback || "").trim(),
+  };
+  const stored = loadStoredReviews();
+  stored[`${participantId}::${sessionOrder}`] = { reviewedAt, feedback };
+  persistStoredReviews(stored);
+  return p.submissions[sessionOrder];
+}
+
+// Reverse — used by the toggle in the homework UI for demo control.
+export function unmarkHomeworkReviewed(participantId, sessionOrder) {
+  const p = getParticipantById(participantId);
+  if (!p || !p.submissions?.[sessionOrder]) return null;
+  const sub = { ...p.submissions[sessionOrder] };
+  delete sub.reviewedAt;
+  delete sub.feedback;
+  p.submissions[sessionOrder] = sub;
+  const stored = loadStoredReviews();
+  delete stored[`${participantId}::${sessionOrder}`];
+  persistStoredReviews(stored);
+  return sub;
+}
+
+// Generic submission rows by status across a set of cohort slugs.
+// status: "pending" | "reviewed" | "all"
+export function getHomeworkRows(cohortSlugs, status = "pending") {
+  const allowed = new Set(cohortSlugs);
+  const rows = [];
+  for (const p of ADMIN_MOCK_PARTICIPANTS) {
+    if (!allowed.has(p.cohortSlug)) continue;
+    for (const [orderStr, sub] of Object.entries(p.submissions || {})) {
+      const reviewed = !!sub.reviewedAt;
+      if (status === "pending" && reviewed) continue;
+      if (status === "reviewed" && !reviewed) continue;
+      rows.push({
+        participantId: p.id,
+        participantName: p.name,
+        participantEmail: p.email,
+        cohortSlug: p.cohortSlug,
+        sessionOrder: Number(orderStr),
+        submittedAt: sub.submittedAt,
+        reviewedAt: sub.reviewedAt || null,
+        response: sub.response,
+        link: sub.link,
+        feedback: sub.feedback || "",
+      });
+    }
+  }
+  // Pending → oldest first (most overdue). Reviewed → newest first.
+  if (status === "reviewed") {
+    rows.sort((a, b) => new Date(b.reviewedAt) - new Date(a.reviewedAt));
+  } else {
+    rows.sort((a, b) => new Date(a.submittedAt) - new Date(b.submittedAt));
+  }
+  return rows;
+}
+
+// ---------------------------------------------------------------------------
+// Facilitator notes — private per participant, mock-only persistence.
+// ---------------------------------------------------------------------------
+
+const NOTES_STORAGE_KEY = "brai_admin_facilitator_notes";
+
+function loadStoredNotes() {
+  if (typeof window === "undefined") return {};
+  try {
+    const raw = window.localStorage.getItem(NOTES_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+function persistStoredNotes(map) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(NOTES_STORAGE_KEY, JSON.stringify(map));
+  } catch { /* ignore */ }
+}
+
+export function getFacilitatorNote(participantId) {
+  const map = loadStoredNotes();
+  return map[participantId] || null;
+}
+
+export function setFacilitatorNote(participantId, text) {
+  const map = loadStoredNotes();
+  const trimmed = (text || "").trim();
+  if (!trimmed) {
+    delete map[participantId];
+  } else {
+    map[participantId] = {
+      text: trimmed,
+      updatedAt: new Date().toISOString(),
+    };
+  }
+  persistStoredNotes(map);
+  return map[participantId] || null;
+}
+
+// ---------------------------------------------------------------------------
+// Date range filter — used by /admin/journal selector.
+//
+// Returns { label, sinceMs } where sinceMs filters entries by `date >= sinceMs`
+// (or null for "all time" → no filter).
+// ---------------------------------------------------------------------------
+
+export const DATE_RANGES = [
+  { key: "week",     label: "This week",   days: 7 },
+  { key: "month",    label: "Last 30 days", days: 30 },
+  { key: "quarter",  label: "Last 90 days", days: 90 },
+  { key: "all",      label: "All time",    days: null },
+];
+
+export function getSinceMs(rangeKey) {
+  const range = DATE_RANGES.find((r) => r.key === rangeKey);
+  if (!range || range.days === null) return null;
+  return Date.now() - range.days * 86400000;
+}
+
+// Filter helper for entries — useful inside aggregate calls.
+export function filterEntriesByRange(entries, sinceMs) {
+  if (!sinceMs) return entries;
+  return entries.filter((e) => new Date(e.date).getTime() >= sinceMs);
+}
+
+// ---------------------------------------------------------------------------
 // AI Journal aggregates — used across the admin views to surface the journal
 // data alongside session progress + homework.
 // ---------------------------------------------------------------------------
@@ -347,25 +519,32 @@ export function getJournalEntriesForParticipant(id) {
   );
 }
 
+// Helper — pull entries for a participant inside an optional time window.
+function entriesInRange(p, sinceMs) {
+  const entries = p.journalEntries || [];
+  if (!sinceMs) return entries;
+  return entries.filter((e) => new Date(e.date).getTime() >= sinceMs);
+}
+
 // Cohort-level aggregates (entries, total minutes saved, top contributor).
-export function getCohortJournalStats(slug) {
+// `sinceMs` (optional) filters to entries since a given timestamp.
+export function getCohortJournalStats(slug, sinceMs = null) {
   const roster = getParticipantsForCohort(slug);
   const allEntries = roster.flatMap((p) =>
-    (p.journalEntries || []).map((e) => ({ ...e, participantId: p.id, participantName: p.name })),
+    entriesInRange(p, sinceMs).map((e) => ({ ...e, participantId: p.id, participantName: p.name })),
   );
   const minutesSaved = totalTimeSaved(allEntries);
 
   let topContributor = null;
   let topMinutes = 0;
   for (const p of roster) {
-    const m = totalTimeSaved(p.journalEntries || []);
+    const m = totalTimeSaved(entriesInRange(p, sinceMs));
     if (m > topMinutes) {
       topMinutes = m;
       topContributor = p;
     }
   }
 
-  // Newest entry across cohort (used as "last activity" anchor).
   const latest = allEntries
     .slice()
     .sort((a, b) => new Date(b.date) - new Date(a.date))[0] || null;
@@ -380,30 +559,33 @@ export function getCohortJournalStats(slug) {
 }
 
 // Cross-cohort aggregate — what the admin dashboard KPI cards show.
-export function getScopeJournalStats(cohortSlugs) {
+export function getScopeJournalStats(cohortSlugs, sinceMs = null) {
   const allowed = new Set(cohortSlugs);
   const roster = ADMIN_MOCK_PARTICIPANTS.filter((p) => allowed.has(p.cohortSlug));
-  const allEntries = roster.flatMap((p) => p.journalEntries || []);
+  const allEntries = roster.flatMap((p) => entriesInRange(p, sinceMs));
   return {
     totalEntries: allEntries.length,
     totalMinutesSaved: totalTimeSaved(allEntries),
   };
 }
 
-// Leaderboard — top time-savers across scope.
-export function getTopContributorsInScope(cohortSlugs, limit = 5) {
+// Leaderboard — top time-savers across scope (optionally inside a time window).
+export function getTopContributorsInScope(cohortSlugs, limit = 5, sinceMs = null) {
   const allowed = new Set(cohortSlugs);
   return ADMIN_MOCK_PARTICIPANTS
     .filter((p) => allowed.has(p.cohortSlug))
-    .map((p) => ({
-      id: p.id,
-      name: p.name,
-      title: p.title,
-      organization: p.organization,
-      cohortSlug: p.cohortSlug,
-      entriesCount: p.journalEntries?.length || 0,
-      minutesSaved: totalTimeSaved(p.journalEntries || []),
-    }))
+    .map((p) => {
+      const inRange = entriesInRange(p, sinceMs);
+      return {
+        id: p.id,
+        name: p.name,
+        title: p.title,
+        organization: p.organization,
+        cohortSlug: p.cohortSlug,
+        entriesCount: inRange.length,
+        minutesSaved: totalTimeSaved(inRange),
+      };
+    })
     .filter((p) => p.entriesCount > 0)
     .sort((a, b) => b.minutesSaved - a.minutesSaved)
     .slice(0, limit);
@@ -419,12 +601,12 @@ export function getStaleParticipantsInScope(cohortSlugs, daysThreshold = 14) {
 }
 
 // Biggest individual time-savers across scope — the "wins worth celebrating".
-export function getBiggestWinsInScope(cohortSlugs, limit = 3) {
+export function getBiggestWinsInScope(cohortSlugs, limit = 3, sinceMs = null) {
   const allowed = new Set(cohortSlugs);
   return ADMIN_MOCK_PARTICIPANTS
     .filter((p) => allowed.has(p.cohortSlug))
     .flatMap((p) =>
-      (p.journalEntries || []).map((e) => ({
+      entriesInRange(p, sinceMs).map((e) => ({
         ...e,
         participantId: p.id,
         participantName: p.name,
@@ -478,13 +660,13 @@ export function getWeeklyTrend(cohortSlugs, weeks = 8) {
   return buckets;
 }
 
-// Engagement segmentation — group participants by entry count.
+// Engagement segmentation — group participants by entry count (optionally
+// within a time window).
 //   champion: 5+ entries
 //   engaged: 2-4 entries
 //   trying: 1 entry
 //   absent: 0 entries
-// Returns array of { key, label, count, color } in display order.
-export function getEngagementSegments(cohortSlugs) {
+export function getEngagementSegments(cohortSlugs, sinceMs = null) {
   const allowed = new Set(cohortSlugs);
   const segments = {
     champion: { key: "champion", label: "Champion", count: 0, hint: "5+ entries", color: "#10B981" },
@@ -494,7 +676,7 @@ export function getEngagementSegments(cohortSlugs) {
   };
   for (const p of ADMIN_MOCK_PARTICIPANTS) {
     if (!allowed.has(p.cohortSlug)) continue;
-    const n = p.journalEntries?.length || 0;
+    const n = entriesInRange(p, sinceMs).length;
     if (n >= 5)      segments.champion.count++;
     else if (n >= 2) segments.engaged.count++;
     else if (n === 1) segments.trying.count++;
@@ -559,12 +741,12 @@ export function getEngagementBucket(p) {
 }
 
 // Most recent entries across scope (for the dashboard activity feed).
-export function getRecentEntriesInScope(cohortSlugs, limit = 6) {
+export function getRecentEntriesInScope(cohortSlugs, limit = 6, sinceMs = null) {
   const allowed = new Set(cohortSlugs);
   return ADMIN_MOCK_PARTICIPANTS
     .filter((p) => allowed.has(p.cohortSlug))
     .flatMap((p) =>
-      (p.journalEntries || []).map((e) => ({
+      entriesInRange(p, sinceMs).map((e) => ({
         ...e,
         participantId: p.id,
         participantName: p.name,

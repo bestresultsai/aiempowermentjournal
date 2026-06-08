@@ -1,6 +1,8 @@
+import { useMemo, useState } from "react";
 import { Link, Navigate, useParams } from "react-router-dom";
 import {
   ArrowLeft, GraduationCap, BookCheck, NotebookPen, Sparkles, Clock, Users,
+  ChevronUp, ChevronDown, Download, Target,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { getAccessibleCohorts } from "../../lib/adminRoles";
@@ -10,25 +12,85 @@ import {
   getParticipantsForCohort, getCohortJournalStats,
   totalTimeSaved, formatMinutes,
 } from "../../lib/adminMockData";
+import { downloadCSV } from "../../lib/csvExport";
 
 // /admin/cohorts/:slug — roster of participants in a single cohort.
 //
-// Each row shows the participant identity, an 8-pip progress bar (one pip per
-// belt), homework submission count, and last journal activity.
+// Each row shows the participant identity + main-goal preview, an 8-pip
+// progress bar (one pip per belt), homework + journal stats. Headers click
+// to sort. CSV export button next to header.
 export default function AdminCohortRoster() {
   const { slug } = useParams();
   const { user } = useAuth();
   const cohorts = getAccessibleCohorts(user, DEMO_COHORTS);
   const cohort = cohorts.find((c) => c.slug === slug);
 
-  // Scope check — if the user's role can't see this cohort, bounce.
+  // Sort state.
+  // sortKey: "name" | "progress" | "homework" | "journal"
+  // dir: "asc" | "desc"
+  const [sortKey, setSortKey] = useState("name");
+  const [sortDir, setSortDir] = useState("asc");
+
+  // Hooks must run in a stable order — keep them above the scope check.
+  const rosterRaw = cohort ? getParticipantsForCohort(slug) : [];
+  const totalSessions = MOCK_SESSIONS.length;
+  const journal = cohort ? getCohortJournalStats(slug) : { totalEntries: 0, totalMinutesSaved: 0 };
+
+  // Apply sort.
+  const roster = useMemo(() => {
+    const arr = [...rosterRaw];
+    const dir = sortDir === "asc" ? 1 : -1;
+    const cmp = {
+      name: (a, b) => a.name.localeCompare(b.name),
+      progress: (a, b) => (a.progress?.length || 0) - (b.progress?.length || 0),
+      homework: (a, b) =>
+        Object.keys(a.submissions || {}).length - Object.keys(b.submissions || {}).length,
+      journal: (a, b) =>
+        totalTimeSaved(a.journalEntries || []) - totalTimeSaved(b.journalEntries || []),
+    }[sortKey] || ((a, b) => 0);
+    arr.sort((a, b) => cmp(a, b) * dir);
+    return arr;
+  }, [rosterRaw, sortKey, sortDir]);
+
+  // Scope check — bounce after all hooks have run.
   if (!cohort) {
     return <Navigate to="/admin/cohorts" replace />;
   }
 
-  const roster = getParticipantsForCohort(slug);
-  const totalSessions = MOCK_SESSIONS.length;
-  const journal = getCohortJournalStats(slug);
+  function toggleSort(key) {
+    if (sortKey === key) {
+      setSortDir(sortDir === "asc" ? "desc" : "asc");
+    } else {
+      setSortKey(key);
+      // Sensible defaults — text ascends, numbers descend.
+      setSortDir(key === "name" ? "asc" : "desc");
+    }
+  }
+
+  function handleExportCSV() {
+    const header = [
+      "Name", "Email", "Title", "Organization",
+      "Sessions complete", "Total sessions",
+      "Homework submitted", "Homework reviewed",
+      "Journal entries", "Hours saved", "Last journal (days ago)",
+      "Main goal", "Why AI",
+    ];
+    const rows = roster.map((p) => {
+      const completed = p.progress?.length || 0;
+      const subs = Object.values(p.submissions || {});
+      const reviewed = subs.filter((s) => s.reviewedAt).length;
+      const minutes = totalTimeSaved(p.journalEntries || []);
+      return [
+        p.name, p.email, p.title || "", p.organization || "",
+        completed, totalSessions,
+        subs.length, reviewed,
+        (p.journalEntries || []).length, Math.round(minutes / 60 * 10) / 10,
+        p.lastJournalDaysAgo ?? "",
+        p.mainGoal || "", p.whyAi || "",
+      ];
+    });
+    downloadCSV(`${cohort.slug}-roster.csv`, [header, ...rows]);
+  }
 
   return (
     <div className="space-y-6 animate-fade-in-up">
@@ -56,6 +118,13 @@ export default function AdminCohortRoster() {
             {roster.length === 1 ? "participant" : "participants"}
           </p>
         </div>
+        <button
+          onClick={handleExportCSV}
+          className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white border border-soft text-[12.5px] font-heading font-semibold text-ink hover:bg-surface-soft hover:border-brand-500 transition-all duration-200 shrink-0"
+        >
+          <Download className="w-3.5 h-3.5 text-brand-600" strokeWidth={2.5} />
+          Export CSV
+        </button>
       </header>
 
       {/* Cohort-level Journal summary */}
@@ -88,13 +157,13 @@ export default function AdminCohortRoster() {
 
       {/* Roster table */}
       <div className="rounded-2xl bg-surface-card border border-soft overflow-hidden">
-        {/* Header row (desktop) */}
+        {/* Header row (desktop) — clickable to sort */}
         <div className="hidden md:grid grid-cols-[1fr_auto_auto_auto_auto] gap-4 px-5 py-3 border-b border-soft bg-surface-soft text-[10.5px] font-heading font-bold uppercase tracking-wider text-ink-muted">
-          <div>Participant</div>
+          <SortHeader label="Participant" colKey="name" current={sortKey} dir={sortDir} onClick={toggleSort} />
           <div className="w-48 text-center">Progress (8 belts)</div>
-          <div className="w-20 text-right">Done</div>
-          <div className="w-24 text-right">Homework</div>
-          <div className="w-36 text-right">Journal</div>
+          <SortHeader label="Done" colKey="progress" current={sortKey} dir={sortDir} onClick={toggleSort} width="w-20" align="right" />
+          <SortHeader label="Homework" colKey="homework" current={sortKey} dir={sortDir} onClick={toggleSort} width="w-24" align="right" />
+          <SortHeader label="Journal" colKey="journal" current={sortKey} dir={sortDir} onClick={toggleSort} width="w-36" align="right" />
         </div>
 
         {roster.map((p) => {
@@ -118,6 +187,15 @@ export default function AdminCohortRoster() {
                     {p.name}
                   </div>
                   <div className="text-[11.5px] text-ink-muted truncate">{p.title}</div>
+                  {p.mainGoal && (
+                    <div
+                      title={p.mainGoal}
+                      className="inline-flex items-center gap-1 text-[11px] text-brand-700/90 font-heading mt-1 truncate max-w-full"
+                    >
+                      <Target className="w-3 h-3 shrink-0" strokeWidth={2.5} />
+                      <span className="truncate">{p.mainGoal}</span>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -204,6 +282,28 @@ function CohortJournalStat({ icon: Icon, label, value, sub }) {
       </div>
       {sub && <div className="text-[10.5px] text-emerald-700/70 mt-0.5">{sub}</div>}
     </div>
+  );
+}
+
+function SortHeader({ label, colKey, current, dir, onClick, width, align }) {
+  const isActive = current === colKey;
+  return (
+    <button
+      type="button"
+      onClick={() => onClick(colKey)}
+      className={
+        "inline-flex items-center gap-1 hover:text-ink transition-colors group " +
+        (width || "") + " " +
+        (align === "right" ? "justify-end text-right" : "text-left")
+      }
+    >
+      <span className={isActive ? "text-ink" : ""}>{label}</span>
+      {isActive && (
+        dir === "asc"
+          ? <ChevronUp className="w-3 h-3 text-ink" strokeWidth={3} />
+          : <ChevronDown className="w-3 h-3 text-ink" strokeWidth={3} />
+      )}
+    </button>
   );
 }
 

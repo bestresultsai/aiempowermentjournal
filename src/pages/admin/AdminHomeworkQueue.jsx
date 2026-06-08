@@ -1,25 +1,89 @@
+import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { BookCheck, ExternalLink, ArrowRight, ListChecks } from "lucide-react";
+import {
+  BookCheck, ExternalLink, ArrowRight, ListChecks, Search,
+  Check, Clock, ChevronDown, ChevronUp, RotateCcw, Send, Loader2,
+} from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { getAccessibleCohorts } from "../../lib/adminRoles";
 import { DEMO_COHORTS } from "../../lib/demoData";
 import { MOCK_SESSIONS, BELT_COLORS } from "../../lib/mockCohort";
-import { getPendingHomework } from "../../lib/adminMockData";
+import {
+  getHomeworkRows,
+  markHomeworkReviewed,
+  unmarkHomeworkReviewed,
+} from "../../lib/adminMockData";
 
-// /admin/homework — queue of pending submissions across cohorts in scope.
+// ---------------------------------------------------------------------------
+// /admin/homework — homework queue with full review workflow.
 //
-// Read-only this round: the row shows the submission excerpt, link, and a
-// Mark reviewed button (disabled here — feedback writes land in round 2).
+// Tabs: Pending / Reviewed / All
+// Filters: cohort + session + search (participant name/email/text)
+// Each row expands to a feedback form. Submit writes via markHomeworkReviewed
+// (mock localStorage persistence today).
+// ---------------------------------------------------------------------------
+
+const TABS = [
+  { key: "pending",  label: "Pending review" },
+  { key: "reviewed", label: "Reviewed" },
+  { key: "all",      label: "All" },
+];
+
 export default function AdminHomeworkQueue() {
   const { user } = useAuth();
   const cohorts = getAccessibleCohorts(user, DEMO_COHORTS);
-  const cohortSlugBySlug = Object.fromEntries(cohorts.map((c) => [c.slug, c]));
-  const pending = getPendingHomework(cohorts.map((c) => c.slug));
+  const cohortBySlug = useMemo(
+    () => Object.fromEntries(cohorts.map((c) => [c.slug, c])),
+    [cohorts],
+  );
+  const cohortSlugs = cohorts.map((c) => c.slug);
+  const sessionByOrder = useMemo(
+    () => Object.fromEntries(MOCK_SESSIONS.map((s) => [s.order, s])),
+    [],
+  );
 
-  const sessionByOrder = Object.fromEntries(MOCK_SESSIONS.map((s) => [s.order, s]));
+  // Filters
+  const [tab, setTab] = useState("pending");
+  const [cohortFilter, setCohortFilter] = useState(null);
+  const [sessionFilter, setSessionFilter] = useState(null);
+  const [q, setQ] = useState("");
+  const [expandedKey, setExpandedKey] = useState(null);
+  // Bump to force a re-derive after a write.
+  const [version, setVersion] = useState(0);
+
+  const rows = useMemo(() => {
+    const all = getHomeworkRows(cohortSlugs, tab);
+    const lc = q.trim().toLowerCase();
+    return all
+      .filter((r) => !cohortFilter || r.cohortSlug === cohortFilter)
+      .filter((r) => !sessionFilter || r.sessionOrder === sessionFilter)
+      .filter((r) => {
+        if (!lc) return true;
+        return (
+          r.participantName.toLowerCase().includes(lc) ||
+          r.participantEmail.toLowerCase().includes(lc) ||
+          (r.response || "").toLowerCase().includes(lc)
+        );
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab, cohortFilter, sessionFilter, q, version, cohortSlugs.join(",")]);
+
+  // Counts per tab for the chips.
+  const counts = useMemo(() => ({
+    pending: getHomeworkRows(cohortSlugs, "pending").length,
+    reviewed: getHomeworkRows(cohortSlugs, "reviewed").length,
+    all: getHomeworkRows(cohortSlugs, "all").length,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }), [version, cohortSlugs.join(",")]);
+
+  const showCohortFilter = cohorts.length > 1;
+  const usedSessions = Array.from(
+    new Set(getHomeworkRows(cohortSlugs, "all").map((r) => r.sessionOrder)),
+  ).sort((a, b) => a - b);
 
   return (
     <div className="space-y-6 animate-fade-in-up">
+      {/* Header */}
       <header className="flex items-start gap-3">
         <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center">
           <ListChecks className="w-5 h-5" strokeWidth={2} />
@@ -29,97 +93,96 @@ export default function AdminHomeworkQueue() {
             Homework queue
           </h1>
           <p className="text-[13px] text-ink-muted mt-0.5">
-            {pending.length} {pending.length === 1 ? "submission" : "submissions"} awaiting review.
-            Oldest first.
+            Pending {counts.pending} · Reviewed {counts.reviewed} · Total {counts.all}
           </p>
         </div>
       </header>
 
-      {pending.length === 0 ? (
-        <EmptyState />
+      {/* Tabs */}
+      <div className="flex items-center gap-2 flex-wrap">
+        {TABS.map((t) => (
+          <button
+            key={t.key}
+            type="button"
+            onClick={() => { setTab(t.key); setExpandedKey(null); }}
+            className={
+              "inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-[12.5px] font-heading font-semibold transition-all duration-200 " +
+              (tab === t.key
+                ? "bg-ink text-white"
+                : "bg-surface-card border border-soft text-ink-muted hover:text-ink hover:border-brand-500")
+            }
+          >
+            {t.label}
+            <span className={
+              "inline-flex items-center justify-center min-w-[18px] px-1 rounded-full text-[10.5px] font-bold " +
+              (tab === t.key ? "bg-white/15 text-white" : "bg-ink/5 text-ink-muted")
+            }>
+              {counts[t.key]}
+            </span>
+          </button>
+        ))}
+      </div>
+
+      {/* Secondary filters */}
+      <div className="flex items-center gap-3 flex-wrap">
+        {showCohortFilter && (
+          <SelectChip
+            label="Cohort"
+            value={cohortFilter}
+            onChange={setCohortFilter}
+            options={[
+              { value: null, label: "All cohorts" },
+              ...cohorts.map((c) => ({ value: c.slug, label: c.organization?.shortName || c.name })),
+            ]}
+          />
+        )}
+        <SelectChip
+          label="Session"
+          value={sessionFilter}
+          onChange={(v) => setSessionFilter(v === null ? null : Number(v))}
+          options={[
+            { value: null, label: "All sessions" },
+            ...usedSessions.map((n) => ({
+              value: n,
+              label: `Session ${n} · ${sessionByOrder[n]?.belt || ""}`,
+            })),
+          ]}
+        />
+        <div className="flex-1 relative min-w-[200px]">
+          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-subtle pointer-events-none" strokeWidth={2} />
+          <input
+            type="text"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Search by name, email, or submission text…"
+            className="w-full pl-10 pr-4 py-2 rounded-xl border border-soft bg-surface-card text-ink text-[13.5px] font-body placeholder:text-ink-subtle focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15"
+          />
+        </div>
+      </div>
+
+      {/* Rows */}
+      {rows.length === 0 ? (
+        <EmptyState tab={tab} />
       ) : (
         <div className="space-y-3">
-          {pending.map((row) => {
+          {rows.map((row) => {
             const session = sessionByOrder[row.sessionOrder];
             const belt = session ? BELT_COLORS[session.belt] : null;
-            const cohort = cohortSlugBySlug[row.cohortSlug];
+            const cohort = cohortBySlug[row.cohortSlug];
+            const key = `${row.participantId}::${row.sessionOrder}`;
+            const reviewed = !!row.reviewedAt;
             return (
-              <article
-                key={`${row.participantId}-${row.sessionOrder}`}
-                className="rounded-2xl bg-surface-card border border-soft p-5 hover:shadow-card transition-shadow"
-              >
-                {/* Top row — participant + session belt chip */}
-                <div className="flex items-start justify-between gap-3 flex-wrap">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-10 h-10 rounded-full bg-brand-700 text-white flex items-center justify-center text-[12px] font-heading font-bold shrink-0">
-                      {row.participantName.split(" ").slice(0, 2).map((w) => w[0]).join("").toUpperCase()}
-                    </div>
-                    <div className="min-w-0">
-                      <Link
-                        to={`/admin/users/${row.participantId}`}
-                        className="font-heading font-bold text-ink text-[14.5px] hover:text-brand-700 transition-colors block truncate"
-                      >
-                        {row.participantName}
-                      </Link>
-                      <div className="text-[11.5px] text-ink-muted truncate">
-                        {row.participantEmail} · {cohort?.organization?.shortName || ""}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Belt-colored session chip */}
-                  {session && (
-                    <div
-                      style={{
-                        background: belt.gradient,
-                        color: belt.contrast,
-                        border: belt.needsBorder ? "1px solid #D1D5DB" : "none",
-                      }}
-                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-heading font-bold tracking-wide"
-                    >
-                      Session {row.sessionOrder} · {session.belt}
-                    </div>
-                  )}
-                </div>
-
-                {/* Submission excerpt */}
-                <p className="mt-4 text-[13.5px] text-ink leading-relaxed">{row.response}</p>
-
-                {/* Footer — link + submitted ago + actions */}
-                <div className="mt-4 pt-4 border-t border-soft flex items-center justify-between gap-3 flex-wrap">
-                  <div className="flex items-center gap-3 text-[11.5px] text-ink-muted">
-                    <span>Submitted {timeAgo(row.submittedAt)}</span>
-                    {row.link && (
-                      <a
-                        href={row.link}
-                        target="_blank"
-                        rel="noreferrer noopener"
-                        className="inline-flex items-center gap-1 font-heading font-semibold text-brand-600 hover:text-brand-700"
-                      >
-                        <ExternalLink className="w-3 h-3" strokeWidth={2.5} />
-                        Open submission
-                      </a>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      disabled
-                      title="Feedback writes land in the next round"
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-ink/5 text-ink-subtle text-[12px] font-heading font-semibold cursor-not-allowed"
-                    >
-                      <BookCheck className="w-3.5 h-3.5" strokeWidth={2.5} />
-                      Mark reviewed
-                    </button>
-                    <Link
-                      to={`/admin/users/${row.participantId}`}
-                      className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-[12px] font-heading font-semibold text-ink hover:bg-surface-soft transition-colors"
-                    >
-                      Open participant
-                      <ArrowRight className="w-3.5 h-3.5" strokeWidth={2.5} />
-                    </Link>
-                  </div>
-                </div>
-              </article>
+              <SubmissionCard
+                key={key}
+                row={row}
+                session={session}
+                belt={belt}
+                cohort={cohort}
+                reviewed={reviewed}
+                expanded={expandedKey === key}
+                onToggle={() => setExpandedKey(expandedKey === key ? null : key)}
+                onWrite={() => setVersion((v) => v + 1)}
+              />
             );
           })}
         </div>
@@ -128,19 +191,224 @@ export default function AdminHomeworkQueue() {
   );
 }
 
-function EmptyState() {
+// ---------------------------------------------------------------------------
+// SubmissionCard — collapsed view + expanded feedback form
+// ---------------------------------------------------------------------------
+function SubmissionCard({ row, session, belt, cohort, reviewed, expanded, onToggle, onWrite }) {
+  const [feedback, setFeedback] = useState(row.feedback || "");
+  const [saving, setSaving] = useState(false);
+
+  async function handleSave() {
+    setSaving(true);
+    // Tiny artificial latency so the spinner is visible.
+    await new Promise((r) => setTimeout(r, 350));
+    markHomeworkReviewed(row.participantId, row.sessionOrder, feedback);
+    setSaving(false);
+    onWrite();
+  }
+
+  function handleReopen() {
+    unmarkHomeworkReviewed(row.participantId, row.sessionOrder);
+    setFeedback("");
+    onWrite();
+  }
+
+  return (
+    <article className="rounded-2xl bg-surface-card border border-soft hover:shadow-card transition-shadow overflow-hidden">
+      {/* Header row — always visible */}
+      <div className="p-5">
+        <div className="flex items-start justify-between gap-3 flex-wrap">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-10 h-10 rounded-full bg-brand-700 text-white flex items-center justify-center text-[12px] font-heading font-bold shrink-0">
+              {row.participantName.split(" ").slice(0, 2).map((w) => w[0]).join("").toUpperCase()}
+            </div>
+            <div className="min-w-0">
+              <Link
+                to={`/admin/users/${row.participantId}`}
+                className="font-heading font-bold text-ink text-[14.5px] hover:text-brand-700 transition-colors block truncate"
+              >
+                {row.participantName}
+              </Link>
+              <div className="text-[11.5px] text-ink-muted truncate">
+                {row.participantEmail} · {cohort?.organization?.shortName || ""}
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 flex-wrap">
+            {session && belt && (
+              <div
+                style={{
+                  background: belt.gradient,
+                  color: belt.contrast,
+                  border: belt.needsBorder ? "1px solid #D1D5DB" : "none",
+                }}
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-heading font-bold tracking-wide"
+              >
+                Session {row.sessionOrder} · {session.belt}
+              </div>
+            )}
+            <span
+              className={
+                "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-heading font-semibold " +
+                (reviewed
+                  ? "bg-emerald-50 text-emerald-700"
+                  : "bg-amber-50 text-amber-700")
+              }
+            >
+              {reviewed ? <Check className="w-3 h-3" strokeWidth={3} /> : <Clock className="w-3 h-3" strokeWidth={3} />}
+              {reviewed ? "Reviewed" : "Pending"}
+            </span>
+          </div>
+        </div>
+
+        {/* Submission excerpt */}
+        <p className="mt-4 text-[13.5px] text-ink leading-relaxed">{row.response}</p>
+
+        {/* Existing feedback (collapsed view) */}
+        {reviewed && row.feedback && !expanded && (
+          <div className="mt-3 p-3 rounded-xl bg-emerald-50/40 border border-emerald-100">
+            <div className="text-[10.5px] font-heading font-bold uppercase tracking-wider text-emerald-700 mb-1">
+              Your feedback
+            </div>
+            <p className="text-[13px] text-ink leading-relaxed">{row.feedback}</p>
+          </div>
+        )}
+
+        {/* Footer — link + submitted ago + actions */}
+        <div className="mt-4 pt-4 border-t border-soft flex items-center justify-between gap-3 flex-wrap">
+          <div className="flex items-center gap-3 text-[11.5px] text-ink-muted">
+            <span>Submitted {timeAgo(row.submittedAt)}</span>
+            {reviewed && <span>· Reviewed {timeAgo(row.reviewedAt)}</span>}
+            {row.link && (
+              <a
+                href={row.link}
+                target="_blank"
+                rel="noreferrer noopener"
+                className="inline-flex items-center gap-1 font-heading font-semibold text-brand-600 hover:text-brand-700"
+              >
+                <ExternalLink className="w-3 h-3" strokeWidth={2.5} />
+                Open submission
+              </a>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            {reviewed ? (
+              <button
+                onClick={handleReopen}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-heading font-semibold text-ink-muted hover:text-ink hover:bg-surface-soft transition-colors"
+              >
+                <RotateCcw className="w-3.5 h-3.5" strokeWidth={2.5} />
+                Reopen
+              </button>
+            ) : null}
+            <button
+              onClick={onToggle}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-ink text-white text-[12px] font-heading font-semibold hover:bg-brand-700 transition-colors"
+            >
+              {expanded
+                ? <>Close <ChevronUp className="w-3.5 h-3.5" strokeWidth={2.5} /></>
+                : <>{reviewed ? "Edit feedback" : "Review"} <ChevronDown className="w-3.5 h-3.5" strokeWidth={2.5} /></>}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Expanded feedback form */}
+      {expanded && (
+        <div className="border-t border-soft p-5 bg-surface-soft/40 space-y-3 animate-fade-in-up">
+          <label className="block">
+            <span className="block text-[11.5px] font-heading font-semibold tracking-wider uppercase text-ink-muted mb-1.5">
+              Facilitator feedback
+            </span>
+            <textarea
+              rows={4}
+              value={feedback}
+              onChange={(e) => setFeedback(e.target.value)}
+              placeholder="What's working? What's the one nudge that would unlock the next belt for them?"
+              className="w-full px-4 py-3 rounded-xl border border-soft bg-surface-card text-ink text-[14px] font-body placeholder:text-ink-subtle focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 resize-y leading-relaxed"
+            />
+          </label>
+          <div className="flex items-center justify-end gap-2">
+            <button
+              onClick={onToggle}
+              className="px-3 py-2 rounded-lg text-[12.5px] font-heading font-semibold text-ink-muted hover:text-ink hover:bg-ink/5 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleSave}
+              disabled={saving}
+              className={
+                "inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-[12.5px] font-heading font-semibold transition-all duration-200 " +
+                (saving
+                  ? "bg-brand-600/70 text-white cursor-wait"
+                  : "bg-brand-600 text-white hover:bg-brand-700")
+              }
+            >
+              {saving ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" strokeWidth={2.5} />
+                  Saving…
+                </>
+              ) : (
+                <>
+                  <Send className="w-3.5 h-3.5" strokeWidth={2.5} />
+                  {reviewed ? "Update feedback" : "Mark reviewed & send"}
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      )}
+    </article>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function SelectChip({ label, value, onChange, options }) {
+  return (
+    <div className="inline-flex items-center gap-2 px-2.5 py-1.5 rounded-xl border border-soft bg-surface-card">
+      <span className="text-[11px] font-heading font-bold uppercase tracking-wider text-ink-muted">
+        {label}:
+      </span>
+      <select
+        value={value === null ? "" : String(value)}
+        onChange={(e) => onChange(e.target.value === "" ? null : e.target.value)}
+        className="bg-transparent text-[12.5px] font-heading font-semibold text-ink focus:outline-none"
+      >
+        {options.map((opt) => (
+          <option key={String(opt.value)} value={opt.value === null ? "" : String(opt.value)}>
+            {opt.label}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
+function EmptyState({ tab }) {
+  const copy = tab === "reviewed"
+    ? { headline: "No reviews yet.", body: "Once you mark submissions reviewed, they land here as a feedback archive." }
+    : tab === "all"
+      ? { headline: "Nothing submitted yet.", body: "Once participants submit homework, you'll see every submission here." }
+      : { headline: "All caught up.", body: "No submissions waiting for review." };
   return (
     <div className="rounded-2xl bg-surface-card border border-soft p-10 text-center">
       <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto mb-3">
         <BookCheck className="w-6 h-6" strokeWidth={2} />
       </div>
-      <h2 className="font-heading text-[16px] font-extrabold text-ink">All caught up.</h2>
-      <p className="text-[13px] text-ink-muted mt-1">No submissions waiting for review.</p>
+      <h2 className="font-heading text-[16px] font-extrabold text-ink">{copy.headline}</h2>
+      <p className="text-[13px] text-ink-muted mt-1">{copy.body}</p>
     </div>
   );
 }
 
 function timeAgo(iso) {
+  if (!iso) return "";
   const d = new Date(iso);
   const days = Math.floor((Date.now() - d.getTime()) / 86400000);
   if (days <= 0) return "today";

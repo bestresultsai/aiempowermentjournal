@@ -1,7 +1,8 @@
+import { useEffect, useState } from "react";
 import { Link, Navigate, useParams } from "react-router-dom";
 import {
   ArrowLeft, Mail, Building2, BookCheck, Check, Clock, GraduationCap,
-  ExternalLink, NotebookPen, Sparkles, Lightbulb, Target,
+  ExternalLink, NotebookPen, Sparkles, Lightbulb, Target, Lock, Save,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { getAccessibleCohortSlugs } from "../../lib/adminRoles";
@@ -11,6 +12,8 @@ import {
   getParticipantById,
   getSubmissionsForParticipant,
   getJournalEntriesForParticipant,
+  getFacilitatorNote,
+  setFacilitatorNote,
   totalTimeSaved,
   timeSavedFor,
   formatMinutes,
@@ -114,6 +117,9 @@ export default function AdminParticipantDetail() {
           </div>
         </section>
       )}
+
+      {/* Facilitator notes — private to admins, persisted locally for now */}
+      <FacilitatorNotes participantId={p.id} participantName={p.name} />
 
       {/* Quick stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
@@ -323,6 +329,114 @@ function SmallKpi({ label, value, accent, sub }) {
         </div>
       )}
     </div>
+  );
+}
+
+function FacilitatorNotes({ participantId, participantName }) {
+  const [note, setNote] = useState("");
+  const [updatedAt, setUpdatedAt] = useState(null);
+  const [saveState, setSaveState] = useState("idle"); // idle | dirty | saving | saved
+  const [editing, setEditing] = useState(false);
+
+  // Hydrate on mount and whenever the participant changes.
+  useEffect(() => {
+    const stored = getFacilitatorNote(participantId);
+    setNote(stored?.text || "");
+    setUpdatedAt(stored?.updatedAt || null);
+    setSaveState("idle");
+    setEditing(!stored?.text); // start in editing mode if there's no note yet
+  }, [participantId]);
+
+  function handleChange(value) {
+    setNote(value);
+    setSaveState("dirty");
+  }
+
+  function handleSave() {
+    setSaveState("saving");
+    setTimeout(() => {
+      const saved = setFacilitatorNote(participantId, note);
+      setUpdatedAt(saved?.updatedAt || null);
+      setSaveState("saved");
+      setEditing(false);
+      setTimeout(() => setSaveState("idle"), 1800);
+    }, 250);
+  }
+
+  function handleCancel() {
+    const stored = getFacilitatorNote(participantId);
+    setNote(stored?.text || "");
+    setSaveState("idle");
+    setEditing(false);
+  }
+
+  return (
+    <section className="rounded-2xl bg-amber-50/30 border border-amber-100 p-5">
+      <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
+        <div className="flex items-center gap-2">
+          <Lock className="w-3.5 h-3.5 text-amber-700" strokeWidth={2.5} />
+          <h2 className="font-heading text-[12.5px] font-bold uppercase tracking-wider text-amber-800">
+            Facilitator notes
+          </h2>
+          <span className="text-[11px] text-amber-700/70">· private</span>
+        </div>
+        {updatedAt && !editing && (
+          <span className="text-[11px] text-amber-700/70">Updated {timeAgo(updatedAt)}</span>
+        )}
+      </div>
+
+      {editing ? (
+        <>
+          <textarea
+            rows={4}
+            value={note}
+            onChange={(e) => handleChange(e.target.value)}
+            placeholder={`Pre-1:1 notes about ${participantName.split(" ")[0]}. What's blocking them? What to coach next?`}
+            className="w-full px-4 py-3 rounded-xl border border-amber-100 bg-white text-ink text-[13.5px] font-body placeholder:text-ink-subtle focus:outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-200/50 resize-y leading-relaxed"
+          />
+          <div className="flex items-center justify-end gap-2 mt-3">
+            <button
+              onClick={handleCancel}
+              className="px-3 py-1.5 rounded-lg text-[12px] font-heading font-semibold text-ink-muted hover:text-ink hover:bg-amber-100/50 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleSave}
+              disabled={saveState === "saving"}
+              className={
+                "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-heading font-semibold transition-colors " +
+                (saveState === "saving"
+                  ? "bg-amber-600/70 text-white cursor-wait"
+                  : "bg-amber-700 text-white hover:bg-amber-800")
+              }
+            >
+              {saveState === "saving"
+                ? "Saving…"
+                : saveState === "saved"
+                  ? <><Check className="w-3.5 h-3.5" strokeWidth={2.5} />Saved</>
+                  : <><Save className="w-3.5 h-3.5" strokeWidth={2.5} />Save note</>}
+            </button>
+          </div>
+        </>
+      ) : (
+        <>
+          {note ? (
+            <p className="text-[13.5px] text-ink leading-relaxed whitespace-pre-wrap">{note}</p>
+          ) : (
+            <p className="text-[13px] text-amber-700/70 italic">No notes yet.</p>
+          )}
+          <div className="mt-3 text-right">
+            <button
+              onClick={() => setEditing(true)}
+              className="text-[12px] font-heading font-semibold text-amber-800 hover:text-amber-900 transition-colors"
+            >
+              {note ? "Edit note →" : "Add a note →"}
+            </button>
+          </div>
+        </>
+      )}
+    </section>
   );
 }
 

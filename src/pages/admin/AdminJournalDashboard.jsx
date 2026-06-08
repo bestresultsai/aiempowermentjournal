@@ -1,12 +1,14 @@
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import {
   NotebookPen, Clock, Users, Trophy, Sparkles, AlertCircle,
-  TrendingUp, Building2, ArrowRight, Award, BarChart3,
+  TrendingUp, Building2, ArrowRight, Award, BarChart3, Download,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { getAccessibleCohorts } from "../../lib/adminRoles";
 import { DEMO_COHORTS } from "../../lib/demoData";
 import {
+  ADMIN_MOCK_PARTICIPANTS,
   getCohortJournalStats,
   getRecentEntriesInScope,
   getTopContributorsInScope,
@@ -16,9 +18,14 @@ import {
   getBiggestWinsInScope,
   getWeeklyTrend,
   getEngagementSegments,
+  filterEntriesByRange,
   timeSavedFor,
+  totalTimeSaved,
   formatMinutes,
+  DATE_RANGES,
+  getSinceMs,
 } from "../../lib/adminMockData";
+import { downloadCSV } from "../../lib/csvExport";
 import WeeklyTrendChart from "../../components/admin/WeeklyTrendChart";
 import EngagementDonut from "../../components/admin/EngagementDonut";
 
@@ -38,19 +45,27 @@ export default function AdminJournalDashboard() {
   const cohorts = getAccessibleCohorts(user, DEMO_COHORTS);
   const cohortSlugs = cohorts.map((c) => c.slug);
 
-  const stats = getScopeJournalStats(cohortSlugs);
-  const topContributors = getTopContributorsInScope(cohortSlugs, 5);
+  // Date range — "all" by default. Filters every aggregate except the weekly
+  // trend chart (which always shows the last 8 weeks regardless).
+  const [range, setRange] = useState("all");
+  const sinceMs = getSinceMs(range);
+  const rangeLabel = DATE_RANGES.find((r) => r.key === range)?.label || "All time";
+
+  const stats = getScopeJournalStats(cohortSlugs, sinceMs);
+  const topContributors = getTopContributorsInScope(cohortSlugs, 5, sinceMs);
   const stale = getStaleParticipantsInScope(cohortSlugs, 14);
-  const recent = getRecentEntriesInScope(cohortSlugs, 20);
-  const biggestWins = getBiggestWinsInScope(cohortSlugs, 3);
+  const recent = getRecentEntriesInScope(cohortSlugs, 20, sinceMs);
+  const biggestWins = getBiggestWinsInScope(cohortSlugs, 3, sinceMs);
   const weeklyTrend = getWeeklyTrend(cohortSlugs, 8);
-  const segments = getEngagementSegments(cohortSlugs);
+  const segments = getEngagementSegments(cohortSlugs, sinceMs);
 
   // Per-cohort breakdown for the comparison table.
   const cohortRows = cohorts.map((c) => {
     const roster = getParticipantsForCohort(c.slug);
-    const cohortStats = getCohortJournalStats(c.slug);
-    const activeCount = roster.filter((p) => (p.journalEntries?.length || 0) > 0).length;
+    const cohortStats = getCohortJournalStats(c.slug, sinceMs);
+    const activeCount = roster.filter((p) =>
+      filterEntriesByRange(p.journalEntries || [], sinceMs).length > 0,
+    ).length;
     return {
       cohort: c,
       participants: roster.length,
@@ -62,6 +77,30 @@ export default function AdminJournalDashboard() {
     };
   });
 
+  function handleExportCSV() {
+    const header = [
+      "Date", "Participant", "Email", "Organization", "Cohort",
+      "Title", "Description",
+      "Time before AI (min)", "Time with AI (min)", "Time saved (min)",
+    ];
+    const cohortBySlug = Object.fromEntries(DEMO_COHORTS.map((c) => [c.slug, c]));
+    const rows = [];
+    for (const p of ADMIN_MOCK_PARTICIPANTS) {
+      if (!cohortSlugs.includes(p.cohortSlug)) continue;
+      const cohortName = cohortBySlug[p.cohortSlug]?.name || p.cohortSlug;
+      for (const e of filterEntriesByRange(p.journalEntries || [], sinceMs)) {
+        rows.push([
+          new Date(e.date).toISOString().slice(0, 10),
+          p.name, p.email, p.organization || "", cohortName,
+          e.title, e.description,
+          e.timeBeforeAI || 0, e.timeWithAI || 0, timeSavedFor(e),
+        ]);
+      }
+    }
+    rows.sort((a, b) => a[0] < b[0] ? 1 : -1);
+    downloadCSV(`journal-entries-${range}.csv`, [header, ...rows]);
+  }
+
   // Roll-up for the "people actively journaling" KPI.
   const activeJournalersCount = cohortRows.reduce((s, r) => s + r.activeCount, 0);
   const totalParticipants = cohortRows.reduce((s, r) => s + r.participants, 0);
@@ -71,21 +110,47 @@ export default function AdminJournalDashboard() {
   return (
     <div className="space-y-8 animate-fade-in-up">
       {/* Header */}
-      <header className="flex items-start gap-3">
+      <header className="flex items-start gap-3 flex-wrap">
         <div className="w-11 h-11 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center">
           <NotebookPen className="w-5 h-5" strokeWidth={2} />
         </div>
-        <div>
+        <div className="flex-1 min-w-0">
           <div className="h-eyebrow">Admin · Journal</div>
           <h1 className="font-heading text-[28px] lg:text-[34px] font-extrabold tracking-tight text-ink leading-tight">
             AI Journal dashboard
           </h1>
           <p className="text-[14px] text-ink-muted mt-1.5 max-w-2xl">
-            Time saved, top contributors, and recent activity across the {cohorts.length}{" "}
-            {cohorts.length === 1 ? "cohort" : "cohorts"} you can see.
+            {rangeLabel} · {cohorts.length}{" "}
+            {cohorts.length === 1 ? "cohort" : "cohorts"} in scope.
           </p>
         </div>
+        <button
+          onClick={handleExportCSV}
+          className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white border border-soft text-[12.5px] font-heading font-semibold text-ink hover:bg-surface-soft hover:border-brand-500 transition-all duration-200 shrink-0"
+        >
+          <Download className="w-3.5 h-3.5 text-brand-600" strokeWidth={2.5} />
+          Export entries CSV
+        </button>
       </header>
+
+      {/* Date range pills */}
+      <div className="flex items-center gap-2 flex-wrap">
+        {DATE_RANGES.map((r) => (
+          <button
+            key={r.key}
+            type="button"
+            onClick={() => setRange(r.key)}
+            className={
+              "inline-flex items-center px-3 py-1.5 rounded-full text-[12.5px] font-heading font-semibold transition-all duration-200 " +
+              (range === r.key
+                ? "bg-ink text-white"
+                : "bg-surface-card border border-soft text-ink-muted hover:text-ink hover:border-brand-500")
+            }
+          >
+            {r.label}
+          </button>
+        ))}
+      </div>
 
       {/* Hero KPIs */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
@@ -173,7 +238,7 @@ export default function AdminJournalDashboard() {
             <h2 className="font-heading text-[14px] font-extrabold text-ink">
               Entries per week
             </h2>
-            <span className="text-[11.5px] text-ink-muted">· last 8 weeks</span>
+            <span className="text-[11.5px] text-ink-muted">· trailing 8 weeks (ignores range filter)</span>
           </div>
           <WeeklyTrendChart data={weeklyTrend} />
         </div>
