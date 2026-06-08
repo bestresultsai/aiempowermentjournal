@@ -217,6 +217,8 @@ function buildCohort(payload, { orgs, facilitators, program }) {
   const sessions = MOCK_SESSIONS.map((s, i) => ({
     ...s,
     date: payload.sessionDates[i],
+    // Per-session Zoom override. Empty string means "use cohort default".
+    zoomLink: (payload.sessionZoomLinks?.[i] || "").trim() || null,
   }));
   return {
     slug: payload.slug,
@@ -233,6 +235,7 @@ function buildCohort(payload, { orgs, facilitators, program }) {
     organization: org,
     facilitator,
     timeZone: payload.timeZone || "America/New_York",
+    zoomLink: (payload.zoomLink || "").trim() || null,
     sessions,
   };
 }

@@ -2,6 +2,7 @@ import { useState, useRef } from "react";
 import { Link } from "react-router-dom";
 import {
   User, Mail, Phone, Briefcase, Building2, Camera, ArrowRight, Check, GraduationCap,
+  Video, Globe,
 } from "lucide-react";
 import NavBar from "../components/NavBar";
 import { useAuth } from "../context/AuthContext";
@@ -28,7 +29,16 @@ export default function Settings() {
     phone: "",                              // not in JWT today; editable
     organization: user?.organization || "",
     headshotPreview: user?.headshotUrl || null,
+    // Cohort defaults used by the admin cohort form. Facilitators set these
+    // so new cohorts come pre-filled with the right time zone + Zoom link.
+    defaultTimeZone: user?.defaultTimeZone || "America/New_York",
+    defaultZoomLink: user?.defaultZoomLink || "",
   });
+
+  // Show the cohort-defaults section to anyone who could run a cohort —
+  // facilitators, org admins, BRAI admins, super admins.
+  const showCohortDefaults =
+    user?.role && ["super", "admin", "org", "facilitator"].includes(user.role);
   const [saveState, setSaveState] = useState("idle"); // idle | saving | saved
 
   function update(field, value) {
@@ -177,6 +187,34 @@ export default function Settings() {
               placeholder="Iowa Methodist Healthcare"
             />
           </Section>
+
+          {/* ============ COHORT DEFAULTS (facilitators / admins) ============ */}
+          {showCohortDefaults && (
+            <Section title="Cohort defaults" icon={Video}>
+              <p className="text-[12.5px] text-ink-muted leading-relaxed mb-3">
+                These pre-fill new cohorts you create or are assigned to facilitate.
+                Override per cohort or per session in the cohort form.
+              </p>
+              <div className="grid sm:grid-cols-2 gap-4">
+                <Field
+                  label="Default time zone"
+                  icon={Globe}
+                  value={form.defaultTimeZone}
+                  onChange={(v) => update("defaultTimeZone", v)}
+                  placeholder="America/New_York"
+                  hint="IANA name (e.g., America/Chicago, Europe/London)."
+                />
+                <Field
+                  label="Default Zoom link"
+                  icon={Video}
+                  value={form.defaultZoomLink}
+                  onChange={(v) => update("defaultZoomLink", v)}
+                  placeholder="https://us02web.zoom.us/j/0000000000"
+                  hint="Used as the live session join link unless a session overrides it."
+                />
+              </div>
+            </Section>
+          )}
 
           {/* ============ COHORTS (read-only) ============ */}
           <Section title="Your cohorts" icon={GraduationCap} muted>

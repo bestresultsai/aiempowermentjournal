@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   Building2, GraduationCap, User, Calendar, Save, Loader2, ArrowLeft,
-  Trash2, Globe, Lock, Plus, X, Repeat,
+  Trash2, Globe, Lock, Plus, X, Repeat, Video, ChevronDown, ChevronUp,
 } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { BELT_COLORS, MOCK_SESSIONS } from "../../lib/mockCohort";
@@ -18,6 +18,7 @@ import {
   formatDatetimeLocal,
 } from "../../lib/cohortAdmin";
 import { PROGRAMS, getProgramByCode } from "../../lib/programs";
+import { useAuth } from "../../context/AuthContext";
 import DateTimeField from "./DateTimeField";
 import FacilitatorPicker from "./FacilitatorPicker";
 
@@ -82,25 +83,44 @@ function guessLocalTimeZone() {
 export default function CohortForm({ mode, initial = null, orgs: passedOrgs, facilitators, canArchive }) {
   const isCreate = mode === "create";
   const navigate = useNavigate();
+  const { user } = useAuth();
 
   // Orgs are stateful because creating a new one here adds to the list.
   const [orgs, setOrgs] = useState(passedOrgs);
 
   // ---- Form state ----
+  // Initial facilitator: prefer the existing one (edit), else the logged-in
+  // user if they're a facilitator in the list, else the first available.
+  const initialFacilitatorId =
+    initial?.facilitator?.id ||
+    facilitators.find((f) => f.email && user?.email && f.email.toLowerCase() === user.email.toLowerCase())?.id ||
+    facilitators[0]?.id ||
+    "";
+  const initialFacilitator = facilitators.find((f) => f.id === initialFacilitatorId);
+
   const [form, setForm] = useState(() => ({
     cohortType: initial?.cohortType || (initial?.organization ? "closed" : "closed"),
     programCode: initial?.programCode || PROGRAMS[0]?.code || "",
     organizationId: initial?.organization?.id || (passedOrgs[0]?.id ?? ""),
-    facilitatorId: initial?.facilitator?.id || (facilitators[0]?.id ?? ""),
+    facilitatorId: initialFacilitatorId,
     slug: initial?.slug || "",
     name: initial?.name || "",
     startDateTime: initial?.sessions?.[0]?.date
       ? toDatetimeLocal(initial.sessions[0].date)
       : defaultStartDateTime(),
     cadenceDays: 7,
-    timeZone: initial?.timeZone || guessLocalTimeZone(),
+    // Time zone: prefer existing → logged-in user's default → detected local.
+    timeZone: initial?.timeZone || user?.defaultTimeZone || guessLocalTimeZone(),
+    // Cohort Zoom link: prefer existing → initial facilitator's default → user's default.
+    zoomLink:
+      initial?.zoomLink ||
+      initialFacilitator?.defaultZoomLink ||
+      user?.defaultZoomLink ||
+      "",
     sessionDates: initial?.sessions?.map((s) => toDatetimeLocal(s.date)) || [],
+    sessionZoomLinks: initial?.sessions?.map((s) => s.zoomLink || "") || Array(8).fill(""),
   }));
+  const [zoomLinkTouched, setZoomLinkTouched] = useState(!isCreate);
   const [slugTouched, setSlugTouched] = useState(!isCreate);
   const [nameTouched, setNameTouched] = useState(!isCreate);
 
@@ -155,6 +175,16 @@ export default function CohortForm({ mode, initial = null, orgs: passedOrgs, fac
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form.name]);
+
+  // ---- Auto-fill cohort Zoom link from facilitator's default ----
+  // Only runs while the user hasn't manually edited the link.
+  useEffect(() => {
+    if (zoomLinkTouched) return;
+    const fac = facilitators.find((f) => f.id === form.facilitatorId);
+    const link = fac?.defaultZoomLink || user?.defaultZoomLink || "";
+    setForm((f) => ({ ...f, zoomLink: link }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.facilitatorId]);
 
   // ---- Auto-fill session schedule from start datetime + cadence ----
   // Custom cadence (0) populates only session 1 and leaves the rest for the
@@ -221,7 +251,9 @@ export default function CohortForm({ mode, initial = null, orgs: passedOrgs, fac
         facilitatorId: form.facilitatorId,
         sequenceNumber,
         timeZone: form.timeZone,
+        zoomLink: form.zoomLink,
         sessionDates: form.sessionDates,
+        sessionZoomLinks: form.sessionZoomLinks,
       };
       const opts = { orgs, facilitators, program: selectedProgram };
       const cohort = isCreate
@@ -422,16 +454,30 @@ export default function CohortForm({ mode, initial = null, orgs: passedOrgs, fac
         />
       </Section>
 
-      {/* ---------- 3. Facilitator ---------- */}
+      {/* ---------- 3. Facilitator + default Zoom link ---------- */}
       <Section title="Facilitator" icon={User}>
-        <span className="block text-[11.5px] font-heading font-semibold tracking-wider uppercase text-ink-muted mb-1.5">
-          Facilitator <span className="text-brand-600">*</span>
-        </span>
-        <FacilitatorPicker
-          value={form.facilitatorId}
-          onChange={(v) => set("facilitatorId", v)}
-          facilitators={facilitators}
-          required
+        <div>
+          <span className="block text-[11.5px] font-heading font-semibold tracking-wider uppercase text-ink-muted mb-1.5">
+            Facilitator <span className="text-brand-600">*</span>
+          </span>
+          <FacilitatorPicker
+            value={form.facilitatorId}
+            onChange={(v) => set("facilitatorId", v)}
+            facilitators={facilitators}
+            required
+          />
+        </div>
+        <Field
+          label="Default Zoom link"
+          icon={Video}
+          value={form.zoomLink}
+          onChange={(v) => { set("zoomLink", v); setZoomLinkTouched(true); }}
+          placeholder="https://us02web.zoom.us/j/0000000000"
+          hint={
+            zoomLinkTouched
+              ? "Custom link — won't change when you switch facilitator."
+              : "Auto-filled from the facilitator's default Zoom link. Edit to override."
+          }
         />
       </Section>
 
@@ -450,6 +496,7 @@ export default function CohortForm({ mode, initial = null, orgs: passedOrgs, fac
             <DateTimeField
               value={form.startDateTime}
               onChange={(v) => set("startDateTime", v)}
+              timeZone={form.timeZone}
               required
             />
             <p className="text-[11.5px] text-ink-muted mt-1.5">
@@ -503,36 +550,25 @@ export default function CohortForm({ mode, initial = null, orgs: passedOrgs, fac
         </div>
 
         <div className="space-y-2">
-          {MOCK_SESSIONS.map((s, i) => {
-            const belt = BELT_COLORS[s.belt];
-            return (
-              <div key={s.order} className="flex items-center gap-3 p-3 rounded-xl border border-soft bg-surface-card">
-                <div
-                  style={{
-                    background: belt?.gradient,
-                    color: belt?.contrast,
-                    border: belt?.needsBorder ? "1px solid #D1D5DB" : "none",
-                  }}
-                  className="w-9 h-9 rounded-lg flex items-center justify-center font-heading font-extrabold text-[13px] shrink-0"
-                >
-                  {s.order}
-                </div>
-                <div className="flex-1 min-w-0 grid sm:grid-cols-[1fr_minmax(220px,auto)] gap-3 items-center">
-                  <div className="min-w-0">
-                    <div className="text-[10.5px] font-heading font-bold uppercase tracking-wider text-ink-subtle">
-                      {s.belt} belt · Session {s.order}
-                    </div>
-                    <div className="text-[11px] text-ink-muted truncate">{s.title}</div>
-                  </div>
-                  <DateTimeField
-                    value={form.sessionDates[i] || ""}
-                    onChange={(v) => setSessionDate(i, v)}
-                    required
-                  />
-                </div>
-              </div>
-            );
-          })}
+          {MOCK_SESSIONS.map((s, i) => (
+            <SessionRow
+              key={s.order}
+              session={s}
+              belt={BELT_COLORS[s.belt]}
+              dateValue={form.sessionDates[i] || ""}
+              onDateChange={(v) => setSessionDate(i, v)}
+              timeZone={form.timeZone}
+              zoomLink={form.sessionZoomLinks[i] || ""}
+              cohortZoomLink={form.zoomLink}
+              onZoomChange={(v) => {
+                setForm((f) => {
+                  const copy = [...f.sessionZoomLinks];
+                  copy[i] = v;
+                  return { ...f, sessionZoomLinks: copy };
+                });
+              }}
+            />
+          ))}
         </div>
       </Section>
 
@@ -611,6 +647,76 @@ function toDatetimeLocal(iso) {
   const d = new Date(iso);
   if (isNaN(d.getTime())) return "";
   return formatDatetimeLocal(d);
+}
+
+function SessionRow({ session, belt, dateValue, onDateChange, timeZone, zoomLink, cohortZoomLink, onZoomChange }) {
+  const [open, setOpen] = useState(!!zoomLink);
+  const hasOverride = !!zoomLink;
+  return (
+    <div className="rounded-xl border border-soft bg-surface-card overflow-hidden">
+      <div className="flex items-center gap-3 p-3">
+        <div
+          style={{
+            background: belt?.gradient,
+            color: belt?.contrast,
+            border: belt?.needsBorder ? "1px solid #D1D5DB" : "none",
+          }}
+          className="w-9 h-9 rounded-lg flex items-center justify-center font-heading font-extrabold text-[13px] shrink-0"
+        >
+          {session.order}
+        </div>
+        <div className="flex-1 min-w-0 grid sm:grid-cols-[1fr_minmax(220px,auto)] gap-3 items-center">
+          <div className="min-w-0">
+            <div className="text-[10.5px] font-heading font-bold uppercase tracking-wider text-ink-subtle">
+              {session.belt} belt · Session {session.order}
+            </div>
+            <div className="text-[11px] text-ink-muted truncate">{session.title}</div>
+          </div>
+          <DateTimeField
+            value={dateValue}
+            onChange={onDateChange}
+            timeZone={timeZone}
+            required
+          />
+        </div>
+      </div>
+      {/* Custom Zoom link override */}
+      <div className="border-t border-soft px-3 py-2 bg-surface-soft/60">
+        <button
+          type="button"
+          onClick={() => setOpen((o) => !o)}
+          className="inline-flex items-center gap-1.5 text-[11.5px] font-heading font-semibold text-ink-muted hover:text-ink"
+        >
+          <Video className="w-3 h-3" strokeWidth={2.5} />
+          {hasOverride
+            ? "Custom Zoom link for this session"
+            : "Uses cohort Zoom link"}
+          {open ? <ChevronUp className="w-3 h-3" strokeWidth={2.5} /> : <ChevronDown className="w-3 h-3" strokeWidth={2.5} />}
+        </button>
+        {open && (
+          <div className="mt-2 flex items-center gap-2">
+            <input
+              type="url"
+              value={zoomLink}
+              onChange={(e) => onZoomChange(e.target.value)}
+              placeholder={cohortZoomLink || "https://us02web.zoom.us/j/0000000000"}
+              className="flex-1 px-3 py-1.5 rounded-lg border border-soft bg-white text-[12.5px] font-body text-ink focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15"
+            />
+            {hasOverride && (
+              <button
+                type="button"
+                onClick={() => onZoomChange("")}
+                title="Clear override and use the cohort's default Zoom link"
+                className="px-2 py-1.5 rounded-lg text-[11.5px] font-heading font-semibold text-ink-muted hover:text-ink hover:bg-white"
+              >
+                Use cohort default
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
 }
 
 function Section({ title, icon: Icon, children }) {

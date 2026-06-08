@@ -48,7 +48,7 @@ function formatDisplay(value) {
   return `${dateStr} · ${timeStr}`;
 }
 
-export default function DateTimeField({ value, onChange, required }) {
+export default function DateTimeField({ value, onChange, required, timeZone }) {
   const [open, setOpen] = useState(false);
   const wrapperRef = useRef(null);
 
@@ -244,7 +244,7 @@ export default function DateTimeField({ value, onChange, required }) {
               <Stepper
                 value={minutes}
                 min={0}
-                max={55}
+                max={59}
                 step={5}
                 pad
                 onChange={(next) => setTime(h24, next)}
@@ -263,6 +263,11 @@ export default function DateTimeField({ value, onChange, required }) {
                 {isPM ? "PM" : "AM"}
               </button>
             </div>
+            {timeZone && (
+              <div className="mt-2 text-[11px] text-ink-muted font-heading">
+                Time zone: <span className="font-semibold text-ink">{timeZone}</span>
+              </div>
+            )}
           </div>
 
           {/* Apply / Cancel */}
@@ -288,14 +293,34 @@ export default function DateTimeField({ value, onChange, required }) {
   );
 }
 
-// Simple − / + stepper used for hour + minute.
+// −/+ stepper with typeable input. Users can either click +/− or type the
+// number directly. On blur, the value is clamped to [min, max].
 function Stepper({ value, min, max, step = 1, pad, onChange }) {
+  const [draft, setDraft] = useState(() => (pad ? String(value).padStart(2, "0") : String(value)));
+
+  // Keep the input in sync when value changes externally (e.g., +/-).
+  useEffect(() => {
+    setDraft(pad ? String(value).padStart(2, "0") : String(value));
+  }, [value, pad]);
+
   function bump(delta) {
     let next = value + delta * step;
     if (next > max) next = min;
     if (next < min) next = max;
     onChange(next);
   }
+
+  function commit(raw) {
+    const n = parseInt(raw, 10);
+    if (Number.isNaN(n)) {
+      setDraft(pad ? String(value).padStart(2, "0") : String(value));
+      return;
+    }
+    const clamped = Math.max(min, Math.min(max, n));
+    onChange(clamped);
+    setDraft(pad ? String(clamped).padStart(2, "0") : String(clamped));
+  }
+
   return (
     <div className="inline-flex items-center rounded-lg border border-soft bg-white overflow-hidden">
       <button
@@ -305,9 +330,18 @@ function Stepper({ value, min, max, step = 1, pad, onChange }) {
       >
         −
       </button>
-      <div className="w-9 text-center font-heading font-bold text-ink text-[14px]">
-        {pad ? String(value).padStart(2, "0") : value}
-      </div>
+      <input
+        type="text"
+        inputMode="numeric"
+        value={draft}
+        onChange={(e) => setDraft(e.target.value.replace(/[^0-9]/g, ""))}
+        onBlur={(e) => commit(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") { e.preventDefault(); e.currentTarget.blur(); }
+        }}
+        onFocus={(e) => e.target.select()}
+        className="w-9 h-8 text-center font-heading font-bold text-ink text-[14px] bg-transparent focus:outline-none focus:bg-surface-soft border-0"
+      />
       <button
         type="button"
         onClick={() => bump(1)}

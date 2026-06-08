@@ -29,6 +29,10 @@ export const DEMO_USER = {
   whyAi: "I want healthcare educators to redirect 10+ hours a week away from busywork and toward the things only humans can do.",
   mainGoal: "Ship our internal AI Empowerment platform and onboard the first 30 IAHE participants before the end of Q2.",
   headshotUrl: null, // when null, NavBar/Settings fall back to initials avatar
+  // Defaults that the cohort form pulls from. Admins set these in /settings
+  // so creating a new cohort comes pre-filled with the right tz + Zoom link.
+  defaultTimeZone: "America/New_York",
+  defaultZoomLink: "https://us02web.zoom.us/j/0000000000",
   onboardingCompletedAt: "2026-05-15T10:30:00.000Z",
 };
 
@@ -217,6 +221,7 @@ export const DEMO_COHORTS = [
       name: "Mike Burkesmith",
       email: "mike@bestresults.ai",
       headshotUrl: "https://48031831.fs1.hubspotusercontent-na1.net/hubfs/48031831/Design/Headshots/Mike%20Burkesmith%20Headshot%201X1.png",
+      defaultZoomLink: "https://us02web.zoom.us/j/9876543210",
     },
     slug: "iahe-aiew3-2026q1",
     name: "AIEW3 — IAHE Cohort",
@@ -229,7 +234,12 @@ export const DEMO_COHORTS = [
     },
   },
   {
-    facilitator: { id: "fac-jess", name: "Jess Lee", email: "jess@bestresults.ai" },
+    facilitator: {
+      id: "fac-jess",
+      name: "Jess Lee",
+      email: "jess@bestresults.ai",
+      defaultZoomLink: "https://us02web.zoom.us/j/1234567890",
+    },
     slug: "mayo-aiew3-2026q2",
     name: "AIEW3 — Mayo Clinic Education",
     methodName: "AI Empowerment Method",
@@ -241,7 +251,12 @@ export const DEMO_COHORTS = [
     },
   },
   {
-    facilitator: { id: "fac-carlos", name: "Carlos Mendez", email: "carlos@bestresults.ai" },
+    facilitator: {
+      id: "fac-carlos",
+      name: "Carlos Mendez",
+      email: "carlos@bestresults.ai",
+      defaultZoomLink: "https://us02web.zoom.us/j/5566778899",
+    },
     slug: "ucla-apfw-2026q1",
     name: "APFW — UCLA Health",
     methodName: "AI Empowerment Method",
@@ -373,5 +388,7 @@ export const DEMO_USER_OVERRIDES = {
     role: "facilitator",
     assignedOrgs: [],
     assignedCohorts: ["iahe-aiew3-2026q1"],
+    defaultTimeZone: "America/New_York",
+    defaultZoomLink: "https://us02web.zoom.us/j/9876543210",
   },
 };

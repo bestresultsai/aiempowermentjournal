@@ -57,14 +57,15 @@ export default function AdminLayout() {
               roles that can create cohorts. */}
           {canCreateCohorts(user) && (
             <>
-              <div className="mx-3 my-4 border-t border-white/10" />
-              <Link
-                to="/admin/cohorts/new"
-                className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-[13.5px] font-heading font-bold transition-all duration-200 bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/25 hover:text-emerald-200 hover:border-emerald-400/40"
-              >
-                <Plus className="w-4 h-4" strokeWidth={3} />
-                New cohort
-              </Link>
+              <div className="pt-6 mt-4 border-t border-white/10">
+                <Link
+                  to="/admin/cohorts/new"
+                  className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-[13.5px] font-heading font-bold transition-all duration-200 bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/25 hover:text-emerald-200 hover:border-emerald-400/40"
+                >
+                  <Plus className="w-4 h-4" strokeWidth={3} />
+                  New cohort
+                </Link>
+              </div>
             </>
           )}
         </nav>
