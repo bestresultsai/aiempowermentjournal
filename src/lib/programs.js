@@ -1,31 +1,304 @@
 // ---------------------------------------------------------------------------
-// Programs catalog.
+// Programs catalog — the source of truth for curriculum + belt taxonomy.
 //
-// A program is the curriculum template a cohort runs. Each program has:
-//   code         — short identifier used in cohort names + internal references
-//   name         — human-readable program name (shown in forms / facing copy)
-//   methodName   — the umbrella framework label
-//   sessionsCount — number of sessions (currently 8 for all; reserved for
-//                  programs that may have different lengths later)
+// A PROGRAM is the reusable curriculum template a cohort runs. It owns:
 //
-// When real Notion data ships, replace this static array with a Notion query.
+//   code            — short identifier ("AIEW3", "APFW")
+//   name            — human-readable program name
+//   methodName      — the umbrella framework label
+//   belts           — ordered sequence of belt color names from BELT_COLORS,
+//                     one per session. Programs that don't use belts pass
+//                     `null` and the UI falls back to plain session numbers
+//   sessions        — the curriculum, one entry per session. Each entry
+//                     describes the session content (title, materials,
+//                     homework prompt) but has NO date — dates are per-cohort
+//
+// A COHORT picks a program (via cohort.programCode), then overrides:
+//   - sessionDates  — when each session actually runs
+//   - zoomLink      — per-cohort default Zoom (or per-session override)
+//   - meetingDay/Time/timeZone
+//
+// Adding a new program here automatically flows through every consumer:
+// admin views, participant views, calendar, gamification, certificates.
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// AIEW3 — Best Results AI Empowerment Workshop Series 3.0 (8 sessions)
+// ---------------------------------------------------------------------------
+const AIEW3_BELTS = ["White", "Yellow", "Orange", "Green", "Blue", "Purple", "Brown", "Black"];
+
+const AIEW3_SESSIONS = [
+  {
+    order: 1,
+    belt: "White",
+    title: "White — Full Role Matrices, Prioritized Use Cases, Change Management",
+    summary:
+      "Set the foundation. Introductions, BRAI Platform overview, expectations, and the Critical Thinking framework for AI-driven decision making. Build your Role Matrix and prioritize use cases by % time saved and ease.",
+    durationMinutes: 75,
+    videoUrl: "https://player.vimeo.com/video/76979871",
+    materials: [
+      { label: "White Belt Slides", url: "#", type: "pdf" },
+      { label: "Role Matrix Template", url: "#", type: "doc" },
+      { label: "Change Management Best-Practice Model", url: "#", type: "pdf" },
+    ],
+    objectives: [
+      "Build your personal Role Matrix",
+      "Prioritize 3 use cases by % time saved and ease of adoption",
+      "Apply the Critical Thinking framework to one workplace decision",
+    ],
+    homework: {
+      prompt:
+        "Build your Role Matrix and pick your top 3 prioritized use cases (by % time saved × ease). Submit it as a Google Doc, Notion page, or paste the content directly below.",
+      // Due date is computed at the cohort level (session date + cadence)
+      submissionType: "text-or-link",
+    },
+  },
+  {
+    order: 2,
+    belt: "Yellow",
+    title: "Yellow — Power AI-Driven Workflows",
+    summary:
+      "Move from one-off prompts to powerful workflows. Master Comprehensive Context and Prompt Building done by AI, plus AI Self-Enhancement (3 Accelerators).",
+    durationMinutes: 75,
+    videoUrl: "https://player.vimeo.com/video/76979871",
+    materials: [
+      { label: "Yellow Belt Slides", url: "#", type: "pdf" },
+      { label: "Context & Prompt Building Accelerators", url: "#", type: "doc" },
+    ],
+    objectives: [
+      "Run a Comprehensive Context workflow on one of your prioritized use cases",
+      "Use the AI Self-Enhancement Accelerator to improve a prompt over 3 iterations",
+      "Ship one working AI-driven workflow this week",
+    ],
+    homework: {
+      prompt:
+        "Apply one of the Yellow Belt Accelerators to a real workplace task. Share the original prompt, the final prompt after Self-Enhancement, and a 2-sentence reflection on what changed.",
+      submissionType: "text-or-link",
+    },
+  },
+  {
+    order: 3,
+    belt: "Orange",
+    title: "Orange — 100,000 Experts Enhancing Every AI Workflow",
+    summary:
+      "Stop being a one-person operation. Integrate Expert Advisors into your workflows and learn how to draw out the right context for advanced work (2 Accelerators).",
+    durationMinutes: 75,
+    videoUrl: "https://player.vimeo.com/video/76979871",
+    materials: [
+      { label: "Orange Belt Slides", url: "#", type: "pdf" },
+      { label: "Expert Advisor Templates", url: "#", type: "doc" },
+    ],
+    objectives: [
+      "Convene a virtual panel of 3 Expert Advisors on a real decision",
+      "Use the Context Drawing Accelerator to surface assumptions you didn't know you had",
+      "Identify when to use one expert vs. a panel",
+    ],
+    homework: {
+      prompt:
+        "Run an Expert Advisor session on a real workplace question. Share who was on your panel, the question, and the most surprising insight that came out.",
+      submissionType: "text-or-link",
+    },
+  },
+  {
+    order: 4,
+    belt: "Green",
+    title: "Green — High-Reliability Repeatable Workflows, Assistants, Agents",
+    summary:
+      "Build workflows you can trust to run again and again. Apply the Agent Building Templates and Best Practices to design assistants and agents for repeatable, high-stakes work.",
+    durationMinutes: 75,
+    videoUrl: "https://player.vimeo.com/video/76979871",
+    materials: [
+      { label: "Green Belt Slides", url: "#", type: "pdf" },
+      { label: "Agent Building Templates", url: "#", type: "doc" },
+      { label: "Reliability Checklist", url: "#", type: "pdf" },
+    ],
+    objectives: [
+      "Specify one repeatable workflow using the Agent Building Template",
+      "Build a custom assistant that captures your role's context",
+      "Define reliability checks for a high-stakes workflow",
+    ],
+    homework: {
+      prompt:
+        "Build a custom assistant or repeatable workflow for one of your prioritized use cases. Share the spec, link to the assistant (or screenshot), and what reliability checks you put in place.",
+      submissionType: "text-or-link",
+    },
+  },
+  {
+    order: 5,
+    belt: "Blue",
+    title: "Blue — Professional AI Teams Doing Sophisticated Projects",
+    summary:
+      "Compose teams of professional AI personas to take on sophisticated projects — true 'insourcing' (Accelerator Collection). Move from individual contributor to AI manager.",
+    durationMinutes: 75,
+    videoUrl: "https://player.vimeo.com/video/76979871",
+    materials: [
+      { label: "Blue Belt Slides", url: "#", type: "pdf" },
+      { label: "AI Team Composition Guide", url: "#", type: "doc" },
+    ],
+    objectives: [
+      "Compose a 3–5 role AI team for a real project",
+      "Coordinate hand-offs between team members",
+      "Identify when insourcing beats hiring or outsourcing",
+    ],
+    homework: {
+      prompt:
+        "Scope a sophisticated project that would normally take a small team. Describe the AI team you'd compose (roles, responsibilities, hand-offs) and what the first hand-off looks like.",
+      submissionType: "text-or-link",
+    },
+  },
+  {
+    order: 6,
+    belt: "Purple",
+    title: "Purple — Autonomous Agent Functions",
+    summary:
+      "Agents that actually do the work. Cover autonomous task execution, deep autonomous research, scheduled/recurring agents, custom personas, connectors, computer/browser controls, persistent workspace context, artifact/doc/app creation, and coding tools.",
+    durationMinutes: 75,
+    videoUrl: "https://player.vimeo.com/video/76979871",
+    materials: [
+      { label: "Purple Belt Slides", url: "#", type: "pdf" },
+      { label: "Autonomous Agent Patterns", url: "#", type: "doc" },
+    ],
+    objectives: [
+      "Launch a scheduled/recurring agent for one weekly task",
+      "Run a deep autonomous research project end-to-end",
+      "Connect an agent to a real system (calendar, Slack, file system) safely",
+    ],
+    homework: {
+      prompt:
+        "Set up one autonomous agent that runs without you. Share what it does, what trigger fires it, and what it produced on its first run.",
+      submissionType: "text-or-link",
+    },
+  },
+  {
+    order: 7,
+    belt: "Brown",
+    title: "Brown — Agent Quality Assurance and Orchestration",
+    summary:
+      "Once you have agents working, you need to keep them working. Cover Agent Quality Assurance and Orchestration — the prep for transitioning into a CEO AI OS posture.",
+    durationMinutes: 75,
+    videoUrl: "https://player.vimeo.com/video/76979871",
+    materials: [
+      { label: "Brown Belt Slides", url: "#", type: "pdf" },
+      { label: "Agent QA Framework", url: "#", type: "doc" },
+    ],
+    objectives: [
+      "Define QA checks for one of your agents",
+      "Set up orchestration across 2+ agents",
+      "Draft your personal AI OS structure",
+    ],
+    homework: {
+      prompt:
+        "Document the QA checks and orchestration for one of your live agents. Include the failure modes you're guarding against and the recovery action for each.",
+      submissionType: "text-or-link",
+    },
+  },
+  {
+    order: 8,
+    belt: "Black",
+    title: "Black — Progress, Plans, Getting Future Results",
+    summary:
+      "Capstone. Reflect on the journey, commit to forward plans, and earn your Black Belt. Custom assistants remember how to behave, agents do the work, scheduled agents do work later, connected agents touch real systems — yours, now.",
+    durationMinutes: 75,
+    videoUrl: "https://player.vimeo.com/video/76979871",
+    materials: [
+      { label: "Black Belt Slides", url: "#", type: "pdf" },
+      { label: "Capstone Submission Template", url: "#", type: "doc" },
+      { label: "Certification Guide", url: "#", type: "pdf" },
+    ],
+    objectives: [
+      "Present your top 3 AI-empowered workflows from the program",
+      "Capture cumulative impact in the AI Journal",
+      "Commit to a 90-day plan to keep compounding gains",
+    ],
+    homework: {
+      prompt:
+        "Capstone. Submit your Black Belt portfolio: 3 deployed workflows, total time saved, and your 90-day plan. Link a Google Doc / Notion page with the full write-up.",
+      submissionType: "text-or-link",
+    },
+  },
+];
+
+// ---------------------------------------------------------------------------
+// APFW — AI Power Foundations Workshop (10 sessions)
+//
+// A LONGER program seeded to PROVE the platform handles variable lengths.
+// Uses 10 belts: AIEW3's 8 plus Red (between Brown and Black) and Gold (at
+// the very end as the capstone). Drives every UI element that derived its
+// "8" from MOCK_SESSIONS.length — if anything still hardcodes 8, an APFW
+// cohort will visibly break.
+// ---------------------------------------------------------------------------
+const APFW_BELTS = ["White", "Yellow", "Orange", "Green", "Blue", "Purple", "Brown", "Red", "Black", "Gold"];
+
+const APFW_SESSIONS = [
+  { order: 1,  belt: "White",  title: "White — AI Foundations + Mindset",            summary: "Set the foundation. Tools overview, posture, expectations.", durationMinutes: 60, materials: [], objectives: ["Set up your AI stack", "Understand the maturity ladder"], homework: { prompt: "Pick one workflow you'd love to automate. Describe it in 3 lines.", submissionType: "text-or-link" } },
+  { order: 2,  belt: "Yellow", title: "Yellow — Prompting Like a Pro",                summary: "Move from one-off prompts to comprehensive context and self-enhancement.", durationMinutes: 60, materials: [], objectives: ["Run a Comprehensive Context workflow", "Ship one working prompt"], homework: { prompt: "Apply one prompting accelerator to a real task.", submissionType: "text-or-link" } },
+  { order: 3,  belt: "Orange", title: "Orange — Expert Advisors",                     summary: "Convene a panel of AI experts to challenge your thinking.", durationMinutes: 60, materials: [], objectives: ["Run an Expert Advisor session"], homework: { prompt: "Run an Expert Advisor session on a real decision.", submissionType: "text-or-link" } },
+  { order: 4,  belt: "Green",  title: "Green — Reliable Workflows",                   summary: "Build workflows you can trust to run again and again.", durationMinutes: 60, materials: [], objectives: ["Build a custom assistant"], homework: { prompt: "Build a custom assistant for one prioritized use case.", submissionType: "text-or-link" } },
+  { order: 5,  belt: "Blue",   title: "Blue — Professional AI Teams",                 summary: "Compose teams of AI personas for sophisticated projects.", durationMinutes: 60, materials: [], objectives: ["Compose a 3-role AI team"], homework: { prompt: "Scope a project that needs a small AI team.", submissionType: "text-or-link" } },
+  { order: 6,  belt: "Purple", title: "Purple — Autonomous Agents",                   summary: "Agents that actually do the work.", durationMinutes: 60, materials: [], objectives: ["Launch one scheduled agent"], homework: { prompt: "Set up one autonomous agent.", submissionType: "text-or-link" } },
+  { order: 7,  belt: "Brown",  title: "Brown — Agent QA + Orchestration",             summary: "Keep agents working over time.", durationMinutes: 60, materials: [], objectives: ["Define QA for one agent"], homework: { prompt: "Document QA + orchestration for one live agent.", submissionType: "text-or-link" } },
+  { order: 8,  belt: "Red",    title: "Red — AI Risk + Governance",                   summary: "Risk frameworks, governance posture, ethical guardrails.", durationMinutes: 60, materials: [], objectives: ["Draft a personal AI governance policy"], homework: { prompt: "Draft your team's AI governance policy.", submissionType: "text-or-link" } },
+  { order: 9,  belt: "Black",  title: "Black — Capstone Project",                     summary: "Ship a project end-to-end using everything from the program.", durationMinutes: 75, materials: [], objectives: ["Ship your capstone project"], homework: { prompt: "Submit your capstone project.", submissionType: "text-or-link" } },
+  { order: 10, belt: "Gold",   title: "Gold — Graduation + 90-Day Plan",              summary: "Reflect, commit to a forward plan, earn your Gold Belt.", durationMinutes: 60, materials: [], objectives: ["Commit to a 90-day forward plan"], homework: { prompt: "Submit your 90-day plan + reflection.", submissionType: "text-or-link" } },
+];
+
+// ---------------------------------------------------------------------------
+// PROGRAMS catalog — every program the platform knows about.
+// ---------------------------------------------------------------------------
 export const PROGRAMS = [
   {
     code: "AIEW3",
     name: "AI Empowerment Workshop Series 3.0",
     methodName: "AI Empowerment Method",
-    sessionsCount: 8,
+    belts: AIEW3_BELTS,
+    sessions: AIEW3_SESSIONS,
+    get sessionsCount() { return AIEW3_SESSIONS.length; },
   },
   {
     code: "APFW",
     name: "AI Power Foundations Workshop",
     methodName: "AI Empowerment Method",
-    sessionsCount: 8,
+    belts: APFW_BELTS,
+    sessions: APFW_SESSIONS,
+    get sessionsCount() { return APFW_SESSIONS.length; },
   },
 ];
 
+// ---------------------------------------------------------------------------
+// Lookup helpers — single source of truth for "what curriculum does this
+// cohort run?" Every admin/participant component should go through these
+// rather than reading MOCK_SESSIONS directly.
+// ---------------------------------------------------------------------------
+
 export function getProgramByCode(code) {
   return PROGRAMS.find((p) => p.code === code) || null;
+}
+
+// Returns the program assigned to a cohort. Falls back to AIEW3 for legacy
+// cohorts that pre-date the programs catalog.
+export function getProgramForCohort(cohort) {
+  if (!cohort) return null;
+  const byCode = cohort.programCode ? getProgramByCode(cohort.programCode) : null;
+  return byCode || PROGRAMS[0]; // default to AIEW3
+}
+
+export function getSessionsForProgram(program) {
+  return program?.sessions || [];
+}
+
+export function getSessionsCountForCohort(cohort) {
+  const program = getProgramForCohort(cohort);
+  return program?.sessionsCount || 0;
+}
+
+export function getBeltsForProgram(program) {
+  return program?.belts || [];
+}
+
+// Returns the belt name at a given session order, or null if the program
+// doesn't use belts (e.g. a future numbered program).
+export function getBeltAtOrder(program, order) {
+  const belts = getBeltsForProgram(program);
+  if (!belts.length) return null;
+  return belts[order - 1] || null;
 }

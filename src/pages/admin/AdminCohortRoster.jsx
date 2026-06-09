@@ -8,6 +8,7 @@ import {
 import { useAuth } from "../../context/AuthContext";
 import { getAccessibleCohorts, canEditCohort } from "../../lib/adminRoles";
 import { MOCK_SESSIONS, BELT_COLORS } from "../../lib/mockCohort";
+import { getSessionsCountForCohort } from "../../lib/programs";
 import {
   getParticipantsForCohort, getCohortJournalStats,
   totalTimeSaved, formatMinutes,
@@ -35,7 +36,8 @@ export default function AdminCohortRoster() {
 
   // Hooks must run in a stable order — keep them above the scope check.
   const rosterRaw = cohort ? getParticipantsForCohort(slug) : [];
-  const totalSessions = MOCK_SESSIONS.length;
+  // Per-cohort session count — APFW cohorts have 10, AIEW3 has 8, etc.
+  const totalSessions = getSessionsCountForCohort(cohort) || MOCK_SESSIONS.length;
   const journal = cohort ? getCohortJournalStats(slug) : { totalEntries: 0, totalMinutesSaved: 0 };
   // Schedule summary — derives meeting day/time + start/end from session dates.
   const sessions = cohort ? getSessionsForCohort(slug) : [];

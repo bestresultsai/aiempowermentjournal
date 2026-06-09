@@ -20,6 +20,7 @@ import {
   formatMinutes,
 } from "../../lib/adminMockData";
 import { MOCK_SESSIONS, BELT_COLORS } from "../../lib/mockCohort";
+import { getProgramByCode } from "../../lib/programs";
 
 const SORTS = {
   name:       { label: "Name (A–Z)",        compare: (a, b) => a.name.localeCompare(b.name) },
@@ -249,7 +250,7 @@ export default function AdminParticipants() {
 
                 {/* Three metric blocks — distinct color per dimension so engagement
                     reads as journal-only, not cohort progression. */}
-                <ParticipantMetrics participant={p} />
+                <ParticipantMetrics participant={p} cohort={cohortBySlug[p.cohortSlug]} />
 
                 <ArrowRight className="w-4 h-4 text-ink-subtle shrink-0 group-hover:text-brand-600 transition-colors" strokeWidth={2.5} />
               </Link>
@@ -348,13 +349,16 @@ function FilterChip({ active, onClick, label }) {
 // a glance shows three dimensions: where they are in the program, whether
 // the facilitator owes them feedback, and how journal-active they are.
 // ---------------------------------------------------------------------------
-function ParticipantMetrics({ participant }) {
+function ParticipantMetrics({ participant, cohort }) {
   const p = participant;
   const cur = getParticipantCurrentSession(p);
   const hw = getParticipantHomeworkStats(p);
   const journal = getParticipantJournalStat(p);
   const bucket = getEngagementBucket(p);
   const belt = cur ? BELT_COLORS[cur.belt] : null;
+  // Pull the cohort's program for correct denominators on multi-program plats.
+  const program = cohort?.programCode ? getProgramByCode(cohort.programCode) : null;
+  const cohortSessionCount = program?.sessionsCount || MOCK_SESSIONS.length;
 
   // Journal labels are emerald + reference "Journal" explicitly so they
   // never read as cohort progression.
@@ -397,7 +401,7 @@ function ParticipantMetrics({ participant }) {
         accent={hw.pending > 0 ? "amber" : "muted"}
         icon={BookCheck}
         label="Homework"
-        value={`${hw.submitted}/${MOCK_SESSIONS.length}`}
+        value={`${hw.submitted}/${cohortSessionCount}`}
         sub={
           hw.pending > 0
             ? `${hw.pending} pending review`

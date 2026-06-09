@@ -9,6 +9,7 @@ import { canCreateCohorts } from "../../lib/adminRoles";
 import { MOCK_SESSIONS, BELT_COLORS } from "../../lib/mockCohort";
 import { getParticipantsForCohort } from "../../lib/adminMockData";
 import { getAllCohortsForAdmin, getSessionsForCohort } from "../../lib/cohortAdmin";
+import { getSessionsCountForCohort } from "../../lib/programs";
 import PipelineView, { stageForDelivered } from "../../components/admin/PipelineView";
 import ScopeFilterBar from "../../components/admin/ScopeFilterBar";
 
@@ -81,13 +82,16 @@ export default function AdminCohorts() {
   // Delivery info is per-cohort now — each cohort runs on its own schedule.
   const rows = effectiveCohorts.map((c) => {
     const roster = getParticipantsForCohort(c.slug);
+    // Pull the cohort's own session count so the % comes out right for any
+    // program — 8-session AIEW3 or 10-session APFW.
+    const cohortSessionCount = getSessionsCountForCohort(c) || 1;
     const avgProgress =
       roster.length === 0
         ? 0
         : Math.round(
             roster.reduce((sum, p) => sum + (p.progress?.length || 0), 0) /
               roster.length /
-              MOCK_SESSIONS.length *
+              cohortSessionCount *
               100,
           );
     const sessions = getSessionsForCohort(c.slug);
@@ -106,7 +110,8 @@ export default function AdminCohorts() {
       delivered: delivery.delivered,
       last: delivery.last,
       next: delivery.next,
-      stage: stageForDelivered(delivery.delivered),
+      stage: stageForDelivered(delivery.delivered, cohortSessionCount),
+      totalSessions: cohortSessionCount,
       startMs,
       endMs,
     };
@@ -178,7 +183,7 @@ export default function AdminCohorts() {
           All cohorts
         </h2>
         <div className="rounded-2xl bg-surface-card border border-soft overflow-hidden">
-          {rows.map(({ cohort: c, participants, avgProgress, delivered, last, next, stage, startMs, endMs }) => {
+          {rows.map(({ cohort: c, participants, avgProgress, delivered, last, next, stage, totalSessions, startMs, endMs }) => {
             const stageCfg = stageMeta[stage];
             const fac = c.facilitator || c.trainer;
             const facInitials = fac
@@ -268,7 +273,7 @@ export default function AdminCohorts() {
                   <div className="hidden lg:flex items-center gap-6 shrink-0">
                     <Mini label="Participants" value={participants} icon={Users} />
                     <Mini label="Avg progress" value={`${avgProgress}%`} />
-                    <Mini label="Delivered" value={`${delivered}/${MOCK_SESSIONS.length}`} />
+                    <Mini label="Delivered" value={`${delivered}/${totalSessions}`} />
                   </div>
                   <ArrowRight className="w-4 h-4 text-ink-subtle shrink-0 group-hover:text-brand-600 transition-colors mt-1" strokeWidth={2.5} />
                 </div>

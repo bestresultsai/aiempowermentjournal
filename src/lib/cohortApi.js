@@ -17,6 +17,7 @@ import {
   submitHomeworkAsParticipant,
   markSessionCompleteForParticipant,
 } from "./adminMockData";
+import { getProgramByCode } from "./programs";
 
 export const USE_MOCK_DATA = true; // flip to false once Notion DBs + functions are live
 
@@ -104,6 +105,12 @@ export async function getCohortBySlug(slug) {
       homework = inMemoryHomework[key] || {};
     }
 
+    // Pull the matching program's sessions count so /journey, /home, and the
+    // CohortStats card show 10/10 for an APFW cohort and 8/8 for AIEW3.
+    const programCode = demoCohort?.programCode || MOCK_COHORT.programCode;
+    const program = getProgramByCode(programCode);
+    const totalSessions = program?.sessionsCount || MOCK_SESSIONS.length;
+
     return {
       ...MOCK_COHORT,
       // Overlay the requested demo cohort's identity, if applicable.
@@ -117,12 +124,12 @@ export async function getCohortBySlug(slug) {
       sessions: decorateSessions(MOCK_SESSIONS, completed, homework),
       progress: {
         completed: completed.length,
-        total: MOCK_SESSIONS.length,
-        percent: Math.round((completed.length / MOCK_SESSIONS.length) * 100),
+        total: totalSessions,
+        percent: Math.round((completed.length / totalSessions) * 100),
       },
       homeworkProgress: {
         submitted: Object.keys(homework).length,
-        total: MOCK_SESSIONS.length,
+        total: totalSessions,
       },
     };
   }

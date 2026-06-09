@@ -13,6 +13,7 @@
 import { useEffect, useState } from "react";
 import { DEMO_COHORTS } from "./demoData";
 import { MOCK_SESSIONS } from "./mockCohort";
+import { getProgramForCohort, getSessionsForProgram } from "./programs";
 
 const COHORTS_KEY = "brai_admin_cohorts";
 const ORGS_KEY    = "brai_admin_orgs";
@@ -130,9 +131,28 @@ export function getCohortForAdmin(slug) {
   return getAllCohortsForAdmin().find((c) => c.slug === slug) || null;
 }
 
+// Return the sessions for a cohort, with cohort-level overrides applied.
+//
+// Precedence:
+//   1. Cohort overlay (admin-edited) — explicit sessions[] from cohortOverlays
+//   2. Cohort's program curriculum from programs.js — title/materials/homework
+//   3. AIEW3 fallback (MOCK_SESSIONS already has demo dates baked in) for
+//      cohorts that pre-date the programs catalog
+//
+// In all cases the array length matches the program's sessionsCount, so
+// callers that iterate get the right number of sessions for THIS cohort.
 export function getSessionsForCohort(slug) {
   const overlay = cohortOverlays[slug];
   if (overlay?.sessions) return overlay.sessions;
+  // Find the cohort to look up its program. Cohort overlays + base list both
+  // live in the merged set we already compute below.
+  const cohort = getAllCohortsForAdmin().find((c) => c.slug === slug);
+  const program = getProgramForCohort(cohort);
+  if (program?.sessions?.length) {
+    // Clone so callers can mutate without breaking the program template.
+    return getSessionsForProgram(program).map((s) => ({ ...s }));
+  }
+  // Legacy fallback for any cohort that doesn't resolve to a program.
   return MOCK_SESSIONS.map((s) => ({ ...s }));
 }
 

@@ -53,7 +53,11 @@ export const BELT_COLORS = {
   Purple: { hex: "#A855F7", text: "#FFFFFF", contrast: "#FFFFFF", needsBorder: false, gradient: "linear-gradient(135deg, #4C1D95 0%, #A855F7 100%)" },
   // True coffee/chocolate brown — desaturated, no orange in it.
   Brown:  { hex: "#78350F", text: "#FFFFFF", contrast: "#FFFFFF", needsBorder: false, gradient: "linear-gradient(135deg, #3F2317 0%, #78350F 100%)" },
+  // Red — sits between Brown and Black on longer programs (APFW).
+  Red:    { hex: "#DC2626", text: "#FFFFFF", contrast: "#FFFFFF", needsBorder: false, gradient: "linear-gradient(135deg, #7F1D1D 0%, #EF4444 100%)" },
   Black:  { hex: "#0A0A0A", text: "#FFFFFF", contrast: "#FFFFFF", needsBorder: false, gradient: "linear-gradient(135deg, #0A0A0A 0%, #374151 100%)" },
+  // Gold — capstone tier above Black, used on the longer APFW program.
+  Gold:   { hex: "#D4AF37", text: "#1F1409", contrast: "#1F1409", needsBorder: false, gradient: "linear-gradient(135deg, #B8860B 0%, #FCD34D 100%)" },
 };
 
 export const MOCK_COHORT = {
@@ -103,212 +107,35 @@ export const MOCK_COHORT = {
     "Office hours are held every Friday at 11 AM CT. Use the Coaching link to book a 1:1 with your trainer.",
 };
 
-// AIEW3 curriculum (as of 5-21-26).
-export const MOCK_SESSIONS = [
-  {
-    order: 1,
-    belt: "White",
-    title: "White — Full Role Matrices, Prioritized Use Cases, Change Management",
-    summary:
-      "Set the foundation. Introductions, BRAI Platform overview, expectations, and the Critical Thinking framework for AI-driven decision making. Build your Role Matrix and prioritize use cases by % time saved and ease.",
-    date: weekdayDate(-4), /* 4 weeks ago — completed */
-    durationMinutes: 75,
-    videoUrl: "https://player.vimeo.com/video/76979871",
-    materials: [
-      { label: "White Belt Slides", url: "#", type: "pdf" },
-      { label: "Role Matrix Template", url: "#", type: "doc" },
-      { label: "Change Management Best-Practice Model", url: "#", type: "pdf" },
-    ],
-    objectives: [
-      "Build your personal Role Matrix",
-      "Prioritize 3 use cases by % time saved and ease of adoption",
-      "Apply the Critical Thinking framework to one workplace decision",
-    ],
-    homework: {
-      prompt:
-        "Build your Role Matrix and pick your top 3 prioritized use cases (by % time saved × ease). Submit it as a Google Doc, Notion page, or paste the content directly below.",
-      dueDate: weekdayDate(-3, 2), // Tuesday after session 1
-      submissionType: "text-or-link",
-    },
-  },
-  {
-    order: 2,
-    belt: "Yellow",
-    title: "Yellow — Power AI-Driven Workflows",
-    summary:
-      "Move from one-off prompts to powerful workflows. Master Comprehensive Context and Prompt Building done by AI, plus AI Self-Enhancement (3 Accelerators).",
-    date: weekdayDate(-3), /* 3 weeks ago — completed */
-    durationMinutes: 75,
-    videoUrl: "https://player.vimeo.com/video/76979871",
-    materials: [
-      { label: "Yellow Belt Slides", url: "#", type: "pdf" },
-      { label: "Context & Prompt Building Accelerators", url: "#", type: "doc" },
-    ],
-    objectives: [
-      "Run a Comprehensive Context workflow on one of your prioritized use cases",
-      "Use the AI Self-Enhancement Accelerator to improve a prompt over 3 iterations",
-      "Ship one working AI-driven workflow this week",
-    ],
-    homework: {
-      prompt:
-        "Apply one of the Yellow Belt Accelerators to a real workplace task. Share the original prompt, the final prompt after Self-Enhancement, and a 2-sentence reflection on what changed.",
-      dueDate: weekdayDate(-2, 2),
-      submissionType: "text-or-link",
-    },
-  },
-  {
-    order: 3,
-    belt: "Orange",
-    title: "Orange — 100,000 Experts Enhancing Every AI Workflow",
-    summary:
-      "Stop being a one-person operation. Integrate Expert Advisors into your workflows and learn how to draw out the right context for advanced work (2 Accelerators).",
-    date: weekdayDate(-2), /* 2 weeks ago — completed */
-    durationMinutes: 75,
-    videoUrl: "https://player.vimeo.com/video/76979871",
-    materials: [
-      { label: "Orange Belt Slides", url: "#", type: "pdf" },
-      { label: "Expert Advisor Templates", url: "#", type: "doc" },
-    ],
-    objectives: [
-      "Convene a virtual panel of 3 Expert Advisors on a real decision",
-      "Use the Context Drawing Accelerator to surface assumptions you didn't know you had",
-      "Identify when to use one expert vs. a panel",
-    ],
-    homework: {
-      prompt:
-        "Run an Expert Advisor session on a real workplace question. Share who was on your panel, the question, and the most surprising insight that came out.",
-      dueDate: weekdayDate(-1, 2),
-      submissionType: "text-or-link",
-    },
-  },
-  {
-    order: 4,
-    belt: "Green",
-    title: "Green — High-Reliability Repeatable Workflows, Assistants, Agents",
-    summary:
-      "Build workflows you can trust to run again and again. Apply the Agent Building Templates and Best Practices to design assistants and agents for repeatable, high-stakes work.",
-    date: weekdayDate(-1), /* last week — completed */
-    durationMinutes: 75,
-    videoUrl: "https://player.vimeo.com/video/76979871",
-    materials: [
-      { label: "Green Belt Slides", url: "#", type: "pdf" },
-      { label: "Agent Building Templates", url: "#", type: "doc" },
-      { label: "Reliability Checklist", url: "#", type: "pdf" },
-    ],
-    objectives: [
-      "Specify one repeatable workflow using the Agent Building Template",
-      "Build a custom assistant that captures your role's context",
-      "Define reliability checks for a high-stakes workflow",
-    ],
-    homework: {
-      prompt:
-        "Build a custom assistant or repeatable workflow for one of your prioritized use cases. Share the spec, link to the assistant (or screenshot), and what reliability checks you put in place.",
-      dueDate: weekdayDate(0, 2),
-      submissionType: "text-or-link",
-    },
-  },
-  {
-    order: 5,
-    belt: "Blue",
-    title: "Blue — Professional AI Teams Doing Sophisticated Projects",
-    summary:
-      "Compose teams of professional AI personas to take on sophisticated projects — true 'insourcing' (Accelerator Collection). Move from individual contributor to AI manager.",
-    date: weekdayDate(0), /* THIS week — UP NEXT */
-    durationMinutes: 75,
-    videoUrl: "https://player.vimeo.com/video/76979871",
-    materials: [
-      { label: "Blue Belt Slides", url: "#", type: "pdf" },
-      { label: "AI Team Composition Guide", url: "#", type: "doc" },
-    ],
-    objectives: [
-      "Compose a 3–5 role AI team for a real project",
-      "Coordinate hand-offs between team members",
-      "Identify when insourcing beats hiring or outsourcing",
-    ],
-    homework: {
-      prompt:
-        "Scope a sophisticated project that would normally take a small team. Describe the AI team you'd compose (roles, responsibilities, hand-offs) and what the first hand-off looks like.",
-      dueDate: weekdayDate(1, 2),
-      submissionType: "text-or-link",
-    },
-  },
-  {
-    order: 6,
-    belt: "Purple",
-    title: "Purple — Autonomous Agent Functions",
-    summary:
-      "Agents that actually do the work. Cover autonomous task execution, deep autonomous research, scheduled/recurring agents, custom personas, connectors, computer/browser controls, persistent workspace context, artifact/doc/app creation, and coding tools.",
-    date: weekdayDate(1), /* next week — locked */
-    durationMinutes: 75,
-    videoUrl: "https://player.vimeo.com/video/76979871",
-    materials: [
-      { label: "Purple Belt Slides", url: "#", type: "pdf" },
-      { label: "Autonomous Agent Patterns", url: "#", type: "doc" },
-    ],
-    objectives: [
-      "Launch a scheduled/recurring agent for one weekly task",
-      "Run a deep autonomous research project end-to-end",
-      "Connect an agent to a real system (calendar, Slack, file system) safely",
-    ],
-    homework: {
-      prompt:
-        "Set up one autonomous agent that runs without you. Share what it does, what trigger fires it, and what it produced on its first run.",
-      dueDate: weekdayDate(2, 2),
-      submissionType: "text-or-link",
-    },
-  },
-  {
-    order: 7,
-    belt: "Brown",
-    title: "Brown — Agent Quality Assurance and Orchestration",
-    summary:
-      "Once you have agents working, you need to keep them working. Cover Agent Quality Assurance and Orchestration — the prep for transitioning into a CEO AI OS posture.",
-    date: weekdayDate(2), /* 2 weeks out — locked */
-    durationMinutes: 75,
-    videoUrl: "https://player.vimeo.com/video/76979871",
-    materials: [
-      { label: "Brown Belt Slides", url: "#", type: "pdf" },
-      { label: "Agent QA Framework", url: "#", type: "doc" },
-    ],
-    objectives: [
-      "Define QA checks for one of your agents",
-      "Set up orchestration across 2+ agents",
-      "Draft your personal AI OS structure",
-    ],
-    homework: {
-      prompt:
-        "Document the QA checks and orchestration for one of your live agents. Include the failure modes you're guarding against and the recovery action for each.",
-      dueDate: weekdayDate(3, 2),
-      submissionType: "text-or-link",
-    },
-  },
-  {
-    order: 8,
-    belt: "Black",
-    title: "Black — Progress, Plans, Getting Future Results",
-    summary:
-      "Capstone. Reflect on the journey, commit to forward plans, and earn your Black Belt. Custom assistants remember how to behave, agents do the work, scheduled agents do work later, connected agents touch real systems — yours, now.",
-    date: weekdayDate(3), /* 3 weeks out — capstone, locked */
-    durationMinutes: 75,
-    videoUrl: "https://player.vimeo.com/video/76979871",
-    materials: [
-      { label: "Black Belt Slides", url: "#", type: "pdf" },
-      { label: "Capstone Submission Template", url: "#", type: "doc" },
-      { label: "Certification Guide", url: "#", type: "pdf" },
-    ],
-    objectives: [
-      "Present your top 3 AI-empowered workflows from the program",
-      "Capture cumulative impact in the AI Journal",
-      "Commit to a 90-day plan to keep compounding gains",
-    ],
-    homework: {
-      prompt:
-        "Capstone. Submit your Black Belt portfolio: 3 deployed workflows, total time saved, and your 90-day plan. Link a Google Doc / Notion page with the full write-up.",
-      dueDate: weekdayDate(4, 2),
-      submissionType: "text-or-link",
-    },
-  },
-];
+// ---------------------------------------------------------------------------
+// MOCK_SESSIONS — the AIEW3 curriculum with demo dates pinned around "today".
+//
+// The curriculum (titles, materials, homework prompts, belts) lives in
+// src/lib/programs.js — single source of truth. This array layers the demo
+// schedule on top so the page always looks "mid-program" (4 sessions done,
+// session 5 up next, 3 upcoming) regardless of when it's opened.
+//
+// Real cohorts get their dates from cohort.sessionDates at create time; this
+// constant is kept only for legacy imports and for the default IAHE demo
+// cohort. New code should pull sessions via getSessionsForCohort(slug).
+// ---------------------------------------------------------------------------
+import { PROGRAMS } from "./programs.js";
+
+// Pin a demo session date per session order so the IAHE demo always looks
+// healthy: 4 done, session 5 = "this week", 3 upcoming.
+const AIEW3_DEMO_OFFSETS = [-4, -3, -2, -1, 0, 1, 2, 3];
+
+export const MOCK_SESSIONS = PROGRAMS[0].sessions.map((s, i) => ({
+  ...s,
+  date: weekdayDate(AIEW3_DEMO_OFFSETS[i] ?? i - 4),
+  // Homework due dates land on the Tuesday after each session.
+  homework: s.homework
+    ? {
+        ...s.homework,
+        dueDate: weekdayDate((AIEW3_DEMO_OFFSETS[i] ?? i - 4) + 1, 2),
+      }
+    : s.homework,
+}));
 
 // Per-user state. Keys = user email; values = arrays of session orders / submissions.
 // Replaced by Notion DBs (Session Progress + Homework Submissions) in live mode.

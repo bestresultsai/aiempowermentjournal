@@ -1,5 +1,10 @@
 import { Link } from "react-router-dom";
 import { MOCK_SESSIONS, BELT_COLORS } from "../../lib/mockCohort";
+import {
+  getProgramForCohort,
+  getSessionsForProgram,
+  getSessionsCountForCohort,
+} from "../../lib/programs";
 
 // ---------------------------------------------------------------------------
 // PipelineView — Kanban-style stages strip used by both /admin and
@@ -18,10 +23,13 @@ const STAGES = [
   { key: "completed",   label: "Completed",   accent: "bg-emerald-100 text-emerald-700" },
 ];
 
-export function stageForDelivered(delivered) {
+// Stage is now per-cohort because cohorts can run different programs with
+// different session counts. Defaults to the AIEW3 length when no count is
+// provided so legacy callers don't break.
+export function stageForDelivered(delivered, totalSessions = MOCK_SESSIONS.length) {
   if (delivered === 0) return "pre-launch";
-  if (delivered >= MOCK_SESSIONS.length) return "completed";
-  if (delivered >= MOCK_SESSIONS.length - 1) return "wrapping-up";
+  if (delivered >= totalSessions) return "completed";
+  if (delivered >= totalSessions - 1) return "wrapping-up";
   return "in-progress";
 }
 
@@ -29,7 +37,9 @@ export default function PipelineView({ rows }) {
   return (
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
       {STAGES.map((stage) => {
-        const stageRows = rows.filter((r) => stageForDelivered(r.delivered) === stage.key);
+        const stageRows = rows.filter((r) =>
+          stageForDelivered(r.delivered, getSessionsCountForCohort(r.cohort)) === stage.key,
+        );
         return (
           <div
             key={stage.key}
@@ -55,6 +65,9 @@ export default function PipelineView({ rows }) {
                   const facInitials = fac
                     ? fac.name.split(" ").slice(0, 2).map((w) => w[0]).join("").toUpperCase()
                     : "";
+                  // Pull this cohort's session list so the pip strip shows
+                  // 10 pips for an APFW cohort, 8 for AIEW3.
+                  const programSessions = getSessionsForProgram(getProgramForCohort(c));
                   return (
                     <Link
                       key={c.slug}
@@ -86,9 +99,10 @@ export default function PipelineView({ rows }) {
                           </span>
                         </div>
                       )}
-                      {/* Belt-progress pip strip */}
+                      {/* Belt-progress pip strip — per-cohort length so a
+                          10-session APFW cohort shows 10 pips. */}
                       <div className="flex items-center gap-0.5 mt-2">
-                        {MOCK_SESSIONS.map((s) => {
+                        {programSessions.map((s) => {
                           const done = s.order <= delivered;
                           const belt = BELT_COLORS[s.belt];
                           return (
@@ -96,8 +110,8 @@ export default function PipelineView({ rows }) {
                               key={s.order}
                               title={`${s.belt} — Session ${s.order}`}
                               style={{
-                                background: done ? belt.gradient : "#E5E7EB",
-                                border: done && belt.needsBorder ? "1px solid #D1D5DB" : "none",
+                                background: done ? belt?.gradient : "#E5E7EB",
+                                border: done && belt?.needsBorder ? "1px solid #D1D5DB" : "none",
                               }}
                               className="h-2 flex-1 rounded-sm"
                             />

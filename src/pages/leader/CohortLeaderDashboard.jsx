@@ -20,6 +20,7 @@ import {
   getProductionMethodMix,
 } from "../../lib/adminMockData";
 import { MOCK_SESSIONS, BELT_COLORS } from "../../lib/mockCohort";
+import { getSessionsCountForCohort } from "../../lib/programs";
 import { leveragePerWeek } from "../../lib/journalConstants";
 
 // ---------------------------------------------------------------------------
@@ -68,7 +69,7 @@ export default function CohortLeaderDashboard() {
     (sum, p) => sum + (p.progress?.length || 0),
     0,
   );
-  const programSessionsCount = MOCK_SESSIONS.length;
+  const programSessionsCount = getSessionsCountForCohort(cohort) || MOCK_SESSIONS.length;
   const journeyProgressPct = rosterCount
     ? Math.round((completedSessionsAcross / (rosterCount * programSessionsCount)) * 100)
     : 0;

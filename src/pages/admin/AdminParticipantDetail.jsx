@@ -9,6 +9,7 @@ import { useAuth } from "../../context/AuthContext";
 import { getAccessibleCohortSlugs } from "../../lib/adminRoles";
 import { getAllCohortsForAdmin } from "../../lib/cohortAdmin";
 import { MOCK_SESSIONS, BELT_COLORS } from "../../lib/mockCohort";
+import { getSessionsCountForCohort } from "../../lib/programs";
 import Modal from "../../components/admin/Modal";
 import JournalEntryDetail from "../../components/admin/JournalEntryDetail";
 import SubmissionDetail from "../../components/admin/SubmissionDetail";
@@ -149,7 +150,7 @@ export default function AdminParticipantDetail() {
 
       {/* Quick stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <SmallKpi label="Sessions complete" value={`${completedCount}/${MOCK_SESSIONS.length}`} />
+        <SmallKpi label="Sessions complete" value={`${completedCount}/${getSessionsCountForCohort(cohort) || MOCK_SESSIONS.length}`} />
         <SmallKpi label="Homework submitted" value={submittedCount} sub={`${reviewedCount} reviewed`} />
         <SmallKpi label="Journal entries" value={journalEntries.length} accent="emerald" />
         <SmallKpi label="Hours saved" value={Math.round(minutesSaved / 60)} accent="emerald" sub={formatMinutes(minutesSaved)} />
