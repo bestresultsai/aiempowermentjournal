@@ -12,9 +12,7 @@ import {
   PRODUCTION_METHODS, VOLUME_PER_DAY, FREQUENCIES_SIMPLE,
   SCOPES, QUALITY_OPTIONS,
 } from "../lib/journalConstants";
-
-// 4 MB cap on inline file attachments (same as homework submission).
-const MAX_ATTACHMENT_BYTES = 4 * 1024 * 1024;
+import { LIMITS, clampString, sanitizeUrl, validateAttachment } from "../lib/inputValidation";
 
 // ---------------------------------------------------------------------------
 // /journal/new — AI Journal Entry form.
@@ -56,14 +54,16 @@ export default function Journal() {
   function handleFile(file) {
     setError("");
     if (!file) return;
-    if (file.size > MAX_ATTACHMENT_BYTES) {
-      setError(`File is too large. Max 4 MB. You uploaded ${(file.size / 1024 / 1024).toFixed(1)} MB.`);
+    const check = validateAttachment(file);
+    if (!check.ok) {
+      setError(check.reason);
       return;
     }
     const reader = new FileReader();
     reader.onload = () => {
       update("attachment", {
-        name: file.name,
+        // Clamp the filename to avoid pathological-name overflow.
+        name: clampString(file.name, LIMITS.shortText),
         dataUrl: reader.result,
         sizeBytes: file.size,
         mimeType: file.type,
@@ -98,6 +98,19 @@ export default function Journal() {
       return;
     }
 
+    // Validate + clamp every text/URL input one more time before we send.
+    // The onChange handlers already clamp on the way in, but a paste-and-
+    // submit-fast path could slip through. Belt + suspenders.
+    let safeLink = "";
+    if (form.link) {
+      const check = sanitizeUrl(form.link);
+      if (!check.ok) {
+        setError(check.reason);
+        return;
+      }
+      safeLink = check.value;
+    }
+
     setSubmitting(true);
     try {
       await submitJournalEntry({
@@ -105,8 +118,8 @@ export default function Journal() {
         participantEmail: user?.email,
         organization: user?.organization,
         cohort: cohort?.journalCohortName || cohort?.name || "",
-        projectName: form.projectName,
-        description: form.description,
+        projectName: clampString(form.projectName, LIMITS.shortText),
+        description: clampString(form.description, LIMITS.longText),
         productionMethod: form.productionMethod,
         volumePerDay: form.volumePerDay,
         frequency: form.frequency,
@@ -114,11 +127,11 @@ export default function Journal() {
         hoursWithoutAI: form.hoursWithoutAI,
         hoursWithAI: form.hoursWithAI,
         qualityOutcome: form.qualityOutcome,
-        innovationTitle: form.innovationTitle,
-        innovationDescription: form.innovationDescription,
-        link: form.link,
+        innovationTitle: clampString(form.innovationTitle, LIMITS.shortText),
+        innovationDescription: clampString(form.innovationDescription, LIMITS.longText),
+        link: safeLink,
         attachment: form.attachment,
-        notes: form.notes,
+        notes: clampString(form.notes, LIMITS.notesText),
       });
       navigate("/journal/result", {
         state: {
@@ -196,9 +209,10 @@ export default function Journal() {
               id="projectName"
               type="text"
               value={form.projectName}
-              onChange={(e) => update("projectName", e.target.value)}
+              onChange={(e) => update("projectName", clampString(e.target.value, LIMITS.shortText))}
               placeholder="e.g., Client proposal for Acme Corp"
               required
+              maxLength={LIMITS.shortText}
               className={inputClass}
             />
           </Field>

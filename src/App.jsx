@@ -31,6 +31,7 @@ import CohortLanding from "./pages/cohort/CohortLanding";
 import SessionDetail from "./pages/cohort/SessionDetail";
 import CohortLeaderDashboard from "./pages/leader/CohortLeaderDashboard";
 import BeltsPreview from "./pages/design/BeltsPreview";
+import NotFound from "./pages/NotFound";
 
 // ---------------------------------------------------------------------------
 // Route map (Round B + onboarding):
@@ -139,7 +140,8 @@ export default function App() {
             <Route path="/design/belts" element={<BeltsPreview />} />
 
             {/* Catch-all */}
-            <Route path="*" element={<Navigate to="/" replace />} />
+            {/* 404 — brand-styled "page not found" with quick links back. */}
+            <Route path="*" element={<NotFound />} />
           </Routes>
         </OnboardingGate>
         <Footer />

@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { getRoleLabel, canCreateCohorts } from "../../lib/adminRoles";
+import { APP_CONFIG } from "../../lib/appConfig";
 import Logo from "../../components/Logo";
 
 // ---------------------------------------------------------------------------
@@ -182,7 +183,7 @@ function AdminFooter() {
           </Link>
           <span className="text-white/20">·</span>
           <a
-            href="mailto:support@bestresults.ai"
+            href={`mailto:${APP_CONFIG.emails.support}`}
             className="px-2 py-1 rounded hover:bg-white/5 hover:text-white transition-colors"
           >
             Support

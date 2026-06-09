@@ -3,14 +3,9 @@ import {
   Check, Pencil, ExternalLink, Sparkles, Loader2, MessageSquare,
   Send, X, Paperclip, Download, FileText,
 } from "lucide-react";
-
-const MAX_ATTACHMENT_BYTES = 4 * 1024 * 1024; // 4MB cap for mock-mode base64
-function formatBytes(n) {
-  if (!n) return "";
-  if (n < 1024) return `${n} B`;
-  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
-  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
-}
+import {
+  LIMITS, clampString, sanitizeUrl, validateAttachment, formatBytes,
+} from "../../lib/inputValidation";
 
 // ---------------------------------------------------------------------------
 // HomeworkSubmission — participant-facing homework form on /session/:order.
@@ -49,14 +44,15 @@ export default function HomeworkSubmission({ session, onSubmit, pending, facilit
     const file = e.target.files?.[0];
     if (!file) return;
     setAttachmentError(null);
-    if (file.size > MAX_ATTACHMENT_BYTES) {
-      setAttachmentError(`Attachment too large (max ${formatBytes(MAX_ATTACHMENT_BYTES)}).`);
+    const check = validateAttachment(file);
+    if (!check.ok) {
+      setAttachmentError(check.reason);
       return;
     }
     const reader = new FileReader();
     reader.onload = () => {
       setAttachment({
-        name: file.name,
+        name: clampString(file.name, LIMITS.shortText),
         size: file.size,
         type: file.type || "application/octet-stream",
         dataUrl: reader.result,
@@ -83,7 +79,21 @@ export default function HomeworkSubmission({ session, onSubmit, pending, facilit
   function handleSubmit(e) {
     e.preventDefault();
     if (!response.trim() && !link.trim() && !attachment) return;
-    onSubmit({ response: response.trim(), link: link.trim(), attachment });
+    // Validate the link before submitting. Bad scheme → block + show why.
+    let safeLink = "";
+    if (link.trim()) {
+      const check = sanitizeUrl(link);
+      if (!check.ok) {
+        setAttachmentError(check.reason);
+        return;
+      }
+      safeLink = check.value;
+    }
+    onSubmit({
+      response: clampString(response, LIMITS.longText).trim(),
+      link: safeLink,
+      attachment,
+    });
     setEditing(false);
   }
 
@@ -130,7 +140,8 @@ export default function HomeworkSubmission({ session, onSubmit, pending, facilit
             </span>
             <textarea
               value={response}
-              onChange={(e) => setResponse(e.target.value)}
+              onChange={(e) => setResponse(clampString(e.target.value, LIMITS.longText))}
+              maxLength={LIMITS.longText}
               placeholder="Type your answer here, or paste a link below if your work lives elsewhere."
               rows={6}
               className="w-full px-4 py-3 rounded-xl border border-soft bg-surface-card text-ink text-[14px] font-body placeholder:text-ink-subtle focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 resize-y leading-relaxed"
@@ -200,7 +211,7 @@ export default function HomeworkSubmission({ session, onSubmit, pending, facilit
               <p className="text-[12px] text-red-600 mt-2 font-heading font-medium">{attachmentError}</p>
             )}
             <p className="text-[11px] text-ink-muted mt-1.5">
-              PDF, DOCX, images, anything. Under {formatBytes(MAX_ATTACHMENT_BYTES)}.
+              PDF, DOCX, images, and more. Under {formatBytes(LIMITS.attachmentBytes)}.
             </p>
           </div>
 
