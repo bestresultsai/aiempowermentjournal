@@ -387,6 +387,10 @@ export const DEMO_USER_OVERRIDES = {
     title: "Lead Facilitator, BestResults.AI",
     organization: "BestResults.AI",
     role: "facilitator",
+    // Multi-role demo: Mike facilitates IAHE cohorts AND has BRAI staff
+    // admin powers. This drives the "Mike sees Admin Panel + creates cohorts"
+    // capability without changing his primary identity.
+    capabilities: ["facilitator", "admin"],
     assignedOrgs: [],
     assignedCohorts: ["iahe-aiew3-2026q1"],
     defaultTimeZone: "America/New_York",

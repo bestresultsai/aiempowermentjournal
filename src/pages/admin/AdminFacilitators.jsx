@@ -12,7 +12,7 @@ import {
   updateFacilitator,
 } from "../../lib/cohortAdmin";
 import { clampString, sanitizeUrl, isValidEmail, LIMITS } from "../../lib/inputValidation";
-import { canCreateCohorts } from "../../lib/adminRoles";
+import { canCreateCohorts, canAssignRoles } from "../../lib/adminRoles";
 
 // ---------------------------------------------------------------------------
 // /admin/facilitators — Facilitator management.
@@ -114,6 +114,7 @@ export default function AdminFacilitators() {
                 facilitator={facilitator}
                 cohortCount={cohortCount}
                 editing={editing === facilitator.id}
+                canAssignRoles={canAssignRoles(user)}
                 onEdit={() => setEditing(facilitator.id)}
                 onCancel={() => setEditing(null)}
                 onSaved={() => setEditing(null)}
@@ -126,14 +127,29 @@ export default function AdminFacilitators() {
   );
 }
 
-function FacilitatorRow({ facilitator: f, cohortCount, editing, onEdit, onCancel, onSaved }) {
+function FacilitatorRow({ facilitator: f, cohortCount, editing, canAssignRoles, onEdit, onCancel, onSaved }) {
   const [name, setName] = useState(f.name);
   const [email, setEmail] = useState(f.email || "");
   const [title, setTitle] = useState(f.title || "");
   const [headshotUrl, setHeadshotUrl] = useState(f.headshotUrl || "");
   const [defaultZoomLink, setDefaultZoomLink] = useState(f.defaultZoomLink || "");
+  // Capability set per facilitator. Facilitator role is always implicit.
+  const [capabilities, setCapabilities] = useState(
+    new Set(["facilitator", ...(f.capabilities || [])]),
+  );
   const [error, setError] = useState("");
   const initials = f.name.split(" ").slice(0, 2).map((w) => w[0]).join("").toUpperCase();
+
+  function toggleCap(cap) {
+    setCapabilities((prev) => {
+      const next = new Set(prev);
+      if (next.has(cap)) next.delete(cap);
+      else next.add(cap);
+      // Facilitator is always present — they're on the facilitators page.
+      next.add("facilitator");
+      return next;
+    });
+  }
 
   function handleSave() {
     setError("");
@@ -166,6 +182,8 @@ function FacilitatorRow({ facilitator: f, cohortCount, editing, onEdit, onCancel
         title: clampString(title, LIMITS.shortText),
         headshotUrl: safeHeadshot,
         defaultZoomLink: safeZoom,
+        // Persist capabilities (drops "facilitator" since it's implicit).
+        capabilities: [...capabilities].filter((c) => c !== "facilitator"),
       });
       onSaved?.();
     } catch (e) {
@@ -183,6 +201,48 @@ function FacilitatorRow({ facilitator: f, cohortCount, editing, onEdit, onCancel
           <InputField label="Headshot URL" value={headshotUrl} onChange={setHeadshotUrl} type="url" max={LIMITS.url} />
           <InputField label="Default Zoom link" value={defaultZoomLink} onChange={setDefaultZoomLink} type="url" max={LIMITS.url} />
         </div>
+
+        {/* Capability assignment — Super + Admin only. */}
+        {canAssignRoles && (
+          <div className="pt-2">
+            <div className="text-[10.5px] font-heading font-semibold tracking-wider uppercase text-ink-muted mb-1.5">
+              Capabilities
+            </div>
+            <p className="text-[11.5px] text-ink-muted leading-relaxed mb-2 max-w-xl">
+              Facilitator is always granted. Add Admin to give them BRAI staff access. Add Org Admin to manage their cohort's organization.
+            </p>
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {["facilitator", "admin", "org"].map((cap) => {
+                const meta = {
+                  facilitator: { label: "Facilitator", locked: true },
+                  admin:       { label: "Admin",       locked: false },
+                  org:         { label: "Org Admin",   locked: false },
+                }[cap];
+                const active = capabilities.has(cap);
+                return (
+                  <button
+                    key={cap}
+                    type="button"
+                    onClick={() => !meta.locked && toggleCap(cap)}
+                    disabled={meta.locked}
+                    className={
+                      "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] font-heading font-bold transition-colors " +
+                      (active
+                        ? "bg-emerald-600 text-white"
+                        : "bg-white border border-soft text-ink-muted hover:text-ink") +
+                      (meta.locked ? " opacity-90 cursor-default" : " cursor-pointer")
+                    }
+                  >
+                    {active && <Check className="w-3 h-3" strokeWidth={3} />}
+                    {meta.label}
+                    {meta.locked && <span className="text-[9.5px] opacity-70 ml-0.5">(always)</span>}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         <div className="flex items-center gap-2 pt-2">
           <button
             type="button"

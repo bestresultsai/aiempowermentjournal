@@ -5,7 +5,7 @@ import {
   Crown, ArrowRight, Download, CheckSquare, Square, X,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
-import { canManageRoles, getRoleLabel } from "../../lib/adminRoles";
+import { canManageRoles, getRoleLabel, userCapabilities } from "../../lib/adminRoles";
 import {
   getAllCohortsForAdmin,
   getAllOrganizations,
@@ -41,6 +41,19 @@ const ROLE_FILTERS = [
   { key: "super",          label: "Super Admins", icon: Shield },
 ];
 
+// Display order for capability chips on each row — most powerful first.
+const ROLE_PRIORITY = ["super", "admin", "org", "facilitator", "cohort-leader", "participant"];
+
+// Chip styling per role. `short` is what we render inside the small chips.
+const ROLE_CHIP_META = {
+  super:           { label: "Super Admin",   short: "Super",       bg: "bg-purple-50",  text: "text-purple-700", icon: Shield },
+  admin:           { label: "Admin",         short: "Admin",       bg: "bg-brand-50",   text: "text-brand-700",  icon: Shield },
+  org:             { label: "Org Admin",     short: "Org",         bg: "bg-brand-50",   text: "text-brand-700",  icon: Building2 },
+  facilitator:     { label: "Facilitator",   short: "Facilitator", bg: "bg-emerald-50", text: "text-emerald-700", icon: GraduationCap },
+  "cohort-leader": { label: "Cohort Leader", short: "Leader",      bg: "bg-amber-50",   text: "text-amber-800",  icon: Crown },
+  participant:     { label: "Participant",   short: "Participant", bg: "bg-ink/5",      text: "text-ink-muted",  icon: Users },
+};
+
 export default function AdminSuper() {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -58,9 +71,19 @@ export default function AdminSuper() {
   // Aggregate every known user into a single directory.
   const allUsers = useMemo(() => {
     const seen = new Map();
+    // Build a capability list per user. The Super Admin directory shows ALL
+    // roles a user holds, not just the primary one.
+    function ensureUser(key, base) {
+      if (!seen.has(key)) {
+        seen.set(key, { ...base, capabilities: new Set() });
+      }
+      return seen.get(key);
+    }
+    // Signed-in user — usually super.
     if (user?.email) {
-      seen.set(user.email.toLowerCase(), {
-        key: user.email.toLowerCase(),
+      const key = user.email.toLowerCase();
+      const u = ensureUser(key, {
+        key,
         id: user.userId || user.email,
         name: user.name,
         email: user.email,
@@ -72,11 +95,13 @@ export default function AdminSuper() {
         headshotUrl: user.headshotUrl,
         sourceType: "auth",
       });
+      for (const c of userCapabilities(user)) u.capabilities.add(c);
     }
+    // Facilitators. Mike's seed already includes capabilities ["facilitator","admin"].
     for (const f of facilitators) {
       const key = f.email?.toLowerCase();
-      if (!key || seen.has(key)) continue;
-      seen.set(key, {
+      if (!key) continue;
+      const u = ensureUser(key, {
         key,
         id: f.id,
         name: f.name,
@@ -89,12 +114,17 @@ export default function AdminSuper() {
         headshotUrl: f.headshotUrl,
         sourceType: "facilitator",
       });
+      u.capabilities.add("facilitator");
+      if (Array.isArray(f.capabilities)) {
+        for (const c of f.capabilities) u.capabilities.add(c);
+      }
     }
+    // Participants — cohort leaders also get the cohort-leader capability.
     for (const p of participants) {
       const key = p.email?.toLowerCase();
-      if (!key || seen.has(key)) continue;
+      if (!key) continue;
       const cohort = cohorts.find((c) => c.slug === p.cohortSlug);
-      seen.set(key, {
+      const u = ensureUser(key, {
         key,
         id: p.id,
         name: p.name,
@@ -107,8 +137,14 @@ export default function AdminSuper() {
         headshotUrl: null,
         sourceType: "participant",
       });
+      u.capabilities.add("participant");
+      if (p.isCohortLead) u.capabilities.add("cohort-leader");
     }
-    return [...seen.values()];
+    // Materialize capability Set → array for downstream consumers.
+    return [...seen.values()].map((u) => ({
+      ...u,
+      capabilityList: [...u.capabilities],
+    }));
   }, [user, facilitators, participants, cohorts]);
 
   // --- Filter state --------------------------------------------------------
@@ -123,7 +159,9 @@ export default function AdminSuper() {
 
   const filteredUsers = useMemo(() => {
     return allUsers.filter((u) => {
-      if (roleFilter !== "all" && u.role !== roleFilter) return false;
+      // Match by capability list, not primary role — picking "Admins"
+      // surfaces facilitator+admin users too.
+      if (roleFilter !== "all" && !u.capabilityList?.includes(roleFilter)) return false;
       if (showSubFilters && cohortFilter !== "all") {
         if (u.sourceType === "facilitator") {
           // Facilitator passes if they run this cohort.
@@ -467,17 +505,10 @@ function SelectFilter({ label, value, onChange, options }) {
 
 function UserRow({ user: u, selected, onToggle, onOpen, cohorts }) {
   const initials = (u.name || u.email || "?").split(" ").slice(0, 2).map((w) => w[0]).join("").toUpperCase();
-  const roleMeta = {
-    super:           { label: "Super Admin",   bg: "bg-purple-50",  text: "text-purple-700", icon: Shield },
-    admin:           { label: "Admin",         bg: "bg-brand-50",   text: "text-brand-700",  icon: Shield },
-    org:             { label: "Org Admin",     bg: "bg-brand-50",   text: "text-brand-700",  icon: Building2 },
-    facilitator:     { label: "Facilitator",   bg: "bg-emerald-50", text: "text-emerald-700", icon: GraduationCap },
-    "cohort-leader": { label: "Cohort Leader", bg: "bg-amber-50",   text: "text-amber-800",  icon: Crown },
-    participant:     { label: "Participant",   bg: "bg-ink/5",      text: "text-ink-muted",  icon: Users },
-  }[u.role] || { label: getRoleLabel(u.role) || u.role || "—", bg: "bg-ink/5", text: "text-ink-muted", icon: Users };
-  const RoleIcon = roleMeta.icon;
   // Resolve cohort name (if any) for the right column.
   const cohort = u.cohortSlug ? cohorts.find((c) => c.slug === u.cohortSlug) : null;
+  // ALL capabilities the user holds, sorted by hierarchy (most powerful first).
+  const orderedRoles = ROLE_PRIORITY.filter((r) => u.capabilityList?.includes(r));
 
   return (
     <div className="px-5 py-3.5 grid md:grid-cols-[36px_1fr_220px_160px_160px] gap-4 items-center border-b border-soft last:border-b-0 hover:bg-surface-soft transition-colors group">
@@ -521,10 +552,26 @@ function UserRow({ user: u, selected, onToggle, onOpen, cohorts }) {
       >
         {u.email}
       </button>
-      <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-heading font-bold w-fit ${roleMeta.bg} ${roleMeta.text}`}>
-        <RoleIcon className="w-3 h-3" strokeWidth={2.5} />
-        {roleMeta.label}
-      </span>
+      <div className="flex items-center gap-1 flex-wrap">
+        {orderedRoles.length === 0 ? (
+          <span className="text-[11.5px] text-ink-muted">—</span>
+        ) : (
+          orderedRoles.map((r) => {
+            const meta = ROLE_CHIP_META[r] || ROLE_CHIP_META.participant;
+            const Icon = meta.icon;
+            return (
+              <span
+                key={r}
+                title={meta.label}
+                className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10.5px] font-heading font-bold ${meta.bg} ${meta.text}`}
+              >
+                <Icon className="w-2.5 h-2.5" strokeWidth={2.5} />
+                {meta.short}
+              </span>
+            );
+          })
+        )}
+      </div>
       <button
         type="button"
         onClick={onOpen}

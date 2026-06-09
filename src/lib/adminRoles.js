@@ -37,45 +37,83 @@ export function getRoleLabel(role) {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Multi-role model — primary role + capabilities.
+//
+// Every user has a single `role` (primary identity — drives default landing
+// page, the role chip in the avatar dropdown, etc.). On top of that they may
+// have additional capabilities via `user.capabilities[]`.
+//
+// Example: Mike Burkesmith — facilitates IAHE cohorts AND has BRAI staff
+// admin powers:
+//   user = { role: "facilitator", capabilities: ["facilitator", "admin"] }
+//
+// Backward compat: if `capabilities` is missing, we synthesize from `role`
+// (single-capability set). Old single-role users keep working unchanged.
+// ---------------------------------------------------------------------------
+
+// Returns a Set of every capability the user has.
+export function userCapabilities(user) {
+  if (!user) return new Set();
+  const caps = new Set();
+  if (Array.isArray(user.capabilities)) {
+    for (const c of user.capabilities) {
+      if (c) caps.add(c);
+    }
+  }
+  // Always include the primary role so old code that only sets `role` still
+  // behaves correctly through the capability lens.
+  if (user.role) caps.add(user.role);
+  return caps;
+}
+
+// True if the user has the given capability.
+export function hasCapability(user, role) {
+  return userCapabilities(user).has(role);
+}
+
 // Returns true when the user has any kind of admin-panel access.
 export function canAccessAdmin(user) {
-  if (!user) return false;
+  const caps = userCapabilities(user);
   return (
-    user.role === ROLES.SUPER ||
-    user.role === ROLES.ADMIN ||
-    user.role === ROLES.ORG ||
-    user.role === ROLES.FACILITATOR
+    caps.has(ROLES.SUPER) ||
+    caps.has(ROLES.ADMIN) ||
+    caps.has(ROLES.ORG) ||
+    caps.has(ROLES.FACILITATOR)
   );
 }
 
 // True if the user sees every cohort/org (no scoping applied).
 export function hasGlobalScope(user) {
-  if (!user) return false;
-  return user.role === ROLES.SUPER || user.role === ROLES.ADMIN;
+  const caps = userCapabilities(user);
+  return caps.has(ROLES.SUPER) || caps.has(ROLES.ADMIN);
 }
 
 // Can grade homework + mark sessions complete on behalf of others.
-// Super/Admin can do anything; Facilitator can do this within scope; Org
-// can review and read but not grade (kept simple for round 1).
 export function canGradeHomework(user) {
-  if (!user) return false;
+  const caps = userCapabilities(user);
   return (
-    user.role === ROLES.SUPER ||
-    user.role === ROLES.ADMIN ||
-    user.role === ROLES.FACILITATOR
+    caps.has(ROLES.SUPER) ||
+    caps.has(ROLES.ADMIN) ||
+    caps.has(ROLES.FACILITATOR)
   );
 }
 
-// User management (creating/editing other admins) is Super-only.
+// User-role management is Super-only.
 export function canManageRoles(user) {
-  return !!user && user.role === ROLES.SUPER;
+  return userCapabilities(user).has(ROLES.SUPER);
 }
 
-// Cohort creation is reserved for BRAI staff (Super + Admin). Org admins +
-// facilitators can edit existing cohorts in their scope but not create new ones.
+// Super + Admin can assign other roles below their own.
+export function canAssignRoles(user) {
+  const caps = userCapabilities(user);
+  return caps.has(ROLES.SUPER) || caps.has(ROLES.ADMIN);
+}
+
+// Cohort creation is reserved for BRAI staff (Super + Admin).
 export function canCreateCohorts(user) {
-  if (!user) return false;
-  return user.role === ROLES.SUPER || user.role === ROLES.ADMIN;
+  const caps = userCapabilities(user);
+  return caps.has(ROLES.SUPER) || caps.has(ROLES.ADMIN);
 }
 
 // Can the user edit this specific cohort?
@@ -85,11 +123,12 @@ export function canCreateCohorts(user) {
 //     pages enforce field-level limits — we just gate the route here)
 export function canEditCohort(user, cohort) {
   if (!user || !cohort) return false;
-  if (user.role === ROLES.SUPER || user.role === ROLES.ADMIN) return true;
-  if (user.role === ROLES.ORG) {
+  const caps = userCapabilities(user);
+  if (caps.has(ROLES.SUPER) || caps.has(ROLES.ADMIN)) return true;
+  if (caps.has(ROLES.ORG)) {
     return (user.assignedOrgs || []).includes(cohort.organization?.id);
   }
-  if (user.role === ROLES.FACILITATOR) {
+  if (caps.has(ROLES.FACILITATOR)) {
     return (user.assignedCohorts || []).includes(cohort.slug);
   }
   return false;
@@ -97,8 +136,8 @@ export function canEditCohort(user, cohort) {
 
 // Archival is destructive; lock it to BRAI staff only for round 1.
 export function canArchiveCohort(user) {
-  if (!user) return false;
-  return user.role === ROLES.SUPER || user.role === ROLES.ADMIN;
+  const caps = userCapabilities(user);
+  return caps.has(ROLES.SUPER) || caps.has(ROLES.ADMIN);
 }
 
 // ---------------------------------------------------------------------------
@@ -111,13 +150,14 @@ export function canArchiveCohort(user) {
 export function getAccessibleCohorts(user, allCohorts = []) {
   if (!user) return [];
   if (hasGlobalScope(user)) return allCohorts;
+  const caps = userCapabilities(user);
 
-  if (user.role === ROLES.ORG) {
+  if (caps.has(ROLES.ORG)) {
     const orgIds = new Set(user.assignedOrgs || []);
     return allCohorts.filter((c) => c.organization && orgIds.has(c.organization.id));
   }
 
-  if (user.role === ROLES.FACILITATOR) {
+  if (caps.has(ROLES.FACILITATOR)) {
     const slugs = new Set(user.assignedCohorts || []);
     return allCohorts.filter((c) => slugs.has(c.slug));
   }
