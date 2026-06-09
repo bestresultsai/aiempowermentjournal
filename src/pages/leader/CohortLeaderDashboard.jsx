@@ -1,8 +1,8 @@
 import { useMemo } from "react";
 import { Link, Navigate } from "react-router-dom";
 import {
-  Crown, Lock, Sparkles, Users, BookCheck, GraduationCap,
-  Calendar, ExternalLink, Trophy, AlertTriangle, ChevronRight, Eye, EyeOff,
+  Crown, Sparkles, Users, BookCheck, GraduationCap,
+  Calendar, ExternalLink, Trophy, AlertTriangle,
 } from "lucide-react";
 import NavBar from "../../components/NavBar";
 import { useCohortLeader } from "../../hooks/useCohortLeader";
@@ -120,9 +120,6 @@ export default function CohortLeaderDashboard() {
           </div>
         </header>
 
-        {/* Privacy callout */}
-        <PrivacyCallout />
-
         {/* KPI cards */}
         <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <KpiCard
@@ -189,44 +186,6 @@ export default function CohortLeaderDashboard() {
         </section>
       </main>
     </>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// PrivacyCallout — explains what the leader can and cannot see.
-// ---------------------------------------------------------------------------
-function PrivacyCallout() {
-  return (
-    <div className="rounded-2xl bg-gradient-to-br from-amber-50 to-amber-100/60 border border-amber-200 p-5">
-      <div className="flex items-start gap-3">
-        <div className="w-9 h-9 rounded-xl bg-amber-100 flex items-center justify-center shrink-0">
-          <Lock className="w-4 h-4 text-amber-700" strokeWidth={2.5} />
-        </div>
-        <div className="space-y-2 min-w-0">
-          <h2 className="font-heading text-[15px] font-bold text-amber-900">
-            What you can see as a Cohort Leader
-          </h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1 text-[13px] text-amber-900/90">
-            <span className="inline-flex items-center gap-1.5">
-              <Eye className="w-3.5 h-3.5 text-emerald-700" strokeWidth={2.5} />
-              Roster + each person's journey progress
-            </span>
-            <span className="inline-flex items-center gap-1.5">
-              <EyeOff className="w-3.5 h-3.5 text-red-600" strokeWidth={2.5} />
-              Individual journal entries (private)
-            </span>
-            <span className="inline-flex items-center gap-1.5">
-              <Eye className="w-3.5 h-3.5 text-emerald-700" strokeWidth={2.5} />
-              Homework completion %, total hours saved
-            </span>
-            <span className="inline-flex items-center gap-1.5">
-              <EyeOff className="w-3.5 h-3.5 text-red-600" strokeWidth={2.5} />
-              Individual homework responses or feedback
-            </span>
-          </div>
-        </div>
-      </div>
-    </div>
   );
 }
 
