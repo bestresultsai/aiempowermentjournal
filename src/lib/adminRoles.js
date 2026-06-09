@@ -72,48 +72,46 @@ export function hasCapability(user, role) {
   return userCapabilities(user).has(role);
 }
 
+// ---------------------------------------------------------------------------
+// Permission helpers.
+//
+// Each helper resolves to a permission key via `lib/permissions.js`. This
+// gives us role defaults + per-user overrides for free: no caller has to
+// change when a Super grants/revokes individual permissions on a user.
+//
+// ESM allows the import cycle here because hasPermission is only called at
+// function-invocation time, never at module-load time.
+// ---------------------------------------------------------------------------
+import { hasPermission } from "./permissions";
+
 // Returns true when the user has any kind of admin-panel access.
 export function canAccessAdmin(user) {
-  const caps = userCapabilities(user);
-  return (
-    caps.has(ROLES.SUPER) ||
-    caps.has(ROLES.ADMIN) ||
-    caps.has(ROLES.ORG) ||
-    caps.has(ROLES.FACILITATOR)
-  );
+  return hasPermission(user, "view.admin");
 }
 
 // True if the user sees every cohort/org (no scoping applied).
 export function hasGlobalScope(user) {
-  const caps = userCapabilities(user);
-  return caps.has(ROLES.SUPER) || caps.has(ROLES.ADMIN);
+  return hasPermission(user, "view.global");
 }
 
 // Can grade homework + mark sessions complete on behalf of others.
 export function canGradeHomework(user) {
-  const caps = userCapabilities(user);
-  return (
-    caps.has(ROLES.SUPER) ||
-    caps.has(ROLES.ADMIN) ||
-    caps.has(ROLES.FACILITATOR)
-  );
+  return hasPermission(user, "homework.grade");
 }
 
-// User-role management is Super-only.
+// Can grant the Super Admin role itself.
 export function canManageRoles(user) {
-  return userCapabilities(user).has(ROLES.SUPER);
+  return hasPermission(user, "roles.manage-super");
 }
 
-// Super + Admin can assign other roles below their own.
+// Can assign roles below Super.
 export function canAssignRoles(user) {
-  const caps = userCapabilities(user);
-  return caps.has(ROLES.SUPER) || caps.has(ROLES.ADMIN);
+  return hasPermission(user, "roles.assign");
 }
 
-// Cohort creation is reserved for BRAI staff (Super + Admin).
+// Cohort creation — permission-gated; default to platform staff.
 export function canCreateCohorts(user) {
-  const caps = userCapabilities(user);
-  return caps.has(ROLES.SUPER) || caps.has(ROLES.ADMIN);
+  return hasPermission(user, "cohorts.create");
 }
 
 // Can the user edit this specific cohort?
@@ -134,10 +132,9 @@ export function canEditCohort(user, cohort) {
   return false;
 }
 
-// Archival is destructive; lock it to BRAI staff only for round 1.
+// Archival is destructive; permission-gated.
 export function canArchiveCohort(user) {
-  const caps = userCapabilities(user);
-  return caps.has(ROLES.SUPER) || caps.has(ROLES.ADMIN);
+  return hasPermission(user, "cohorts.archive");
 }
 
 // ---------------------------------------------------------------------------

@@ -21,6 +21,7 @@ import AdminOrgs from "./pages/admin/AdminOrgs";
 import AdminFacilitators from "./pages/admin/AdminFacilitators";
 import AdminUsers from "./pages/admin/AdminUsers";
 import AdminUserNew from "./pages/admin/AdminUserNew";
+import AdminPermissions from "./pages/admin/AdminPermissions";
 import Home from "./pages/Home";
 import Login from "./pages/Login";
 import AuthVerify from "./pages/AuthVerify";
@@ -153,6 +154,7 @@ export default function App() {
               {/* Users — cross-cutting directory + unified user creation. */}
               <Route path="users" element={<AdminUsers />} />
               <Route path="users/new" element={<AdminUserNew />} />
+              <Route path="permissions" element={<AdminPermissions />} />
               <Route path="orgs" element={<AdminOrgs />} />
               <Route path="facilitators" element={<AdminFacilitators />} />
             </Route>

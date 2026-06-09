@@ -112,8 +112,57 @@ the capability list, not just the primary role.
 ### `/admin/users/new`
 - super + admin only. Super Admin role checkbox visible only to `canManageRoles`.
 
+## Permissions model
+
+The role-based capabilities in `src/lib/adminRoles.js` are now thin
+wrappers around a permission catalog in `src/lib/permissions.js`.
+
+- `PERMISSIONS` — every fine-grained permission the app knows about
+  (`cohorts.create`, `homework.grade`, `roles.assign`, etc.)
+- `ROLE_DEFAULTS` — which permissions each role grants by default
+- `user.permissionsGranted[]` / `user.permissionsRevoked[]` — per-user
+  overrides on top of role defaults
+- `hasPermission(user, key)` — resolves role defaults + overrides
+
+This means a Super can grant or revoke a single permission on a specific
+user without changing the role contract for everyone else with that role.
+
+### Where to manage permissions
+
+- `/admin/permissions` (Super only) — two tabs:
+  1. **Role defaults** — read-only matrix of role × permission. To change a
+     role's default contract, edit `ROLE_DEFAULTS` in `permissions.js`.
+  2. **By user** — search any user, click to open a drawer with a per-
+     permission toggle. Overridden permissions get an "Overridden" badge
+     and a one-click Reset to default.
+
+### Adding a new permission
+
+1. Add an entry to the `PERMISSIONS` catalog in `permissions.js` with key +
+   label + description + group.
+2. Add it to the appropriate roles inside `ROLE_DEFAULTS`.
+3. (If a new helper is needed) Add a `canSomething(user)` wrapper in
+   `adminRoles.js` that calls `hasPermission(user, "your.new.key")`.
+4. The Permissions UI picks it up automatically.
+
+## Resolved decisions (from product Q&A)
+
+- **Org Admin grading homework:** No. Org Admins don't grade — they
+  observe.
+- **Read-only Admin role:** Not needed; use per-user permission revokes
+  to build a read-only profile if a single user ever needs it.
+- **Cohort Leader surface:** Stays at `/leader/cohort`. Purpose: see
+  roster engagement + every participant's journal entries + every
+  participant's homework submissions. No grading. Today the dashboard
+  shows aggregates; click-through to individual entries/submissions is
+  queued.
+- **Certificate signatories:** Facilitator + Mike + Lee. Three signatures
+  on every certificate.
+- **Org Zoom / Calendar accounts:** Only facilitators connect their own
+  Google Calendar + Zoom. Participants get "Add to my calendar" `.ics`
+  export per session (queued).
+
 ## Open questions (for v2)
 
-- Should Org Admin be able to grade homework for their org's cohorts? (today: no)
-- Should Facilitators be able to add participants to their cohort directly? (today: yes, via `/admin/cohorts/:slug/participants/add`)
-- Should there be a "read-only Admin" role that can see everything but not edit? (not modeled today)
+- Should Facilitators be able to add participants to their cohort
+  directly? (today: yes, via `/admin/cohorts/:slug/participants/add`)

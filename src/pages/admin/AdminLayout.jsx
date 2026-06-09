@@ -3,7 +3,7 @@ import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-do
 import {
   LayoutDashboard, Users, BookCheck, GraduationCap, ArrowLeft,
   Shield, LogOut, ChevronDown, NotebookPen, Plus, User as UserIcon,
-  Calendar as CalendarIcon, Building2,
+  Calendar as CalendarIcon, Building2, Lock,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import {
@@ -43,6 +43,8 @@ const NAV = [
   { to: "/admin/orgs",         label: "Organizations", icon: Building2, requires: "create" },
   { to: "/admin/facilitators", label: "Facilitators",  icon: Users, requires: "create" },
   { to: "/admin/users",        label: "Users",         icon: Shield, requires: "assign" },
+  // Permissions surface — Super only.
+  { to: "/admin/permissions",  label: "Permissions",   icon: Lock, requires: "super" },
 ];
 
 // Permission gate for sidebar items. Defaults to allow when no `requires`.
@@ -343,6 +345,7 @@ function BreadCrumb({ path }) {
     participants: "Participants",
     orgs: "Organizations",
     facilitators: "Facilitators",
+    permissions: "Permissions",
     super: "Users",
     new: "New",
     edit: "Edit",
