@@ -10,6 +10,7 @@ import { createStandaloneUser } from "../../lib/adminMockData";
 import { getAllCohortsForAdmin } from "../../lib/cohortAdmin";
 import { LIMITS, isValidEmail } from "../../lib/inputValidation";
 import HeadshotUpload from "../../components/HeadshotUpload";
+import Select from "../../components/Select";
 
 // ---------------------------------------------------------------------------
 // /admin/users/new — unified user creation.
@@ -364,18 +365,19 @@ export default function AdminUserNew() {
               <div className="text-[10.5px] font-heading font-semibold tracking-wider uppercase text-ink-muted mb-1.5">
                 Cohort
               </div>
-              <select
+              <Select
                 value={cohortSlug}
-                onChange={(e) => setCohortSlug(e.target.value)}
-                className="w-full px-3 py-2 rounded-lg bg-white border border-soft text-[13px] font-heading font-semibold text-ink focus:outline-none focus:ring-2 focus:ring-brand-300"
-              >
-                <option value="">— Unassigned —</option>
-                {cohorts.map((c) => (
-                  <option key={c.slug} value={c.slug}>
-                    {c.name} {c.organization?.shortName ? `(${c.organization.shortName})` : ""}
-                  </option>
-                ))}
-              </select>
+                onChange={setCohortSlug}
+                placeholder="— Unassigned —"
+                options={[
+                  { value: "", label: "— Unassigned —" },
+                  ...cohorts.map((c) => ({
+                    value: c.slug,
+                    label: c.name,
+                    hint: c.organization?.shortName || "",
+                  })),
+                ]}
+              />
             </div>
           </section>
         )}

@@ -17,6 +17,7 @@ import {
   assignParticipantsToCohort,
 } from "../../lib/adminMockData";
 import { downloadCSV } from "../../lib/csvExport";
+import Select from "../../components/Select";
 
 // ---------------------------------------------------------------------------
 // /admin/users — Users directory.
@@ -383,18 +384,14 @@ export default function AdminUsers() {
             {/* Assign-to-cohort only makes sense for selected participants. */}
             {filteredUsers.some((u) => selected.has(u.key) && u.sourceType === "participant") && (
               <div className="inline-flex items-center gap-1.5">
-                <select
-                  value={bulkCohortSlug}
-                  onChange={(e) => setBulkCohortSlug(e.target.value)}
-                  className="px-2.5 py-1.5 rounded-lg bg-white border border-purple-200 text-[12px] font-heading font-semibold text-ink focus:outline-none"
-                >
-                  <option value="">Assign participants to cohort…</option>
-                  {cohorts.map((c) => (
-                    <option key={c.slug} value={c.slug}>
-                      {c.name}
-                    </option>
-                  ))}
-                </select>
+                <div className="w-60">
+                  <Select
+                    value={bulkCohortSlug}
+                    onChange={setBulkCohortSlug}
+                    placeholder="Assign participants to cohort…"
+                    options={cohorts.map((c) => ({ value: c.slug, label: c.name }))}
+                  />
+                </div>
                 <button
                   type="button"
                   onClick={handleAssignToCohort}
@@ -501,17 +498,9 @@ function SelectFilter({ label, value, onChange, options }) {
       <span className="text-[10.5px] font-heading font-bold uppercase tracking-wider text-ink-muted">
         {label}
       </span>
-      <select
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="px-2.5 py-1.5 rounded-lg bg-white border border-soft text-[12px] font-heading font-semibold text-ink focus:outline-none focus:border-purple-400"
-      >
-        {options.map((o) => (
-          <option key={o.value} value={o.value}>
-            {o.label}
-          </option>
-        ))}
-      </select>
+      <div className="w-44">
+        <Select value={value} onChange={onChange} options={options} />
+      </div>
     </label>
   );
 }

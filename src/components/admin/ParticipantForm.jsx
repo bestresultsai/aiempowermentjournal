@@ -8,6 +8,7 @@ import {
 import { addParticipantsToCohort } from "../../lib/adminMockData";
 import { getAllCohortsForAdmin } from "../../lib/cohortAdmin";
 import HeadshotUpload from "../HeadshotUpload";
+import Select from "../Select";
 
 // ---------------------------------------------------------------------------
 // ParticipantForm — used by both:
@@ -373,20 +374,7 @@ function SelectField({ label, icon: Icon, value, onChange, options }) {
       <span className="block text-[11.5px] font-heading font-semibold tracking-wider uppercase text-ink-muted mb-1.5">
         {label}
       </span>
-      <div className="relative">
-        {Icon && (
-          <Icon className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-subtle pointer-events-none" strokeWidth={2} />
-        )}
-        <select
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-soft bg-surface-card text-ink text-[14px] font-body focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 transition-all appearance-none"
-        >
-          {options.map((opt) => (
-            <option key={opt.value} value={opt.value}>{opt.label}</option>
-          ))}
-        </select>
-      </div>
+      <Select value={value} onChange={onChange} options={options} icon={Icon} />
     </label>
   );
 }

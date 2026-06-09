@@ -22,6 +22,7 @@ import { groupTimeZones, guessLocalTimeZone } from "../../lib/timeZones";
 import { useAuth } from "../../context/AuthContext";
 import DateTimeField from "./DateTimeField";
 import FacilitatorPicker from "./FacilitatorPicker";
+import Select from "../Select";
 
 // ---------------------------------------------------------------------------
 // CohortForm — shared between /admin/cohorts/new and /admin/cohorts/:slug/edit.
@@ -363,18 +364,12 @@ export default function CohortForm({ mode, initial = null, orgs: passedOrgs, fac
                 </div>
               </div>
             ) : (
-              <div className="relative">
-                <Building2 className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-subtle pointer-events-none" strokeWidth={2} />
-                <select
-                  value={form.organizationId}
-                  onChange={(e) => set("organizationId", e.target.value)}
-                  className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-soft bg-surface-card text-ink text-[14px] font-body focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 appearance-none"
-                >
-                  {orgs.map((o) => (
-                    <option key={o.id} value={o.id}>{o.name}</option>
-                  ))}
-                </select>
-              </div>
+              <Select
+                value={form.organizationId}
+                onChange={(v) => set("organizationId", v)}
+                options={orgs.map((o) => ({ value: o.id, label: o.name }))}
+                icon={Building2}
+              />
             )}
           </div>
         )}
@@ -473,18 +468,12 @@ export default function CohortForm({ mode, initial = null, orgs: passedOrgs, fac
             <span className="block text-[11.5px] font-heading font-semibold tracking-wider uppercase text-ink-muted mb-1.5">
               Cadence
             </span>
-            <div className="relative">
-              <Repeat className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-subtle pointer-events-none" strokeWidth={2} />
-              <select
-                value={form.cadenceDays}
-                onChange={(e) => set("cadenceDays", Number(e.target.value))}
-                className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-soft bg-surface-card text-ink text-[14px] font-body focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 appearance-none"
-              >
-                {CADENCE_OPTIONS.map((c) => (
-                  <option key={c.value} value={c.value}>{c.label}</option>
-                ))}
-              </select>
-            </div>
+            <Select
+              value={form.cadenceDays}
+              onChange={(v) => set("cadenceDays", Number(v))}
+              options={CADENCE_OPTIONS.map((c) => ({ value: c.value, label: c.label }))}
+              icon={Repeat}
+            />
           </div>
         </div>
 
@@ -493,23 +482,18 @@ export default function CohortForm({ mode, initial = null, orgs: passedOrgs, fac
           <span className="block text-[11.5px] font-heading font-semibold tracking-wider uppercase text-ink-muted mb-1.5">
             Time zone <span className="text-brand-600">*</span>
           </span>
-          <div className="relative">
-            <Globe className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-subtle pointer-events-none" strokeWidth={2} />
-            <select
-              value={form.timeZone}
-              onChange={(e) => set("timeZone", e.target.value)}
-              required
-              className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-soft bg-surface-card text-ink text-[14px] font-body focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 appearance-none"
-            >
-              {groupTimeZones().map(([group, zones]) => (
-                <optgroup key={group} label={group}>
-                  {zones.map((z) => (
-                    <option key={z.value} value={z.value}>{z.label}</option>
-                  ))}
-                </optgroup>
-              ))}
-            </select>
-          </div>
+          <Select
+            value={form.timeZone}
+            onChange={(v) => set("timeZone", v)}
+            options={(() => {
+              const out = [];
+              for (const [group, zones] of groupTimeZones()) {
+                for (const z of zones) out.push({ value: z.value, label: z.label, group });
+              }
+              return out;
+            })()}
+            icon={Globe}
+          />
           <p className="text-[11.5px] text-ink-muted mt-1.5">
             All session times above are expressed in this cohort's time zone.
           </p>
@@ -765,23 +749,7 @@ function SelectField({ label, icon: Icon, value, onChange, options, hint }) {
         {label}
         <span className="text-brand-600 ml-1">*</span>
       </span>
-      <div className="relative">
-        {Icon && (
-          <Icon className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-subtle pointer-events-none" strokeWidth={2} />
-        )}
-        <select
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          className={
-            "w-full py-2.5 rounded-xl border border-soft bg-surface-card text-ink text-[14px] font-body focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 transition-all appearance-none " +
-            (Icon ? "pl-10 pr-8" : "px-4")
-          }
-        >
-          {options.map((opt) => (
-            <option key={opt.value} value={opt.value}>{opt.label}</option>
-          ))}
-        </select>
-      </div>
+      <Select value={value} onChange={onChange} options={options} icon={Icon} />
       {hint && <p className="text-[11.5px] text-ink-muted mt-1.5 leading-relaxed">{hint}</p>}
     </label>
   );

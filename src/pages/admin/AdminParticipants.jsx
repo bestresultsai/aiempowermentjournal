@@ -9,6 +9,7 @@ import { useScopeFilters } from "../../lib/useScopeFilters";
 import { canAccessAdmin } from "../../lib/adminRoles";
 import { getAllCohortsForAdmin } from "../../lib/cohortAdmin";
 import ScopeFilterBar from "../../components/admin/ScopeFilterBar";
+import Select from "../../components/Select";
 import {
   ADMIN_MOCK_PARTICIPANTS,
   getEngagementBucket,
@@ -162,15 +163,16 @@ export default function AdminParticipants() {
         <div className="ml-auto inline-flex items-center gap-2">
           <ArrowUpDown className="w-3.5 h-3.5 text-ink-muted" strokeWidth={2.25} />
           <label className="text-[12px] text-ink-muted font-heading">Sort:</label>
-          <select
-            value={sortKey}
-            onChange={(e) => setSortKey(e.target.value)}
-            className="px-2.5 py-1.5 rounded-lg border border-soft bg-surface-card text-[12.5px] font-heading font-semibold text-ink focus:outline-none focus:border-brand-500"
-          >
-            {Object.entries(SORTS).map(([key, s]) => (
-              <option key={key} value={key}>{s.label}</option>
-            ))}
-          </select>
+          <div className="w-44">
+            <Select
+              value={sortKey}
+              onChange={setSortKey}
+              options={Object.entries(SORTS).map(([key, s]) => ({
+                value: key,
+                label: s.label,
+              }))}
+            />
+          </div>
         </div>
       </div>
 
@@ -287,19 +289,18 @@ function BulkActionBar({ count, cohorts, assigning, onAssign, onClear }) {
       </div>
       <div className="flex items-center gap-2">
         <GraduationCap className="w-3.5 h-3.5 text-white/70" strokeWidth={2.25} />
-        <select
-          value={targetSlug}
-          onChange={(e) => setTargetSlug(e.target.value)}
-          className="bg-white/10 border border-white/15 rounded-lg px-2.5 py-1.5 text-[12.5px] font-heading font-semibold text-white focus:outline-none focus:border-white/30 appearance-none"
-        >
-          <option value="" className="text-ink">Pick a cohort…</option>
-          <option value="__unassigned__" className="text-ink">Remove from cohort</option>
-          {cohorts.map((c) => (
-            <option key={c.slug} value={c.slug} className="text-ink">
-              {c.name}
-            </option>
-          ))}
-        </select>
+        <div className="w-56">
+          <Select
+            value={targetSlug}
+            onChange={setTargetSlug}
+            placeholder="Pick a cohort…"
+            options={[
+              { value: "__unassigned__", label: "Remove from cohort" },
+              ...cohorts.map((c) => ({ value: c.slug, label: c.name })),
+            ]}
+            className="!bg-white/10 !border-white/15 !text-white hover:!border-white/30"
+          />
+        </div>
         <button
           type="button"
           onClick={() => handle()}

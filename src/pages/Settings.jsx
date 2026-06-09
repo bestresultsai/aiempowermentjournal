@@ -5,6 +5,7 @@ import {
   Video, Globe, Calendar as CalendarIcon, RefreshCw, Link2Off, Loader2,
 } from "lucide-react";
 import NavBar from "../components/NavBar";
+import Select from "../components/Select";
 import { useAuth } from "../context/AuthContext";
 import { getUserCohorts } from "../lib/cohortResolution";
 import { groupTimeZones } from "../lib/timeZones";
@@ -448,27 +449,21 @@ function Field({ label, icon: Icon, value, onChange, placeholder, type = "text",
 }
 
 function TimeZoneField({ label, value, onChange, hint }) {
+  // Flatten the grouped time zones into the branded Select's option shape
+  // (group is a sibling field on each option; the popover renders one header
+  // per distinct group as it walks the array).
+  const options = [];
+  for (const [group, zones] of groupTimeZones()) {
+    for (const z of zones) {
+      options.push({ value: z.value, label: z.label, group });
+    }
+  }
   return (
     <label className="block">
       <span className="block text-[11.5px] font-heading font-semibold tracking-wider uppercase text-ink-muted mb-1.5">
         {label}
       </span>
-      <div className="relative">
-        <Globe className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-subtle pointer-events-none" strokeWidth={2} />
-        <select
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-soft bg-surface-card text-ink text-[14px] font-body focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 transition-all appearance-none"
-        >
-          {groupTimeZones().map(([group, zones]) => (
-            <optgroup key={group} label={group}>
-              {zones.map((z) => (
-                <option key={z.value} value={z.value}>{z.label}</option>
-              ))}
-            </optgroup>
-          ))}
-        </select>
-      </div>
+      <Select value={value} onChange={onChange} options={options} icon={Globe} />
       {hint && <p className="text-[11.5px] text-ink-muted mt-1.5 leading-relaxed">{hint}</p>}
     </label>
   );
