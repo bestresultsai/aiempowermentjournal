@@ -217,7 +217,7 @@ export default function AdminCohortRoster() {
           return (
             <Link
               key={p.id}
-              to={`/admin/users/${p.id}`}
+              to={`/admin/participants/${p.id}`}
               className="group grid md:grid-cols-[1fr_auto_auto_auto_auto] gap-4 px-5 py-4 hover:bg-surface-soft transition-colors border-b border-soft last:border-b-0"
             >
               {/* Identity */}
@@ -668,7 +668,7 @@ function CohortLeaderCard({ leader }) {
           Cohort leader
         </div>
         <Link
-          to={`/admin/users/${leader.id}`}
+          to={`/admin/participants/${leader.id}`}
           className="block font-heading text-[15px] font-extrabold text-ink hover:text-amber-700 transition-colors mt-0.5"
         >
           {leader.name}

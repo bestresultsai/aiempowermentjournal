@@ -13,6 +13,7 @@ import {
 } from "../../lib/cohortAdmin";
 import { clampString, sanitizeUrl, isValidEmail, LIMITS } from "../../lib/inputValidation";
 import { canCreateCohorts, canAssignRoles } from "../../lib/adminRoles";
+import HeadshotUpload from "../../components/HeadshotUpload";
 
 // ---------------------------------------------------------------------------
 // /admin/facilitators — Facilitator management.
@@ -156,15 +157,10 @@ function FacilitatorRow({ facilitator: f, cohortCount, editing, canAssignRoles, 
       setError("That doesn't look like a valid email.");
       return;
     }
-    let safeHeadshot = "";
-    if (headshotUrl.trim()) {
-      const check = sanitizeUrl(headshotUrl);
-      if (!check.ok) {
-        setError(check.reason);
-        return;
-      }
-      safeHeadshot = check.value;
-    }
+    // Headshot can be an http(s) URL (legacy) or a data: URL from the
+    // HeadshotUpload component. Both are safe to store; we don't run them
+    // through sanitizeUrl because data: URLs are explicitly rejected there.
+    const safeHeadshot = (headshotUrl || "").trim();
     let safeZoom = "";
     if (defaultZoomLink.trim()) {
       const check = sanitizeUrl(defaultZoomLink);
@@ -194,11 +190,23 @@ function FacilitatorRow({ facilitator: f, cohortCount, editing, canAssignRoles, 
   if (editing) {
     return (
       <div className="px-5 py-4 border-b border-soft last:border-b-0 bg-emerald-50/30 space-y-2">
+        {/* Headshot lives on its own row above the grid since it spans both
+            columns visually. */}
+        <div>
+          <div className="text-[10.5px] font-heading font-semibold tracking-wider uppercase text-ink-muted mb-1.5">
+            Headshot
+          </div>
+          <HeadshotUpload
+            value={headshotUrl}
+            onChange={(url) => setHeadshotUrl(url || "")}
+            name={name}
+            size="lg"
+          />
+        </div>
         <div className="grid md:grid-cols-2 gap-2">
           <InputField label="Name" value={name} onChange={setName} max={LIMITS.shortText} />
           <InputField label="Email" value={email} onChange={setEmail} type="email" max={LIMITS.email} />
           <InputField label="Title" value={title} onChange={setTitle} max={LIMITS.shortText} />
-          <InputField label="Headshot URL" value={headshotUrl} onChange={setHeadshotUrl} type="url" max={LIMITS.url} />
           <InputField label="Default Zoom link" value={defaultZoomLink} onChange={setDefaultZoomLink} type="url" max={LIMITS.url} />
         </div>
 
@@ -337,15 +345,8 @@ function NewFacilitatorForm({ onCancel, onCreated }) {
       setError("A valid email is required.");
       return;
     }
-    let safeHeadshot = "";
-    if (headshotUrl.trim()) {
-      const check = sanitizeUrl(headshotUrl);
-      if (!check.ok) {
-        setError(check.reason);
-        return;
-      }
-      safeHeadshot = check.value;
-    }
+    // Headshot may be an http(s) URL or a data: URL from HeadshotUpload.
+    const safeHeadshot = (headshotUrl || "").trim();
     let safeZoom = "";
     if (defaultZoomLink.trim()) {
       const check = sanitizeUrl(defaultZoomLink);
@@ -374,11 +375,21 @@ function NewFacilitatorForm({ onCancel, onCreated }) {
       <div className="text-[10.5px] font-heading font-bold uppercase tracking-wider text-emerald-700">
         New facilitator
       </div>
+      <div>
+        <div className="text-[10.5px] font-heading font-semibold tracking-wider uppercase text-ink-muted mb-1.5">
+          Headshot
+        </div>
+        <HeadshotUpload
+          value={headshotUrl}
+          onChange={(url) => setHeadshotUrl(url || "")}
+          name={name}
+          size="lg"
+        />
+      </div>
       <div className="grid md:grid-cols-2 gap-2">
         <InputField label="Name *" value={name} onChange={setName} max={LIMITS.shortText} autoFocus />
         <InputField label="Email *" value={email} onChange={setEmail} type="email" max={LIMITS.email} />
         <InputField label="Title" value={title} onChange={setTitle} max={LIMITS.shortText} placeholder="Lead Facilitator" />
-        <InputField label="Headshot URL" value={headshotUrl} onChange={setHeadshotUrl} type="url" max={LIMITS.url} />
         <InputField label="Default Zoom link" value={defaultZoomLink} onChange={setDefaultZoomLink} type="url" max={LIMITS.url} placeholder="https://us02web.zoom.us/j/..." icon={Video} />
       </div>
       <div className="flex items-center gap-2">

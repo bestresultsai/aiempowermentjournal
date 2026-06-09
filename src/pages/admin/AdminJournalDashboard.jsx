@@ -214,7 +214,7 @@ export default function AdminJournalDashboard() {
             {biggestWins.map((w, i) => (
               <Link
                 key={`${w.participantId}-${w.id}`}
-                to={`/admin/users/${w.participantId}`}
+                to={`/admin/participants/${w.participantId}`}
                 className="group rounded-2xl bg-gradient-to-br from-emerald-50 to-surface-card border border-emerald-100 p-5 hover:border-emerald-300 hover:shadow-card transition-all duration-200 flex flex-col"
               >
                 <div className="flex items-center gap-2 mb-3">
@@ -371,7 +371,7 @@ export default function AdminJournalDashboard() {
             {topContributors.map((p, i) => (
               <Link
                 key={p.id}
-                to={`/admin/users/${p.id}`}
+                to={`/admin/participants/${p.id}`}
                 className="group flex items-center gap-3 px-5 py-3.5 hover:bg-surface-soft transition-colors border-b border-soft last:border-b-0"
               >
                 <div
@@ -413,7 +413,7 @@ export default function AdminJournalDashboard() {
             {stale.map((p) => (
               <Link
                 key={p.id}
-                to={`/admin/users/${p.id}`}
+                to={`/admin/participants/${p.id}`}
                 className="group flex items-center gap-3 px-5 py-3.5 hover:bg-amber-50 transition-colors border-b border-amber-100 last:border-b-0"
               >
                 <AlertCircle className="w-4 h-4 text-amber-700 shrink-0" strokeWidth={2.25} />
@@ -484,7 +484,7 @@ export default function AdminJournalDashboard() {
       </section>
 
       {/* Modal — opens when a recent entry is clicked. Reuses the same
-          JournalEntryDetail component as /admin/users/:id so the view is
+          JournalEntryDetail component as /admin/participants/:id so the view is
           consistent. Footer shows a CTA to drill into the participant. */}
       <Modal open={!!openEntry} onClose={() => setOpenEntry(null)}>
         {openEntry && (

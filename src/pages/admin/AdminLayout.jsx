@@ -28,10 +28,10 @@ const NAV = [
   { to: "/admin/cohorts",      label: "Cohorts",       icon: GraduationCap },
   { to: "/admin/journal",      label: "AI Journal",    icon: NotebookPen },
   { to: "/admin/homework",     label: "Homework",      icon: BookCheck },
-  { to: "/admin/users",        label: "Participants",  icon: Users },
+  { to: "/admin/participants", label: "Participants",  icon: Users },
   { to: "/admin/orgs",         label: "Organizations", icon: Building2, requires: "create" },
   { to: "/admin/facilitators", label: "Facilitators",  icon: Users, requires: "create" },
-  { to: "/admin/super",        label: "Super Admin",   icon: Shield, requires: "super" },
+  { to: "/admin/users",        label: "Users",         icon: Shield, requires: "create" },
 ];
 
 // Permission gate for sidebar items. Defaults to allow when no `requires`.
@@ -82,7 +82,7 @@ export default function AdminLayout() {
                 New cohort
               </Link>
               <Link
-                to="/admin/users/new"
+                to="/admin/participants/new"
                 className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-[13.5px] font-heading font-bold transition-all duration-200 bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/25 hover:text-emerald-200 hover:border-emerald-400/40"
               >
                 <Plus className="w-4 h-4" strokeWidth={3} />
@@ -322,10 +322,11 @@ function BreadCrumb({ path }) {
     cohorts: "Cohorts",
     journal: "AI Journal",
     homework: "Homework",
-    users: "Participants",
+    users: "Users",
+    participants: "Participants",
     orgs: "Organizations",
     facilitators: "Facilitators",
-    super: "Super Admin",
+    super: "Users",
     new: "New",
     edit: "Edit",
   };

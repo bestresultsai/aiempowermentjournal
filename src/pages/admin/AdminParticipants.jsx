@@ -125,7 +125,7 @@ export default function AdminParticipants() {
         </div>
         {canAccessAdmin(user) && (
           <Link
-            to="/admin/users/new"
+            to="/admin/participants/new"
             className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-brand-600 text-white text-[12.5px] font-heading font-semibold hover:bg-brand-700 transition-colors shrink-0"
           >
             <Plus className="w-3.5 h-3.5" strokeWidth={2.5} />
@@ -217,7 +217,7 @@ export default function AdminParticipants() {
                 className="w-4 h-4 rounded border-soft text-brand-600 focus:ring-brand-500 cursor-pointer shrink-0"
               />
               <Link
-                to={`/admin/users/${p.id}`}
+                to={`/admin/participants/${p.id}`}
                 className="flex items-center gap-3 flex-1 min-w-0"
               >
                 <div className="w-10 h-10 rounded-full bg-brand-700 text-white flex items-center justify-center text-[12px] font-heading font-bold shrink-0">

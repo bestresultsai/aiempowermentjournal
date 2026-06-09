@@ -3,7 +3,7 @@ import { Link, Navigate, useParams } from "react-router-dom";
 import {
   ArrowLeft, Mail, Building2, BookCheck, Check, Clock, GraduationCap,
   ExternalLink, NotebookPen, Sparkles, Lightbulb, Target, Lock, Save, Crown,
-  AlertTriangle, X, Download, MessageSquare, Paperclip, Zap,
+  AlertTriangle, X, Download, MessageSquare, Paperclip, Zap, Camera,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { getAccessibleCohortSlugs } from "../../lib/adminRoles";
@@ -21,11 +21,13 @@ import {
   getFacilitatorNote,
   setFacilitatorNote,
   setParticipantCapabilities,
+  setParticipantHeadshot,
   totalTimeSaved,
   timeSavedFor,
   formatMinutes,
 } from "../../lib/adminMockData";
 import { canAssignRoles } from "../../lib/adminRoles";
+import HeadshotUpload from "../../components/HeadshotUpload";
 
 // /admin/users/:id — drill-in on a single participant.
 // Read-only this round.
@@ -71,9 +73,7 @@ export default function AdminParticipantDetail() {
 
       {/* Profile header */}
       <header className="rounded-2xl bg-surface-card border border-soft p-6 flex items-start gap-5 flex-wrap">
-        <div className="w-20 h-20 rounded-full bg-brand-700 text-white flex items-center justify-center text-[24px] font-heading font-extrabold shrink-0">
-          {initials}
-        </div>
+        <ParticipantHeadshot participant={p} initials={initials} />
         <div className="flex-1 min-w-[200px]">
           <h1 className="font-heading text-[24px] lg:text-[28px] font-extrabold text-ink leading-tight inline-flex items-center gap-2 flex-wrap">
             {p.name}
@@ -416,6 +416,74 @@ function SmallKpi({ label, value, accent, sub }) {
 // Participant + Cohort Leader are derived from the record itself
 // (isCohortLead). Everything else lives in participant.capabilities[].
 // ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// ParticipantHeadshot — avatar with a "Change photo" toggle for super/admin.
+// Clicking the avatar opens the HeadshotUpload inline. Non-privileged admins
+// just see the static avatar.
+// ---------------------------------------------------------------------------
+function ParticipantHeadshot({ participant, initials }) {
+  const { user } = useAuth();
+  const canEdit = canAssignRoles(user);
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState(participant.headshotUrl || "");
+
+  function handleChange(url) {
+    setValue(url || "");
+    setParticipantHeadshot(participant.id, url);
+    participant.headshotUrl = url || null;
+  }
+
+  if (!editing) {
+    return (
+      <div className="relative group">
+        {value ? (
+          <img
+            src={value}
+            alt={participant.name}
+            className="w-20 h-20 rounded-full object-cover shrink-0"
+          />
+        ) : (
+          <div className="w-20 h-20 rounded-full bg-brand-700 text-white flex items-center justify-center text-[24px] font-heading font-extrabold shrink-0">
+            {initials}
+          </div>
+        )}
+        {canEdit && (
+          <button
+            type="button"
+            onClick={() => setEditing(true)}
+            className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full bg-ink text-white inline-flex items-center justify-center shadow-md hover:bg-brand-700 transition-colors"
+            aria-label="Change photo"
+            title="Change photo"
+          >
+            <Camera className="w-3.5 h-3.5" strokeWidth={2.5} />
+          </button>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-2xl bg-brand-50/40 border border-brand-200 p-4 min-w-[280px]">
+      <div className="text-[10.5px] font-heading font-semibold tracking-wider uppercase text-brand-700 mb-2">
+        Change headshot
+      </div>
+      <HeadshotUpload
+        value={value}
+        onChange={handleChange}
+        name={participant.name}
+        size="lg"
+      />
+      <button
+        type="button"
+        onClick={() => setEditing(false)}
+        className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white border border-soft text-[12px] font-heading font-bold text-ink hover:bg-surface-soft transition-colors"
+      >
+        Done
+      </button>
+    </div>
+  );
+}
+
 function ParticipantCapabilities({ participant }) {
   const { user } = useAuth();
   const canEdit = canAssignRoles(user);

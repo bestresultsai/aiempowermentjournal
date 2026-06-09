@@ -252,7 +252,7 @@ function SubmissionCard({ row, session, belt, cohort, reviewed, expanded, onTogg
             </div>
             <div className="min-w-0">
               <Link
-                to={`/admin/users/${row.participantId}`}
+                to={`/admin/participants/${row.participantId}`}
                 className="font-heading font-bold text-ink text-[14.5px] hover:text-brand-700 transition-colors block truncate"
               >
                 {row.participantName}

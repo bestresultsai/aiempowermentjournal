@@ -160,7 +160,7 @@ export default function JournalEntryDetail({ entry, participant = null, onClose 
             </span>
           </div>
           <Link
-            to={`/admin/users/${participant.id}`}
+            to={`/admin/participants/${participant.id}`}
             onClick={onClose}
             className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-brand-600 text-white text-[12.5px] font-heading font-semibold hover:bg-brand-700 transition-colors"
           >

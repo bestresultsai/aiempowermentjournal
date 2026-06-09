@@ -186,7 +186,7 @@ export default function AdminDashboard() {
                 Win of the period
               </div>
               <Link
-                to={`/admin/users/${topWin.participantId}`}
+                to={`/admin/participants/${topWin.participantId}`}
                 className="font-heading text-[18px] font-extrabold text-ink leading-snug hover:text-brand-700 transition-colors"
               >
                 {topWin.title}
@@ -270,7 +270,7 @@ export default function AdminDashboard() {
             {atRisk.slice(0, 5).map((p) => (
               <Link
                 key={p.id}
-                to={`/admin/users/${p.id}`}
+                to={`/admin/participants/${p.id}`}
                 className="group flex items-center gap-3 px-4 py-3 hover:bg-amber-50/60 transition-colors border-b border-amber-100/50 last:border-b-0"
               >
                 <div className="w-9 h-9 rounded-full bg-brand-700 text-white flex items-center justify-center text-[11px] font-heading font-bold shrink-0">
@@ -549,7 +549,7 @@ function ActivityRow({ event }) {
   const Icon = cfg.icon;
   return (
     <Link
-      to={`/admin/users/${event.participantId}`}
+      to={`/admin/participants/${event.participantId}`}
       className="flex items-center gap-3 px-4 py-3 hover:bg-surface-soft transition-colors border-b border-soft last:border-b-0"
     >
       <div className={"w-8 h-8 rounded-full flex items-center justify-center shrink-0 " + cfg.color}>

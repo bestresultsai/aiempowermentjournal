@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { addParticipantsToCohort } from "../../lib/adminMockData";
 import { getAllCohortsForAdmin } from "../../lib/cohortAdmin";
+import HeadshotUpload from "../HeadshotUpload";
 
 // ---------------------------------------------------------------------------
 // ParticipantForm — used by both:
@@ -38,6 +39,7 @@ export default function ParticipantForm({ lockedCohortSlug = null, defaultCohort
     phone: "",
     cohortSlug: initialCohortSlug,
     isCohortLead: false,
+    headshotUrl: "",
   });
   const updateSingle = (field, value) =>
     setSingle((f) => ({ ...f, [field]: value }));
@@ -78,7 +80,7 @@ export default function ParticipantForm({ lockedCohortSlug = null, defaultCohort
       }
       setResult(res);
       if (res.skipped.length === 0) {
-        setTimeout(() => navigate(redirectOnSuccess || "/admin/users"), 600);
+        setTimeout(() => navigate(redirectOnSuccess || "/admin/participants"), 600);
       } else {
         setSaving(false);
       }
@@ -91,7 +93,7 @@ export default function ParticipantForm({ lockedCohortSlug = null, defaultCohort
   return (
     <div className="max-w-[820px] mx-auto space-y-6 animate-fade-in-up">
       <Link
-        to={lockedCohortSlug ? `/admin/cohorts/${lockedCohortSlug}` : "/admin/users"}
+        to={lockedCohortSlug ? `/admin/cohorts/${lockedCohortSlug}` : "/admin/participants"}
         className="inline-flex items-center gap-1.5 text-[12.5px] font-heading font-semibold text-ink-muted hover:text-ink transition-colors"
       >
         <ArrowLeft className="w-3.5 h-3.5" strokeWidth={2.5} />
@@ -125,6 +127,17 @@ export default function ParticipantForm({ lockedCohortSlug = null, defaultCohort
         {mode === "one" ? (
           <>
             <section className="rounded-2xl bg-surface-card border border-soft p-5 space-y-4">
+              <div>
+                <div className="text-[10.5px] font-heading font-semibold tracking-wider uppercase text-ink-muted mb-1.5">
+                  Headshot <span className="font-normal normal-case ml-1">optional</span>
+                </div>
+                <HeadshotUpload
+                  value={single.headshotUrl}
+                  onChange={(url) => updateSingle("headshotUrl", url || "")}
+                  name={single.name || single.email}
+                  size="lg"
+                />
+              </div>
               <Field
                 label="Email"
                 icon={Mail}
@@ -280,7 +293,7 @@ export default function ParticipantForm({ lockedCohortSlug = null, defaultCohort
 
         <div className="flex items-center justify-end gap-2 pt-2">
           <Link
-            to={lockedCohortSlug ? `/admin/cohorts/${lockedCohortSlug}` : "/admin/users"}
+            to={lockedCohortSlug ? `/admin/cohorts/${lockedCohortSlug}` : "/admin/participants"}
             className="px-3 py-2 rounded-xl text-[12.5px] font-heading font-semibold text-ink-muted hover:text-ink hover:bg-ink/5 transition-colors"
           >
             Cancel

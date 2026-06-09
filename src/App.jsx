@@ -19,7 +19,7 @@ import AdminParticipantDetail from "./pages/admin/AdminParticipantDetail";
 import AdminParticipantNew from "./pages/admin/AdminParticipantNew";
 import AdminOrgs from "./pages/admin/AdminOrgs";
 import AdminFacilitators from "./pages/admin/AdminFacilitators";
-import AdminSuper from "./pages/admin/AdminSuper";
+import AdminUsers from "./pages/admin/AdminUsers";
 import Home from "./pages/Home";
 import Login from "./pages/Login";
 import AuthVerify from "./pages/AuthVerify";
@@ -67,8 +67,9 @@ import NotFound from "./pages/NotFound";
 //   /admin/cohorts/:slug/edit Edit cohort (gated by canEditCohort)
 //   /admin/journal            AI Journal dashboard — hours saved, leaderboard, stale
 //   /admin/homework           Pending homework queue (read-only round 1)
-//   /admin/users              Directory of all participants in scope (with search)
-//   /admin/users/:id          Participant detail — profile + progress + submissions
+//   /admin/participants       Directory of all participants in scope (with search)
+//   /admin/participants/:id   Participant detail — profile + progress + submissions
+//   /admin/users              Cross-cutting Users directory (was "Super Admin")
 //
 //   /dashboard                Legacy redirect → /journal
 //   /design/belts             Design reference page
@@ -77,6 +78,14 @@ import NotFound from "./pages/NotFound";
 // haven't finished /welcome to the wizard, and bounces already-onboarded
 // users back to /home if they manually visit /welcome.
 // ---------------------------------------------------------------------------
+
+// Backward-compat redirect for /admin/users/:id → /admin/participants/:id.
+// Need a tiny wrapper to forward the :id route param.
+import { useParams } from "react-router-dom";
+function NavigateParticipant() {
+  const { id } = useParams();
+  return <Navigate to={`/admin/participants/${id}`} replace />;
+}
 
 export default function App() {
   return (
@@ -133,12 +142,17 @@ export default function App() {
               <Route path="journal" element={<AdminJournalDashboard />} />
               <Route path="homework" element={<AdminHomeworkQueue />} />
               <Route path="calendar" element={<AdminCalendar />} />
-              <Route path="users" element={<AdminParticipants />} />
-              <Route path="users/new" element={<AdminParticipantNew />} />
-              <Route path="users/:id" element={<AdminParticipantDetail />} />
+              {/* Participants list + per-participant detail. */}
+              <Route path="participants" element={<AdminParticipants />} />
+              <Route path="participants/new" element={<AdminParticipantNew />} />
+              <Route path="participants/:id" element={<AdminParticipantDetail />} />
+              {/* Backward-compat redirects from the old /admin/users paths. */}
+              <Route path="users/new" element={<Navigate to="/admin/participants/new" replace />} />
+              <Route path="users/:id" element={<NavigateParticipant />} />
+              {/* New cross-cutting Users directory (was "Super Admin"). */}
+              <Route path="users" element={<AdminUsers />} />
               <Route path="orgs" element={<AdminOrgs />} />
               <Route path="facilitators" element={<AdminFacilitators />} />
-              <Route path="super" element={<AdminSuper />} />
             </Route>
 
             {/* Legacy + utility */}

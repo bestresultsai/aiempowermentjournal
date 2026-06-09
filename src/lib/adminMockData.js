@@ -387,6 +387,7 @@ export function addParticipantsToCohort(cohortSlug, payloads) {
       title: (raw.title || "").trim() || "",
       organization: (raw.organization || "").trim() || "",
       phone: (raw.phone || "").trim() || "",
+      headshotUrl: (raw.headshotUrl || "").trim() || null,
       isCohortLead: !!raw.isCohortLead,
       cohortSlug: cohortSlug || null,
       whyAi: "",
@@ -716,6 +717,14 @@ export function setFacilitatorNote(participantId, text) {
 // facilitator) from the participant profile. Persisted on the participant
 // record so it round-trips through getParticipantById.
 // ---------------------------------------------------------------------------
+// Set a participant's headshot URL (http(s) or data: URL from upload).
+export function setParticipantHeadshot(participantId, url) {
+  const p = getParticipantById(participantId);
+  if (!p) return null;
+  p.headshotUrl = (url || "").trim() || null;
+  return p.headshotUrl;
+}
+
 export function setParticipantCapabilities(participantId, capabilities) {
   const p = getParticipantById(participantId);
   if (!p) return null;

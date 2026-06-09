@@ -124,7 +124,7 @@ export default function SubmissionDetail({
 
       {/* Footer — adapts to context. When the modal was opened from
           /admin/journal or /admin/homework we know who the participant is, so
-          we offer to drill into their profile. On /admin/users/:id we already
+          we offer to drill into their profile. On /admin/participants/:id we already
           ARE on the participant page, so we point at the homework queue. */}
       <div className="px-6 py-4 border-t border-soft flex items-center justify-between gap-3 flex-wrap">
         {participant ? (
@@ -141,7 +141,7 @@ export default function SubmissionDetail({
         <div className="flex items-center gap-2">
           {participant && (
             <Link
-              to={`/admin/users/${participant.id}`}
+              to={`/admin/participants/${participant.id}`}
               onClick={onClose}
               className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-brand-600 text-white text-[12.5px] font-heading font-semibold hover:bg-brand-700 transition-colors"
             >

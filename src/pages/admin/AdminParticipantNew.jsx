@@ -12,7 +12,7 @@ export default function AdminParticipantNew() {
   return (
     <ParticipantForm
       defaultCohortSlug={params.get("cohort") || null}
-      redirectOnSuccess="/admin/users"
+      redirectOnSuccess="/admin/participants"
     />
   );
 }
