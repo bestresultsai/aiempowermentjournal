@@ -39,8 +39,11 @@ export default function AdminLayout() {
 
   return (
     <div className="min-h-screen bg-surface-paper flex">
-      {/* ---------------- Sidebar (desktop) ---------------- */}
-      <aside className="hidden lg:flex flex-col w-64 shrink-0 bg-ink text-white">
+      {/* ---------------- Sidebar (desktop) ----------------
+           Sticky to the viewport so it stays visible on long pages.
+           `h-screen` + own `overflow-y-auto` lets the sidebar scroll
+           independently if its own content overflows. */}
+      <aside className="hidden lg:flex flex-col w-64 shrink-0 bg-ink text-white sticky top-0 h-screen overflow-y-auto">
         <div className="px-5 py-6 border-b border-white/10">
           <Logo size="md" dark />
           <div className="mt-3 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/10 text-[10px] font-heading font-bold uppercase tracking-wider">

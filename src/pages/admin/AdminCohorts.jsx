@@ -26,22 +26,32 @@ import ScopeFilterBar from "../../components/admin/ScopeFilterBar";
 // both the dashboard and the cohorts page render the same stage taxonomy.
 
 // Last delivered = latest session with date <= today.
-// Next session  = earliest session with date >  today.
-function getDeliveryInfo() {
+// Next session   = earliest session with date >  today.
+// Delivered      = how many sessions have already passed.
+//
+// Computed per cohort so the stage pill on each row reflects that cohort's
+// real schedule. Previously this function read MOCK_SESSIONS, which gave
+// every cohort the same "delivered" count — confusing once cohorts started
+// running on different timelines.
+function getDeliveryInfoFor(sessions) {
   const now = new Date();
   now.setHours(0, 0, 0, 0);
   const todayMs = now.getTime();
   let last = null;
   let next = null;
-  for (const s of MOCK_SESSIONS) {
+  let delivered = 0;
+  for (const s of sessions) {
+    if (!s.date) continue;
     const ms = new Date(s.date).getTime();
+    if (Number.isNaN(ms)) continue;
     if (ms <= todayMs) {
+      delivered++;
       if (!last || ms > new Date(last.date).getTime()) last = s;
     } else {
       if (!next || ms < new Date(next.date).getTime()) next = s;
     }
   }
-  return { last, next, delivered: last ? last.order : 0 };
+  return { last, next, delivered };
 }
 
 function formatDate(iso) {
@@ -66,9 +76,9 @@ export default function AdminCohorts() {
   const allCohorts = getAllCohortsForAdmin();
   const scope = useScopeFilters(user, allCohorts);
   const { cohorts, effectiveCohorts, orgs, facilitators } = scope;
-  const delivery = getDeliveryInfo();
 
   // Compute the row data once so the pipeline + list share the same shape.
+  // Delivery info is per-cohort now — each cohort runs on its own schedule.
   const rows = effectiveCohorts.map((c) => {
     const roster = getParticipantsForCohort(c.slug);
     const avgProgress =
@@ -80,8 +90,8 @@ export default function AdminCohorts() {
               MOCK_SESSIONS.length *
               100,
           );
-    // Pull start + end from the cohort's actual session dates.
     const sessions = getSessionsForCohort(c.slug);
+    const delivery = getDeliveryInfoFor(sessions);
     const dated = sessions
       .filter((s) => s.date)
       .map((s) => new Date(s.date).getTime())

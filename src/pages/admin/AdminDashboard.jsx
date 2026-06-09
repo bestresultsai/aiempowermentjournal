@@ -7,7 +7,7 @@ import {
 import { useAuth } from "../../context/AuthContext";
 import { hasGlobalScope, getRoleLabel } from "../../lib/adminRoles";
 import { useScopeFilters } from "../../lib/useScopeFilters";
-import { getAllCohortsForAdmin } from "../../lib/cohortAdmin";
+import { getAllCohortsForAdmin, getSessionsForCohort } from "../../lib/cohortAdmin";
 import { MOCK_SESSIONS, BELT_COLORS } from "../../lib/mockCohort";
 import {
   ADMIN_MOCK_PARTICIPANTS,
@@ -46,13 +46,18 @@ import ScopeFilterBar from "../../components/admin/ScopeFilterBar";
 //  10. Activity stream
 // ---------------------------------------------------------------------------
 
-function getDelivered() {
+// Count sessions whose date is in the past for a single cohort. Per-cohort
+// so the pipeline stage on each card reflects that cohort's real schedule.
+function getDeliveredForSessions(sessions) {
   const now = new Date();
   now.setHours(0, 0, 0, 0);
   const todayMs = now.getTime();
   let delivered = 0;
-  for (const s of MOCK_SESSIONS) {
-    if (new Date(s.date).getTime() <= todayMs) delivered++;
+  for (const s of sessions) {
+    if (!s.date) continue;
+    const ms = new Date(s.date).getTime();
+    if (Number.isNaN(ms)) continue;
+    if (ms <= todayMs) delivered++;
   }
   return delivered;
 }
@@ -91,7 +96,6 @@ export default function AdminDashboard() {
   const upcoming = getUpcomingSessions(14)(MOCK_SESSIONS);
   const activity = getActivityStream(cohortSlugs, 10);
 
-  const delivered = getDelivered();
 
   function handleExportWeek() {
     const since = Date.now() - 7 * 86400000;
@@ -338,7 +342,10 @@ export default function AdminDashboard() {
       <section>
         <SectionHeader title="Pipeline" cta={{ to: "/admin/cohorts", label: "Full view" }} />
         <PipelineView
-          rows={effectiveCohorts.map((c) => ({ cohort: c, delivered }))}
+          rows={effectiveCohorts.map((c) => ({
+            cohort: c,
+            delivered: getDeliveredForSessions(getSessionsForCohort(c.slug)),
+          }))}
         />
       </section>
 
