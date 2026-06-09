@@ -3,15 +3,19 @@
 //
 // A PROGRAM is the reusable curriculum template a cohort runs. It owns:
 //
-//   code            — short identifier ("AIEW3", "APFW")
-//   name            — human-readable program name
-//   methodName      — the umbrella framework label
-//   belts           — ordered sequence of belt color names from BELT_COLORS,
-//                     one per session. Programs that don't use belts pass
-//                     `null` and the UI falls back to plain session numbers
-//   sessions        — the curriculum, one entry per session. Each entry
-//                     describes the session content (title, materials,
-//                     homework prompt) but has NO date — dates are per-cohort
+//   code                    — short identifier ("AIEW3", "APFW")
+//   name                    — human-readable program name
+//   methodName              — the umbrella framework label
+//   tagline                 — short paragraph for the cohort hero / Journey page
+//   sessionDurationMinutes  — program-level default session length
+//   belts                   — ordered sequence of belt color names from
+//                             BELT_COLORS, one per session. Programs that
+//                             don't use belts pass `null` and the UI falls
+//                             back to plain session numbers
+//   sessions                — the curriculum, one entry per session. Each
+//                             entry describes the session content (title,
+//                             materials, homework prompt) but has NO date —
+//                             dates are per-cohort
 //
 // A COHORT picks a program (via cohort.programCode), then overrides:
 //   - sessionDates  — when each session actually runs
@@ -250,6 +254,14 @@ export const PROGRAMS = [
     code: "AIEW3",
     name: "AI Empowerment Workshop Series 3.0",
     methodName: "AI Empowerment Method",
+    // tagline is the short paragraph shown on the cohort hero / Journey
+    // page. Lives on the program so adding a new program ships its own copy.
+    tagline:
+      "Eight workshops, eight belts. You'll move from your first prompts to running professional AI teams that get real work done. Bring real workplace projects to every session — you'll leave with real, deployed wins.",
+    // Program-level default session length. Sessions can still override
+    // individually via session.durationMinutes; cohorts can derive their
+    // calendar from this.
+    sessionDurationMinutes: 75,
     belts: AIEW3_BELTS,
     sessions: AIEW3_SESSIONS,
     get sessionsCount() { return AIEW3_SESSIONS.length; },
@@ -258,6 +270,9 @@ export const PROGRAMS = [
     code: "APFW",
     name: "AI Power Foundations Workshop",
     methodName: "AI Empowerment Method",
+    tagline:
+      "Ten focused sessions to take your team from curious to confident with AI. Build the foundations, ship real workflows, and walk away with a playbook you can run with on day one.",
+    sessionDurationMinutes: 75,
     belts: APFW_BELTS,
     sessions: APFW_SESSIONS,
     get sessionsCount() { return APFW_SESSIONS.length; },

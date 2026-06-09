@@ -468,7 +468,12 @@ function buildCohort(payload, { orgs, facilitators, program }) {
       organization: org,
       sequenceNumber: payload.sequenceNumber,
     }),
-    methodName: program?.methodName || payload.methodName || "AI Empowerment Method",
+    // methodName + programName are denormalized from the program at create
+    // time so cohort lists can display them without a join. The component
+    // tree still prefers the live program lookup; these are fallbacks for
+    // older cohorts or list-view contexts where reading the full program
+    // is overkill.
+    methodName: program?.methodName || payload.methodName || null,
     programCode: payload.programCode,
     programName: program?.name || null,
     organization: org,
