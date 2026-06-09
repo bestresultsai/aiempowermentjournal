@@ -11,6 +11,13 @@ import { getAllCohortsForAdmin } from "../../lib/cohortAdmin";
 import { LIMITS, isValidEmail } from "../../lib/inputValidation";
 import HeadshotUpload from "../../components/HeadshotUpload";
 import Select from "../../components/Select";
+import {
+  COUNTRY_OPTIONS,
+  getStateOptionsForCountry,
+  getTimeZoneForLocation,
+  formatLocation,
+} from "../../lib/locationToTimeZone";
+import { MapPin, Globe } from "lucide-react";
 
 // ---------------------------------------------------------------------------
 // /admin/users/new — unified user creation.
@@ -102,6 +109,16 @@ export default function AdminUserNew() {
   const [organization, setOrganization] = useState("");
   const [phone, setPhone] = useState("");
   const [headshotUrl, setHeadshotUrl] = useState("");
+  // Location (single mode only — bulk paste keeps it light).
+  const [country, setCountry] = useState("US");
+  const [stateCode, setStateCode] = useState("");
+  const [city, setCity] = useState("");
+  // Auto-derived from country + state.
+  const defaultTimeZone = useMemo(
+    () => getTimeZoneForLocation({ country, state: stateCode }),
+    [country, stateCode],
+  );
+  const stateOptions = useMemo(() => getStateOptionsForCountry(country), [country]);
 
   // Bulk-mode state
   const [bulkText, setBulkText] = useState("");
@@ -161,6 +178,8 @@ export default function AdminUserNew() {
         headshotUrl,
         capabilities: [...capabilities],
         cohortSlug: hasParticipant ? (cohortSlug || null) : null,
+        location: { country, state: stateCode, city },
+        defaultTimeZone,
       });
       if (result.errors.length) {
         setError(result.errors.join(" "));
@@ -308,6 +327,55 @@ export default function AdminUserNew() {
               onChange={setPhone}
               placeholder="(optional)"
             />
+          </div>
+        </section>
+        )}
+
+        {/* Location — single mode only. Drives default time zone for the user. */}
+        {mode === "one" && (
+        <section className="rounded-2xl bg-surface-card border border-soft p-5 space-y-4">
+          <div className="flex items-center gap-1.5">
+            <MapPin className="w-3.5 h-3.5 text-ink-muted" strokeWidth={2.5} />
+            <SectionTitle>Location</SectionTitle>
+          </div>
+          <p className="text-[12.5px] text-ink-muted -mt-2 leading-relaxed">
+            Used to set this user's default time zone for session reminders.
+          </p>
+          <div className="grid sm:grid-cols-2 gap-4">
+            <div>
+              <div className="text-[10.5px] font-heading font-semibold tracking-wider uppercase text-ink-muted mb-1.5">
+                Country
+              </div>
+              <Select
+                value={country}
+                onChange={(v) => {
+                  setCountry(v);
+                  setStateCode("");
+                }}
+                options={COUNTRY_OPTIONS}
+              />
+            </div>
+            <div>
+              <div className="text-[10.5px] font-heading font-semibold tracking-wider uppercase text-ink-muted mb-1.5">
+                {country === "CA" ? "Province" : "State"}
+              </div>
+              {stateOptions.length > 0 ? (
+                <Select
+                  value={stateCode}
+                  onChange={setStateCode}
+                  placeholder="— Pick one —"
+                  options={[{ value: "", label: "— Pick one —" }, ...stateOptions]}
+                />
+              ) : (
+                <Field label="" value={stateCode} onChange={setStateCode} placeholder="(Optional)" />
+              )}
+            </div>
+          </div>
+          <Field label="City" value={city} onChange={setCity} placeholder="Austin" />
+          <div className="rounded-xl border border-soft bg-surface-soft px-3 py-2 inline-flex items-center gap-2 text-[12px] text-ink-muted">
+            <Globe className="w-3.5 h-3.5" strokeWidth={2.5} />
+            Default time zone:
+            <span className="font-heading font-bold text-ink">{defaultTimeZone}</span>
           </div>
         </section>
         )}

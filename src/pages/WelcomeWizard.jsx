@@ -44,6 +44,13 @@ export default function WelcomeWizard() {
     headshotUrl: user?.headshotUrl || null,
     whyAi: user?.whyAi || "",
     mainGoal: user?.mainGoal || "",
+    // Location — drives default time zone for cohort reminders.
+    country: user?.location?.country || "US",
+    state: user?.location?.state || "",
+    city: user?.location?.city || "",
+    defaultTimeZone: user?.defaultTimeZone || "",
+    // True when the user has manually overridden the auto-derived time zone.
+    timeZoneOverride: !!user?.timeZoneOverride,
   });
 
   // True when the name field is currently showing an email-derived guess

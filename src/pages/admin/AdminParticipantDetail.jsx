@@ -3,8 +3,9 @@ import { Link, Navigate, useParams } from "react-router-dom";
 import {
   ArrowLeft, Mail, Building2, BookCheck, Check, Clock, GraduationCap,
   ExternalLink, NotebookPen, Sparkles, Lightbulb, Target, Lock, Save, Crown,
-  AlertTriangle, X, Download, MessageSquare, Paperclip, Zap, Camera,
+  AlertTriangle, X, Download, MessageSquare, Paperclip, Zap, Camera, MapPin, Globe,
 } from "lucide-react";
+import { formatLocation } from "../../lib/locationToTimeZone";
 import { useAuth } from "../../context/AuthContext";
 import { getAccessibleCohortSlugs } from "../../lib/adminRoles";
 import { getAllCohortsForAdmin } from "../../lib/cohortAdmin";
@@ -104,6 +105,18 @@ export default function AdminParticipantDetail() {
               <GraduationCap className="w-3.5 h-3.5" strokeWidth={2.25} />
               {cohort?.name || p.cohortSlug}
             </span>
+            {formatLocation(p.location || {}) && (
+              <span className="inline-flex items-center gap-1.5">
+                <MapPin className="w-3.5 h-3.5" strokeWidth={2.25} />
+                {formatLocation(p.location || {})}
+              </span>
+            )}
+            {p.defaultTimeZone && (
+              <span className="inline-flex items-center gap-1.5">
+                <Globe className="w-3.5 h-3.5" strokeWidth={2.25} />
+                {p.defaultTimeZone}
+              </span>
+            )}
           </div>
         </div>
       </header>

@@ -27,6 +27,14 @@ function getToken() {
 // Strip out anything the API doesn't care about (e.g. local-only preview keys)
 // and normalize trimmed strings.
 function sanitize(payload) {
+  // Location is grouped so it can travel as a single column / Notion property
+  // when we wire the live API. The empty-string defaults keep old payloads
+  // backward-compatible.
+  const location = {
+    country: (payload.country || "").trim(),
+    state: (payload.state || "").trim(),
+    city: (payload.city || "").trim(),
+  };
   return {
     name: (payload.name || "").trim(),
     title: (payload.title || "").trim(),
@@ -36,6 +44,9 @@ function sanitize(payload) {
     // headshotUrl carries the base64 data URL during the stub phase. Cloud
     // storage will replace this with a real https:// URL later.
     headshotUrl: payload.headshotUrl || null,
+    location,
+    defaultTimeZone: (payload.defaultTimeZone || "").trim(),
+    timeZoneOverride: !!payload.timeZoneOverride,
   };
 }
 
