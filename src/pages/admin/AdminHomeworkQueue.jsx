@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   BookCheck, ExternalLink, ArrowRight, ListChecks, Search, Paperclip,
-  Check, Clock, ChevronDown, ChevronUp, RotateCcw, Send, Loader2,
+  Check, Clock, ChevronDown, ChevronUp, RotateCcw, Send, Loader2, Eye,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { useScopeFilters } from "../../lib/useScopeFilters";
@@ -12,9 +12,12 @@ import {
   getHomeworkRows,
   markHomeworkReviewed,
   unmarkHomeworkReviewed,
+  getParticipantById,
 } from "../../lib/adminMockData";
 import ScopeFilterBar from "../../components/admin/ScopeFilterBar";
 import SelectChip from "../../components/admin/SelectChip";
+import Modal from "../../components/admin/Modal";
+import SubmissionDetail from "../../components/admin/SubmissionDetail";
 
 // ---------------------------------------------------------------------------
 // /admin/homework — homework queue with full review workflow.
@@ -51,6 +54,11 @@ export default function AdminHomeworkQueue() {
   const [q, setQ] = useState("");
   const [expandedKey, setExpandedKey] = useState(null);
   const [version, setVersion] = useState(0);
+  // Click-to-view modal for the full submission.
+  const [openRow, setOpenRow] = useState(null);
+  const openSession = openRow ? sessionByOrder[openRow.sessionOrder] : null;
+  const openBelt = openSession ? BELT_COLORS[openSession.belt] : null;
+  const openParticipant = openRow ? getParticipantById(openRow.participantId) : null;
 
   const rows = useMemo(() => {
     const all = getHomeworkRows(cohortSlugs, tab);
@@ -183,12 +191,30 @@ export default function AdminHomeworkQueue() {
                 reviewed={reviewed}
                 expanded={expandedKey === key}
                 onToggle={() => setExpandedKey(expandedKey === key ? null : key)}
+                onView={() => setOpenRow(row)}
                 onWrite={() => setVersion((v) => v + 1)}
               />
             );
           })}
         </div>
       )}
+
+      {/* Click-to-view modal — full submission inside an overlay. We pass
+          `showHomeworkQueueLink={false}` because we're already here, and the
+          participant context unlocks the "View participant profile" CTA. */}
+      <Modal open={!!openRow} onClose={() => setOpenRow(null)}>
+        {openRow && (
+          <SubmissionDetail
+            submission={openRow}
+            session={openSession}
+            belt={openBelt}
+            participantName={openRow.participantName}
+            participant={openParticipant}
+            showHomeworkQueueLink={false}
+            onClose={() => setOpenRow(null)}
+          />
+        )}
+      </Modal>
     </div>
   );
 }
@@ -196,7 +222,7 @@ export default function AdminHomeworkQueue() {
 // ---------------------------------------------------------------------------
 // SubmissionCard — collapsed view + expanded feedback form
 // ---------------------------------------------------------------------------
-function SubmissionCard({ row, session, belt, cohort, reviewed, expanded, onToggle, onWrite }) {
+function SubmissionCard({ row, session, belt, cohort, reviewed, expanded, onToggle, onView, onWrite }) {
   const [feedback, setFeedback] = useState(row.feedback || "");
   const [saving, setSaving] = useState(false);
 
@@ -305,6 +331,13 @@ function SubmissionCard({ row, session, belt, cohort, reviewed, expanded, onTogg
             )}
           </div>
           <div className="flex items-center gap-2">
+            <button
+              onClick={onView}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-heading font-semibold text-ink-muted hover:text-ink hover:bg-surface-soft transition-colors"
+            >
+              <Eye className="w-3.5 h-3.5" strokeWidth={2.5} />
+              View
+            </button>
             {reviewed ? (
               <button
                 onClick={handleReopen}
