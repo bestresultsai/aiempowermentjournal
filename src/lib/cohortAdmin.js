@@ -181,6 +181,7 @@ export function getFacilitatorScheduleByDay(cohortSlugs, daysAhead = 14, {
         cohortSlug: cohort.slug,
         cohortName: cohort.name,
         cohortShortName: cohort.organization?.shortName || cohort.programCode,
+        organizationName: cohort.organization?.name || "",
         programCode: cohort.programCode,
         belt: s.belt,
         sessionOrder: s.order,
@@ -189,6 +190,15 @@ export function getFacilitatorScheduleByDay(cohortSlugs, daysAhead = 14, {
         startMs,
         endMs: startMs + durationMinutes * 60 * 1000,
         zoomLink: s.zoomLink || cohort.zoomLink || cohort.trainer?.defaultZoomLink || "",
+        // Facilitator surfaces who's running the session — essential when
+        // super/admin views span multiple facilitators.
+        facilitator: cohort.trainer
+          ? {
+              name: cohort.trainer.name,
+              title: cohort.trainer.title || "Facilitator",
+              headshotUrl: cohort.trainer.headshotUrl || null,
+            }
+          : null,
         isUpcoming: startMs >= now,
       });
     }

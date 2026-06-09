@@ -129,6 +129,10 @@ export default function AdminCalendar() {
 function NextUpHero({ event, dayLabel, isToday }) {
   const belt = BELT_COLORS[event.belt];
   const startsIn = relativeFromNow(event.startMs);
+  const fac = event.facilitator;
+  const facInitials = fac
+    ? fac.name.split(" ").slice(0, 2).map((w) => w[0]).join("").toUpperCase()
+    : "";
   return (
     <section className="rounded-2xl bg-gradient-to-br from-brand-50 to-surface-card border border-brand-100 p-5 lg:p-6">
       <div className="flex items-start gap-4 flex-wrap">
@@ -149,18 +153,40 @@ function NextUpHero({ event, dayLabel, isToday }) {
             <Sparkles className="w-3 h-3" strokeWidth={3} />
             Next up · {startsIn}
           </div>
-          <h2 className="font-heading text-[20px] font-extrabold text-ink leading-tight">
-            {event.belt} Belt · Session {event.sessionOrder}
-          </h2>
-          <p className="text-[13.5px] text-ink-muted mt-1">
+          {/* Cohort name leads (most prominent) */}
+          <h2 className="font-heading text-[22px] font-extrabold text-ink leading-tight">
             {event.cohortName}
+          </h2>
+          {/* Session info — secondary */}
+          <p className="text-[13.5px] font-heading font-semibold text-ink-muted mt-1">
+            {event.belt} Belt · Session {event.sessionOrder}
           </p>
-          <div className="mt-3 flex items-center gap-3 flex-wrap text-[12.5px] text-ink-muted">
+          <div className="mt-3 flex items-center gap-x-3 gap-y-1.5 flex-wrap text-[12.5px] text-ink-muted">
             <span className="inline-flex items-center gap-1.5">
               <Clock className="w-3.5 h-3.5" strokeWidth={2.5} />
               {isToday ? "Today" : dayLabel} · {formatTime(event.startMs)}–{formatTime(event.endMs)}
             </span>
+            <span className="text-ink-subtle">·</span>
             <span className="text-ink-subtle">{event.durationMinutes} min</span>
+            {fac && (
+              <>
+                <span className="text-ink-subtle">·</span>
+                <span className="inline-flex items-center gap-1.5">
+                  {fac.headshotUrl ? (
+                    <img
+                      src={fac.headshotUrl}
+                      alt=""
+                      className="w-5 h-5 rounded-full object-cover"
+                    />
+                  ) : (
+                    <span className="w-5 h-5 rounded-full bg-brand-700 text-white inline-flex items-center justify-center text-[9px] font-heading font-bold">
+                      {facInitials}
+                    </span>
+                  )}
+                  <span className="font-heading font-semibold text-ink">{fac.name}</span>
+                </span>
+              </>
+            )}
           </div>
         </div>
         <div className="shrink-0 flex flex-col gap-2 w-full sm:w-auto">
@@ -226,6 +252,10 @@ function DayGroup({ day }) {
 // ---------------------------------------------------------------------------
 function EventRow({ event }) {
   const belt = BELT_COLORS[event.belt];
+  const fac = event.facilitator;
+  const facInitials = fac
+    ? fac.name.split(" ").slice(0, 2).map((w) => w[0]).join("").toUpperCase()
+    : "";
   return (
     <div className="rounded-2xl bg-surface-card border border-soft p-4 hover:border-brand-500 hover:shadow-card transition-all duration-200">
       <div className="flex items-center gap-3 flex-wrap">
@@ -239,7 +269,7 @@ function EventRow({ event }) {
           </div>
         </div>
 
-        {/* Belt chip */}
+        {/* Belt chip — session number, color-coded */}
         {belt && (
           <span
             style={{
@@ -253,16 +283,39 @@ function EventRow({ event }) {
           </span>
         )}
 
-        {/* Title + cohort */}
+        {/* Cohort name + session metadata + facilitator */}
         <Link
           to={`/admin/cohorts/${event.cohortSlug}`}
           className="flex-1 min-w-0 group"
         >
-          <div className="font-heading text-[13.5px] font-bold text-ink truncate group-hover:text-brand-700 transition-colors">
-            {event.belt} Belt · Session {event.sessionOrder}
-          </div>
-          <div className="text-[11.5px] text-ink-muted truncate">
+          {/* Primary: cohort name (bumped to 15px to lead) */}
+          <div className="font-heading text-[15px] font-extrabold text-ink truncate group-hover:text-brand-700 transition-colors">
             {event.cohortName}
+          </div>
+          {/* Secondary line: session info + facilitator */}
+          <div className="flex items-center gap-2 mt-0.5 text-[11.5px] text-ink-muted">
+            <span className="font-heading font-semibold">
+              {event.belt} Belt · Session {event.sessionOrder}
+            </span>
+            {fac && (
+              <>
+                <span className="text-ink-subtle">·</span>
+                <span className="inline-flex items-center gap-1.5 min-w-0">
+                  {fac.headshotUrl ? (
+                    <img
+                      src={fac.headshotUrl}
+                      alt=""
+                      className="w-4 h-4 rounded-full object-cover shrink-0"
+                    />
+                  ) : (
+                    <span className="w-4 h-4 rounded-full bg-brand-700 text-white inline-flex items-center justify-center text-[8px] font-heading font-bold shrink-0">
+                      {facInitials}
+                    </span>
+                  )}
+                  <span className="truncate">{fac.name}</span>
+                </span>
+              </>
+            )}
           </div>
         </Link>
 
