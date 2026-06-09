@@ -20,6 +20,7 @@ import AdminParticipantNew from "./pages/admin/AdminParticipantNew";
 import AdminOrgs from "./pages/admin/AdminOrgs";
 import AdminFacilitators from "./pages/admin/AdminFacilitators";
 import AdminUsers from "./pages/admin/AdminUsers";
+import AdminUserNew from "./pages/admin/AdminUserNew";
 import Home from "./pages/Home";
 import Login from "./pages/Login";
 import AuthVerify from "./pages/AuthVerify";
@@ -146,11 +147,12 @@ export default function App() {
               <Route path="participants" element={<AdminParticipants />} />
               <Route path="participants/new" element={<AdminParticipantNew />} />
               <Route path="participants/:id" element={<AdminParticipantDetail />} />
-              {/* Backward-compat redirects from the old /admin/users paths. */}
-              <Route path="users/new" element={<Navigate to="/admin/participants/new" replace />} />
+              {/* Backward-compat redirect from the old /admin/users/:id path
+                  (used to be the participant detail route). */}
               <Route path="users/:id" element={<NavigateParticipant />} />
-              {/* New cross-cutting Users directory (was "Super Admin"). */}
+              {/* Users — cross-cutting directory + unified user creation. */}
               <Route path="users" element={<AdminUsers />} />
+              <Route path="users/new" element={<AdminUserNew />} />
               <Route path="orgs" element={<AdminOrgs />} />
               <Route path="facilitators" element={<AdminFacilitators />} />
             </Route>

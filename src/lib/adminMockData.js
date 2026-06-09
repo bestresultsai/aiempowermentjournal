@@ -410,6 +410,80 @@ export function addParticipantsToCohort(cohortSlug, payloads) {
   return { added, skipped };
 }
 
+// ---------------------------------------------------------------------------
+// createStandaloneUser — unified entry point for the /admin/users/new flow.
+//
+// "Users" is the parent concept on the platform. Every other role —
+// Participant, Cohort Leader, Facilitator, Org Admin, Admin, Super Admin —
+// is just a capability layered on top of the user record.
+//
+// Implementation today (demo): every user is stored as a standalone
+// participant (cohortSlug = null) carrying the capabilities[] list. Roles
+// like "facilitator" or "org" don't require a separate record for the demo —
+// AdminUsers reads capabilities directly from each participant record.
+//
+// payload: {
+//   name, email, title, organization, phone, headshotUrl,
+//   capabilities: string[]   // e.g. ["admin"], ["facilitator","admin"]
+//   cohortSlug: string|null  // only used when "participant" capability is set
+// }
+//
+// Returns { user, errors[] } — errors is non-empty on validation failure.
+// ---------------------------------------------------------------------------
+export function createStandaloneUser(payload) {
+  const errors = [];
+  const name = (payload.name || "").trim();
+  const email = (payload.email || "").trim().toLowerCase();
+  const caps = Array.isArray(payload.capabilities) ? payload.capabilities : [];
+
+  if (!email) errors.push("Email is required.");
+  if (!name) errors.push("Name is required.");
+  if (!caps.length) errors.push("Pick at least one role.");
+
+  // Duplicate check — if this email is already on the platform (as a
+  // standalone participant, or unassigned), refuse to create another.
+  const existing = ADMIN_MOCK_PARTICIPANTS.find(
+    (p) => p.email?.toLowerCase() === email,
+  );
+  if (existing) errors.push(`A user with ${email} already exists.`);
+
+  if (errors.length) return { user: null, errors };
+
+  // "participant" and "cohort-leader" are derived from the record itself
+  // (cohortSlug present + isCohortLead boolean), so we strip them from the
+  // stored capabilities[] to avoid double-storage.
+  const isParticipant = caps.includes("participant");
+  const isLeader = caps.includes("cohort-leader");
+  const storedCaps = caps.filter((c) => c !== "participant" && c !== "cohort-leader");
+
+  const cohortSlug = isParticipant ? (payload.cohortSlug || null) : null;
+  const idSeed = cohortSlug || "user";
+  const id = `user-${idSeed}-${email.replace(/[^a-z0-9]/g, "-").slice(0, 32)}-${Date.now().toString(36).slice(-4)}`;
+
+  const user = {
+    id,
+    name,
+    email,
+    title: (payload.title || "").trim(),
+    organization: (payload.organization || "").trim(),
+    phone: (payload.phone || "").trim(),
+    headshotUrl: (payload.headshotUrl || "").trim() || null,
+    isCohortLead: isLeader,
+    capabilities: storedCaps,
+    cohortSlug,
+    whyAi: "",
+    mainGoal: "",
+    progress: [],
+    lastJournalDaysAgo: 999,
+    submissions: {},
+    journalEntries: [],
+  };
+  ADMIN_MOCK_PARTICIPANTS.push(user);
+  const stored = loadAddedParticipants();
+  persistAddedParticipants([...stored, user]);
+  return { user, errors: [] };
+}
+
 // Bulk-assign existing participants to a cohort. Useful for moving standalone
 // participants into a cohort, or migrating across cohorts.
 export function assignParticipantsToCohort(participantIds, cohortSlug) {

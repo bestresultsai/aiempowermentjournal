@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { Link, Navigate, useNavigate } from "react-router-dom";
 import {
   Shield, Building2, GraduationCap, Users, NotebookPen, Database, BarChart3,
-  Crown, ArrowRight, Download, CheckSquare, Square, X,
+  Crown, ArrowRight, Download, CheckSquare, Square, X, UserPlus,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { canAssignRoles, canManageRoles, getRoleLabel, userCapabilities } from "../../lib/adminRoles";
@@ -271,6 +271,13 @@ export default function AdminUsers() {
             Every known user on the platform — participants, facilitators, leaders, admins. Filter by role, drill into a profile, or run bulk actions.
           </p>
         </div>
+        <Link
+          to="/admin/users/new"
+          className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-emerald-600 text-white text-[13px] font-heading font-bold hover:bg-emerald-700 transition-colors shrink-0"
+        >
+          <UserPlus className="w-4 h-4" strokeWidth={2.5} />
+          New user
+        </Link>
       </header>
 
       {/* Stats grid (no Hours saved tile) */}

@@ -82,11 +82,11 @@ export default function AdminLayout() {
                 New cohort
               </Link>
               <Link
-                to="/admin/participants/new"
+                to="/admin/users/new"
                 className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-[13.5px] font-heading font-bold transition-all duration-200 bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/25 hover:text-emerald-200 hover:border-emerald-400/40"
               >
                 <Plus className="w-4 h-4" strokeWidth={3} />
-                New participant
+                New user
               </Link>
             </div>
           )}
