@@ -3,6 +3,7 @@ import { Link, Navigate, useParams } from "react-router-dom";
 import {
   ArrowLeft, GraduationCap, BookCheck, NotebookPen, Sparkles, Clock, Users,
   ChevronUp, ChevronDown, Download, Target, Pencil, UserPlus, Crown, Mail,
+  Calendar as CalendarIcon, Video,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { getAccessibleCohorts, canEditCohort } from "../../lib/adminRoles";
@@ -11,7 +12,7 @@ import {
   getParticipantsForCohort, getCohortJournalStats,
   totalTimeSaved, formatMinutes,
 } from "../../lib/adminMockData";
-import { getAllCohortsForAdmin } from "../../lib/cohortAdmin";
+import { getAllCohortsForAdmin, getSessionsForCohort } from "../../lib/cohortAdmin";
 import { downloadCSV } from "../../lib/csvExport";
 
 // /admin/cohorts/:slug — roster of participants in a single cohort.
@@ -36,6 +37,9 @@ export default function AdminCohortRoster() {
   const rosterRaw = cohort ? getParticipantsForCohort(slug) : [];
   const totalSessions = MOCK_SESSIONS.length;
   const journal = cohort ? getCohortJournalStats(slug) : { totalEntries: 0, totalMinutesSaved: 0 };
+  // Schedule summary — derives meeting day/time + start/end from session dates.
+  const sessions = cohort ? getSessionsForCohort(slug) : [];
+  const schedule = useMemo(() => buildScheduleSummary(sessions, cohort?.timeZone), [sessions, cohort?.timeZone]);
 
   // Apply sort.
   const roster = useMemo(() => {
@@ -147,6 +151,13 @@ export default function AdminCohortRoster() {
           </button>
         </div>
       </header>
+
+      {/* Facilitator + Meeting schedule — at the top so anyone landing on
+          this page immediately knows WHO runs the cohort and WHEN it meets. */}
+      <section className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <FacilitatorCard facilitator={cohort.facilitator || cohort.trainer} />
+        <MeetingScheduleCard schedule={schedule} timeZone={cohort.timeZone} />
+      </section>
 
       {/* Cohort leader — when one is set among the roster, surface them
           here so admins always know who the customer-side champion is. */}
@@ -323,6 +334,148 @@ function CohortJournalStat({ icon: Icon, label, value, sub }) {
       {sub && <div className="text-[10.5px] text-emerald-700/70 mt-0.5">{sub}</div>}
     </div>
   );
+}
+
+// ---------------------------------------------------------------------------
+// FacilitatorCard — surfaces who runs this cohort. Matches the "leader card"
+// visual rhythm so the two side-by-side cards feel intentional.
+// ---------------------------------------------------------------------------
+function FacilitatorCard({ facilitator }) {
+  if (!facilitator) {
+    return (
+      <div className="rounded-2xl bg-surface-card border border-dashed border-soft p-4 flex items-center gap-3">
+        <div className="w-11 h-11 rounded-full bg-ink/5 text-ink-subtle flex items-center justify-center shrink-0">
+          <GraduationCap className="w-5 h-5" strokeWidth={2.25} />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="text-[10.5px] font-heading font-bold uppercase tracking-wider text-ink-subtle">
+            Facilitator
+          </div>
+          <div className="text-[12.5px] text-ink-muted mt-0.5">
+            None assigned. Edit the cohort to set a facilitator.
+          </div>
+        </div>
+      </div>
+    );
+  }
+  const initials = facilitator.name.split(" ").slice(0, 2).map((w) => w[0]).join("").toUpperCase();
+  return (
+    <div className="rounded-2xl bg-gradient-to-r from-brand-50/60 to-surface-card border border-brand-100 p-4 flex items-center gap-3 flex-wrap">
+      {facilitator.headshotUrl ? (
+        <img
+          src={facilitator.headshotUrl}
+          alt=""
+          className="w-11 h-11 rounded-full object-cover shrink-0"
+        />
+      ) : (
+        <div className="w-11 h-11 rounded-full bg-brand-100 text-brand-700 flex items-center justify-center font-heading font-extrabold text-[14px] shrink-0">
+          {initials}
+        </div>
+      )}
+      <div className="flex-1 min-w-[160px]">
+        <div className="inline-flex items-center gap-1.5 text-[10.5px] font-heading font-bold uppercase tracking-wider text-brand-700">
+          <GraduationCap className="w-3 h-3" strokeWidth={2.5} />
+          Facilitator
+        </div>
+        <div className="font-heading text-[15px] font-extrabold text-ink mt-0.5">
+          {facilitator.name}
+        </div>
+        {facilitator.title && (
+          <div className="text-[11.5px] text-ink-muted">{facilitator.title}</div>
+        )}
+      </div>
+      {facilitator.email && (
+        <a
+          href={`mailto:${facilitator.email}`}
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white border border-brand-100 text-[12px] font-heading font-semibold text-brand-700 hover:bg-brand-50 transition-colors shrink-0"
+        >
+          <Mail className="w-3.5 h-3.5" strokeWidth={2.5} />
+          Email
+        </a>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// MeetingScheduleCard — "Meets every Wednesday at 12:00 PM" + start + end.
+// ---------------------------------------------------------------------------
+function MeetingScheduleCard({ schedule, timeZone }) {
+  if (!schedule) {
+    return (
+      <div className="rounded-2xl bg-surface-card border border-dashed border-soft p-4 flex items-center gap-3">
+        <div className="w-11 h-11 rounded-xl bg-ink/5 text-ink-subtle flex items-center justify-center shrink-0">
+          <CalendarIcon className="w-5 h-5" strokeWidth={2.25} />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="text-[10.5px] font-heading font-bold uppercase tracking-wider text-ink-subtle">
+            Meeting schedule
+          </div>
+          <div className="text-[12.5px] text-ink-muted mt-0.5">
+            Sessions not scheduled yet.
+          </div>
+        </div>
+      </div>
+    );
+  }
+  const tzLabel = timeZone ? timeZone.split("/").pop().replace("_", " ") : "";
+  return (
+    <div className="rounded-2xl bg-gradient-to-r from-emerald-50/60 to-surface-card border border-emerald-100 p-4 flex items-start gap-3 flex-wrap">
+      <div className="w-11 h-11 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
+        <CalendarIcon className="w-5 h-5" strokeWidth={2.25} />
+      </div>
+      <div className="flex-1 min-w-[160px]">
+        <div className="inline-flex items-center gap-1.5 text-[10.5px] font-heading font-bold uppercase tracking-wider text-emerald-700">
+          <Video className="w-3 h-3" strokeWidth={2.5} />
+          Meeting schedule
+        </div>
+        <div className="font-heading text-[15px] font-extrabold text-ink mt-0.5">
+          {schedule.cadence === "weekly"
+            ? `Meets every ${schedule.weekday} at ${schedule.time}`
+            : `${schedule.cadence === "biweekly" ? "Every other " : "Every "}${schedule.weekday} at ${schedule.time}`}
+        </div>
+        <div className="text-[11.5px] text-ink-muted mt-1">
+          {schedule.startLabel} – {schedule.endLabel}
+          {tzLabel && <span className="text-ink-subtle"> · {tzLabel}</span>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Builds a compact meeting-schedule summary from session date strings.
+// Pure helper — no hooks, deterministic given the same input.
+function buildScheduleSummary(sessions) {
+  if (!Array.isArray(sessions) || sessions.length === 0) return null;
+  const dated = sessions.filter((s) => s.date).slice().sort(
+    (a, b) => new Date(a.date) - new Date(b.date),
+  );
+  if (dated.length === 0) return null;
+  const first = new Date(dated[0].date);
+  const last = new Date(dated[dated.length - 1].date);
+
+  // Cadence = average gap between consecutive sessions in days.
+  let cadence = "weekly";
+  if (dated.length >= 2) {
+    const gaps = [];
+    for (let i = 1; i < dated.length; i++) {
+      gaps.push(
+        (new Date(dated[i].date) - new Date(dated[i - 1].date)) / (1000 * 60 * 60 * 24),
+      );
+    }
+    const avg = gaps.reduce((s, g) => s + g, 0) / gaps.length;
+    if (avg > 10 && avg < 20) cadence = "biweekly";
+    else if (avg >= 20) cadence = "monthly";
+    else cadence = "weekly";
+  }
+
+  return {
+    weekday: first.toLocaleDateString("en-US", { weekday: "long" }),
+    time: first.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }),
+    startLabel: first.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
+    endLabel: last.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
+    cadence,
+  };
 }
 
 function CohortLeaderCard({ leader }) {

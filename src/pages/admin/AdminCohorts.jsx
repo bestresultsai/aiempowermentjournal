@@ -8,7 +8,7 @@ import { useScopeFilters } from "../../lib/useScopeFilters";
 import { canCreateCohorts } from "../../lib/adminRoles";
 import { MOCK_SESSIONS, BELT_COLORS } from "../../lib/mockCohort";
 import { getParticipantsForCohort } from "../../lib/adminMockData";
-import { getAllCohortsForAdmin } from "../../lib/cohortAdmin";
+import { getAllCohortsForAdmin, getSessionsForCohort } from "../../lib/cohortAdmin";
 import PipelineView, { stageForDelivered } from "../../components/admin/PipelineView";
 import ScopeFilterBar from "../../components/admin/ScopeFilterBar";
 
@@ -49,6 +49,16 @@ function formatDate(iso) {
   return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
+// Includes year — used for the start → end range on each cohort card so the
+// timeline is unambiguous across cohorts that span multiple years.
+function formatFullDate(ms) {
+  return new Date(ms).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
 export default function AdminCohorts() {
   const { user } = useAuth();
   // Merge user-created cohorts (from localStorage) with the base list so newly
@@ -70,6 +80,15 @@ export default function AdminCohorts() {
               MOCK_SESSIONS.length *
               100,
           );
+    // Pull start + end from the cohort's actual session dates.
+    const sessions = getSessionsForCohort(c.slug);
+    const dated = sessions
+      .filter((s) => s.date)
+      .map((s) => new Date(s.date).getTime())
+      .filter((ms) => !Number.isNaN(ms))
+      .sort((a, b) => a - b);
+    const startMs = dated[0] || null;
+    const endMs = dated[dated.length - 1] || null;
     return {
       cohort: c,
       participants: roster.length,
@@ -78,6 +97,8 @@ export default function AdminCohorts() {
       last: delivery.last,
       next: delivery.next,
       stage: stageForDelivered(delivery.delivered),
+      startMs,
+      endMs,
     };
   });
 
@@ -147,7 +168,7 @@ export default function AdminCohorts() {
           All cohorts
         </h2>
         <div className="rounded-2xl bg-surface-card border border-soft overflow-hidden">
-          {rows.map(({ cohort: c, participants, avgProgress, delivered, last, next, stage }) => {
+          {rows.map(({ cohort: c, participants, avgProgress, delivered, last, next, stage, startMs, endMs }) => {
             const stageCfg = stageMeta[stage];
             return (
               <Link
@@ -182,6 +203,18 @@ export default function AdminCohorts() {
                     <div className="text-[11.5px] text-ink-muted truncate">
                       {c.methodName} · {c.programCode}
                     </div>
+
+                    {/* Date range — start → end of the cohort */}
+                    {startMs && endMs && (
+                      <div className="mt-2 inline-flex items-center gap-1.5 text-[11.5px] font-heading text-ink-muted">
+                        <Calendar className="w-3 h-3 text-brand-600" strokeWidth={2.5} />
+                        <span>
+                          <span className="font-semibold text-ink">{formatFullDate(startMs)}</span>
+                          <span className="text-ink-subtle mx-1.5">→</span>
+                          <span className="font-semibold text-ink">{formatFullDate(endMs)}</span>
+                        </span>
+                      </div>
+                    )}
 
                     {/* Sessions row */}
                     <div className="mt-3 flex items-center gap-5 flex-wrap text-[11.5px] font-heading">

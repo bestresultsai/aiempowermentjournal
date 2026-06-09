@@ -189,16 +189,26 @@ export function getFacilitatorScheduleByDay(cohortSlugs, daysAhead = 14, {
         durationMinutes,
         startMs,
         endMs: startMs + durationMinutes * 60 * 1000,
-        zoomLink: s.zoomLink || cohort.zoomLink || cohort.trainer?.defaultZoomLink || "",
+        zoomLink:
+          s.zoomLink ||
+          cohort.zoomLink ||
+          cohort.facilitator?.defaultZoomLink ||
+          cohort.trainer?.defaultZoomLink ||
+          "",
         // Facilitator surfaces who's running the session — essential when
-        // super/admin views span multiple facilitators.
-        facilitator: cohort.trainer
-          ? {
-              name: cohort.trainer.name,
-              title: cohort.trainer.title || "Facilitator",
-              headshotUrl: cohort.trainer.headshotUrl || null,
-            }
-          : null,
+        // super/admin views span multiple facilitators. Cohorts created via
+        // the admin form use `cohort.facilitator`; legacy mockCohort entries
+        // use `cohort.trainer`. Fall through so both shapes render.
+        facilitator: (() => {
+          const f = cohort.facilitator || cohort.trainer;
+          if (!f) return null;
+          return {
+            name: f.name,
+            title: f.title || "Facilitator",
+            email: f.email || null,
+            headshotUrl: f.headshotUrl || null,
+          };
+        })(),
         isUpcoming: startMs >= now,
       });
     }
