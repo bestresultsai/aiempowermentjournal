@@ -1,11 +1,15 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Link, Navigate } from "react-router-dom";
 import {
   Crown, Sparkles, Users, BookCheck, GraduationCap,
   Calendar, ExternalLink, Trophy, AlertTriangle, Zap, BarChart3,
+  NotebookPen, ChevronRight, Paperclip, MessageSquare,
 } from "lucide-react";
 import NavBar from "../../components/NavBar";
 import EngagementDonut from "../../components/admin/EngagementDonut";
+import Modal, { ModalHeader } from "../../components/admin/Modal";
+import JournalEntryDetail from "../../components/admin/JournalEntryDetail";
+import SubmissionDetail from "../../components/admin/SubmissionDetail";
 import { useCohortLeader } from "../../hooks/useCohortLeader";
 import { getAllCohortsForAdmin } from "../../lib/cohortAdmin";
 import {
@@ -17,7 +21,9 @@ import {
   getParticipantCurrentSession,
   getParticipantJournalStat,
   getJournalEntriesForParticipant,
+  getSubmissionsForParticipant,
   getProductionMethodMix,
+  timeSavedFor,
 } from "../../lib/adminMockData";
 import { MOCK_SESSIONS, BELT_COLORS } from "../../lib/mockCohort";
 import { getSessionsCountForCohort } from "../../lib/programs";
@@ -26,19 +32,23 @@ import { leveragePerWeek } from "../../lib/journalConstants";
 // ---------------------------------------------------------------------------
 // /leader/cohort — Cohort Leader Dashboard.
 //
-// A read-only, AGGREGATE view of the leader's cohort. The leader can see:
-//   - Cohort identity (program, facilitator)
-//   - Roster: names + progress %, last journaling activity. NOT the entries.
-//   - Cohort KPIs: homework completion %, hours saved, active journalers
-//   - Upcoming sessions
+// The Cohort Leader is the participant representing the customer org for
+// this cohort. Their purpose: see ROI on the org's investment by watching
+// every teammate's engagement and the impact (via AI Journal entries) the
+// program is delivering.
 //
-// They CANNOT see:
-//   - Individual journal entry content
-//   - Individual homework responses
-//   - Facilitator feedback
-//   - Private facilitator notes
+// They CAN:
+//   - See the full roster + per-participant engagement
+//   - Open any participant to read all their AI Journal entries
+//   - Open any participant to read all their homework submissions
+//   - See aggregate cohort KPIs (hours saved, completion %, leverage)
 //
-// A "Private to leader" banner reinforces what's visible and what's not.
+// They CANNOT:
+//   - Grade homework or write facilitator feedback
+//   - See private facilitator notes
+//   - Manage cohort settings, schedule, or participants
+//
+// Read-only by design — observation, not action.
 // ---------------------------------------------------------------------------
 export default function CohortLeaderDashboard() {
   const { isLeader, participant, cohortSlug } = useCohortLeader();
@@ -59,9 +69,19 @@ export default function CohortLeaderDashboard() {
     [cohortSlug],
   );
 
+  // Drill-in modal stack — open a participant detail modal, then nested
+  // detail modals for individual journal entries / homework submissions.
+  const [openParticipantId, setOpenParticipantId] = useState(null);
+  const [openEntry, setOpenEntry] = useState(null);
+  const [openSubmission, setOpenSubmission] = useState(null);
+
   if (!isLeader || !participant || !cohort) {
     return <Navigate to="/home" replace />;
   }
+
+  const openParticipant = openParticipantId
+    ? roster.find((p) => p.id === openParticipantId)
+    : null;
 
   // --- Aggregate KPIs --------------------------------------------------------
   const rosterCount = roster.length;
@@ -202,7 +222,12 @@ export default function CohortLeaderDashboard() {
                 <div className="col-span-2 text-right">Last journal</div>
               </div>
               {roster.map((p) => (
-                <RosterRow key={p.id} participant={p} totalSessions={programSessionsCount} />
+                <RosterRow
+                  key={p.id}
+                  participant={p}
+                  totalSessions={programSessionsCount}
+                  onOpen={() => setOpenParticipantId(p.id)}
+                />
               ))}
             </div>
           </div>
@@ -219,7 +244,219 @@ export default function CohortLeaderDashboard() {
           </div>
         </section>
       </main>
+
+      {/* Participant drill-in modal — open from a roster row. */}
+      <Modal open={!!openParticipant} onClose={() => setOpenParticipantId(null)}>
+        {openParticipant && (
+          <ParticipantDrillContent
+            participant={openParticipant}
+            totalSessions={programSessionsCount}
+            onClose={() => setOpenParticipantId(null)}
+            onOpenEntry={(e) => setOpenEntry(e)}
+            onOpenSubmission={(s) => setOpenSubmission(s)}
+          />
+        )}
+      </Modal>
+
+      {/* Nested: journal entry detail. */}
+      <Modal open={!!openEntry} onClose={() => setOpenEntry(null)}>
+        {openEntry && (
+          <JournalEntryDetail
+            entry={openEntry}
+            participant={openParticipant}
+            onClose={() => setOpenEntry(null)}
+          />
+        )}
+      </Modal>
+
+      {/* Nested: homework submission detail.
+          SubmissionDetail is read-only on its own — grading actions live on
+          /admin/homework, not inside this component. We just suppress the
+          "View in homework queue" link the leader doesn't have access to. */}
+      <Modal open={!!openSubmission} onClose={() => setOpenSubmission(null)}>
+        {openSubmission && (
+          <SubmissionDetail
+            submission={openSubmission}
+            session={MOCK_SESSIONS.find((m) => m.order === openSubmission.sessionOrder)}
+            belt={(() => {
+              const s = MOCK_SESSIONS.find((m) => m.order === openSubmission.sessionOrder);
+              return s ? BELT_COLORS[s.belt] : null;
+            })()}
+            participantName={openParticipant?.name}
+            participant={openParticipant}
+            showHomeworkQueueLink={false}
+            onClose={() => setOpenSubmission(null)}
+          />
+        )}
+      </Modal>
     </>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// ParticipantDrillContent — read-only summary of a single participant for
+// the Cohort Leader. Lists every AI Journal entry + every homework
+// submission. Each row is clickable to open the full-detail modal.
+// ---------------------------------------------------------------------------
+function ParticipantDrillContent({ participant, totalSessions, onClose, onOpenEntry, onOpenSubmission }) {
+  const entries = getJournalEntriesForParticipant(participant.id)
+    .slice()
+    .sort((a, b) => new Date(b.date) - new Date(a.date));
+  const submissions = getSubmissionsForParticipant(participant.id)
+    .slice()
+    .sort((a, b) => (b.sessionOrder || 0) - (a.sessionOrder || 0));
+  const hwStats = getParticipantHomeworkStats(participant);
+  const completed = participant.progress?.length || 0;
+  const progressPct = Math.round((completed / totalSessions) * 100);
+  const totalMinutesSaved = entries.reduce((sum, e) => sum + timeSavedFor(e), 0);
+
+  return (
+    <>
+      <ModalHeader
+        eyebrow={participant.title || participant.email}
+        title={participant.name}
+        onClose={onClose}
+      />
+      <div className="p-6 space-y-6">
+      {/* Top stats */}
+      <section className="grid grid-cols-3 gap-3">
+        <MiniStat icon={GraduationCap} label="Journey" value={`${progressPct}%`} sub={`${completed}/${totalSessions}`} />
+        <MiniStat icon={BookCheck} label="Homework" value={`${hwStats.submitted}/${completed}`} sub="submitted" />
+        <MiniStat icon={Zap} label="Time saved" value={formatMinutes(totalMinutesSaved)} sub={`${entries.length} ${entries.length === 1 ? "entry" : "entries"}`} />
+      </section>
+
+      {/* Onboarding context — what they told us about why they're here */}
+      {(participant.whyAi || participant.mainGoal) && (
+        <section className="rounded-2xl bg-brand-50/60 border border-brand-100 p-4 space-y-3">
+          <div className="text-[10.5px] font-heading font-bold uppercase tracking-wider text-brand-700">
+            Why they're here
+          </div>
+          {participant.whyAi && (
+            <div className="text-[12.5px] text-ink leading-relaxed">
+              {participant.whyAi}
+            </div>
+          )}
+          {participant.mainGoal && (
+            <div className="text-[12.5px] text-ink leading-relaxed">
+              <span className="font-heading font-bold text-brand-700">Main goal: </span>
+              {participant.mainGoal}
+            </div>
+          )}
+        </section>
+      )}
+
+      {/* AI Journal entries */}
+      <section>
+        <div className="flex items-center gap-1.5 mb-2">
+          <NotebookPen className="w-4 h-4 text-brand-700" strokeWidth={2.5} />
+          <h3 className="font-heading text-[14px] font-extrabold text-ink">
+            AI Journal entries · {entries.length}
+          </h3>
+        </div>
+        {entries.length === 0 ? (
+          <div className="rounded-xl bg-surface-soft border border-soft px-3 py-4 text-[12.5px] text-ink-muted">
+            No entries yet.
+          </div>
+        ) : (
+          <div className="space-y-1.5">
+            {entries.map((e) => (
+              <button
+                key={e.id || e.date + e.title}
+                type="button"
+                onClick={() => onOpenEntry(e)}
+                className="w-full text-left rounded-xl border border-soft bg-white hover:bg-surface-soft/60 hover:border-ink/20 px-3 py-2.5 transition-colors flex items-start gap-2 group"
+              >
+                <div className="flex-1 min-w-0">
+                  <div className="font-heading font-bold text-[12.5px] text-ink truncate">{e.title}</div>
+                  <div className="text-[11.5px] text-ink-muted truncate mt-0.5">
+                    {e.description || "No description"}
+                  </div>
+                  <div className="text-[10.5px] text-ink-subtle mt-1 inline-flex items-center gap-2.5">
+                    <span>{dayLabel(e.date)}</span>
+                    <span>·</span>
+                    <span>{formatMinutes(timeSavedFor(e))} saved</span>
+                  </div>
+                </div>
+                <ChevronRight className="w-3.5 h-3.5 text-ink-muted shrink-0 mt-1 group-hover:text-ink" strokeWidth={2.5} />
+              </button>
+            ))}
+          </div>
+        )}
+      </section>
+
+      {/* Homework submissions */}
+      <section>
+        <div className="flex items-center gap-1.5 mb-2">
+          <BookCheck className="w-4 h-4 text-emerald-700" strokeWidth={2.5} />
+          <h3 className="font-heading text-[14px] font-extrabold text-ink">
+            Homework submissions · {submissions.length}
+          </h3>
+        </div>
+        {submissions.length === 0 ? (
+          <div className="rounded-xl bg-surface-soft border border-soft px-3 py-4 text-[12.5px] text-ink-muted">
+            No submissions yet.
+          </div>
+        ) : (
+          <div className="space-y-1.5">
+            {submissions.map((s) => {
+              const session = MOCK_SESSIONS.find((m) => m.order === s.sessionOrder);
+              return (
+                <button
+                  key={s.sessionOrder}
+                  type="button"
+                  onClick={() => onOpenSubmission(s)}
+                  className="w-full text-left rounded-xl border border-soft bg-white hover:bg-surface-soft/60 hover:border-ink/20 px-3 py-2.5 transition-colors flex items-start gap-2 group"
+                >
+                  <div className="w-9 h-9 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center font-heading font-extrabold text-[12px] shrink-0">
+                    {s.sessionOrder}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="font-heading font-bold text-[12.5px] text-ink truncate">
+                      {session?.title || `Session ${s.sessionOrder}`}
+                    </div>
+                    <div className="text-[11.5px] text-ink-muted line-clamp-2 mt-0.5">
+                      {s.response || <em>No written response</em>}
+                    </div>
+                    <div className="text-[10.5px] text-ink-subtle mt-1 inline-flex items-center gap-2.5 flex-wrap">
+                      {s.submittedAt && <span>{dayLabel(s.submittedAt)}</span>}
+                      {s.attachment && (
+                        <span className="inline-flex items-center gap-1">
+                          <Paperclip className="w-2.5 h-2.5" strokeWidth={2.5} />
+                          {s.attachment.name || "Attachment"}
+                        </span>
+                      )}
+                      {s.feedback && (
+                        <span className="inline-flex items-center gap-1 text-brand-700">
+                          <MessageSquare className="w-2.5 h-2.5" strokeWidth={2.5} />
+                          Facilitator feedback
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <ChevronRight className="w-3.5 h-3.5 text-ink-muted shrink-0 mt-1 group-hover:text-ink" strokeWidth={2.5} />
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </section>
+      </div>
+    </>
+  );
+}
+
+function MiniStat({ icon: Icon, label, value, sub }) {
+  return (
+    <div className="rounded-xl bg-surface-card border border-soft p-3">
+      <div className="flex items-center gap-1.5 text-[10.5px] font-heading font-bold uppercase tracking-wider text-ink-muted">
+        <Icon className="w-3 h-3" strokeWidth={2.5} />
+        {label}
+      </div>
+      <div className="font-heading text-[18px] font-extrabold text-ink mt-1 leading-none">
+        {value}
+      </div>
+      {sub && <div className="text-[11px] text-ink-muted mt-0.5">{sub}</div>}
+    </div>
   );
 }
 
@@ -254,7 +491,7 @@ function KpiCard({ icon: Icon, label, value, sub, color = "brand" }) {
 // ---------------------------------------------------------------------------
 // RosterRow — one participant row. NO journal entry content.
 // ---------------------------------------------------------------------------
-function RosterRow({ participant, totalSessions }) {
+function RosterRow({ participant, totalSessions, onOpen }) {
   const current = getParticipantCurrentSession(participant);
   const completed = participant.progress?.length || 0;
   const progressPct = Math.round((completed / totalSessions) * 100);
@@ -267,7 +504,11 @@ function RosterRow({ participant, totalSessions }) {
   const belt = current ? BELT_COLORS[current.belt] : null;
 
   return (
-    <div className="grid grid-cols-12 gap-3 items-center px-4 py-3 border-t border-soft">
+    <button
+      type="button"
+      onClick={onOpen}
+      className="w-full text-left grid grid-cols-12 gap-3 items-center px-4 py-3 border-t border-soft hover:bg-surface-soft/60 transition-colors cursor-pointer"
+    >
       <div className="col-span-5 flex items-center gap-2.5 min-w-0">
         <div className="w-9 h-9 rounded-full bg-brand-700/10 text-brand-700 flex items-center justify-center text-[11px] font-heading font-bold shrink-0">
           {initials}
@@ -334,7 +575,7 @@ function RosterRow({ participant, totalSessions }) {
           </div>
         )}
       </div>
-    </div>
+    </button>
   );
 }
 
