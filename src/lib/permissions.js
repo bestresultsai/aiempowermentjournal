@@ -244,6 +244,71 @@ export function isPermissionGrantedByRole(user, key) {
 }
 
 // ---------------------------------------------------------------------------
+// Role default mutators + persistence.
+//
+// Role defaults are seeded above but can be edited live from the Permissions
+// admin page. Edits persist to localStorage and are re-applied to
+// ROLE_DEFAULTS on subsequent loads via hydrateRoleDefaults() below.
+//
+// Behavior changes here affect EVERY user with that role (unlike per-user
+// overrides). The UI surfaces an explicit warning.
+// ---------------------------------------------------------------------------
+
+const ROLE_DEFAULTS_STORAGE_KEY = "brai_role_defaults_v1";
+
+export function setRoleDefault(roleKey, permissionKey, granted) {
+  if (!ROLE_DEFAULTS[roleKey]) ROLE_DEFAULTS[roleKey] = new Set();
+  if (granted) {
+    ROLE_DEFAULTS[roleKey].add(permissionKey);
+  } else {
+    ROLE_DEFAULTS[roleKey].delete(permissionKey);
+  }
+  persistRoleDefaults();
+}
+
+function persistRoleDefaults() {
+  if (typeof window === "undefined") return;
+  const serializable = {};
+  for (const [role, set] of Object.entries(ROLE_DEFAULTS)) {
+    serializable[role] = [...set];
+  }
+  try {
+    window.localStorage.setItem(
+      ROLE_DEFAULTS_STORAGE_KEY,
+      JSON.stringify(serializable),
+    );
+  } catch {
+    // localStorage quota or private-mode — silently ignore.
+  }
+}
+
+function hydrateRoleDefaults() {
+  if (typeof window === "undefined") return;
+  let raw;
+  try {
+    raw = window.localStorage.getItem(ROLE_DEFAULTS_STORAGE_KEY);
+  } catch {
+    return;
+  }
+  if (!raw) return;
+  let parsed;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return;
+  }
+  if (!parsed || typeof parsed !== "object") return;
+  for (const [role, keys] of Object.entries(parsed)) {
+    if (Array.isArray(keys)) {
+      ROLE_DEFAULTS[role] = new Set(keys);
+    }
+  }
+}
+
+// Auto-hydrate on first module load so reloads keep the user's edits.
+hydrateRoleDefaults();
+
+// ---------------------------------------------------------------------------
 // Per-user overrides — mutators.
 // `mode`: "grant" | "revoke" | "reset"
 // `reset` clears any explicit grant/revoke for that key, returning the

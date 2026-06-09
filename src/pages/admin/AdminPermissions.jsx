@@ -1,8 +1,9 @@
 import { useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { Link, Navigate } from "react-router-dom";
 import {
-  Shield, Lock, Check, X, Search, ChevronRight, AlertTriangle,
-  Settings, Users as UsersIcon, RotateCcw,
+  Shield, Lock, X, Search, ChevronRight, AlertTriangle,
+  Users as UsersIcon, RotateCcw,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { canManageRoles, ROLES, getRoleLabel, userCapabilities } from "../../lib/adminRoles";
@@ -13,6 +14,7 @@ import {
   effectivePermissions,
   isPermissionGrantedByRole,
   setUserPermission,
+  setRoleDefault,
 } from "../../lib/permissions";
 import {
   ADMIN_MOCK_PARTICIPANTS,
@@ -108,17 +110,29 @@ export default function AdminPermissions() {
 
 // ---------------------------------------------------------------------------
 // Tab A — Role defaults matrix.
+// Editable: click any cell to flip the role default for that permission.
+// Persists to localStorage via setRoleDefault(). Changes here affect every
+// user with that role unless they've been individually overridden.
 // ---------------------------------------------------------------------------
 function RolesMatrix() {
+  // Used to force-rerender when ROLE_DEFAULTS mutates (mutating Sets in
+  // place isn't reactive on its own).
+  const [, forceUpdate] = useState(0);
+
+  function toggle(roleKey, permissionKey) {
+    const current = ROLE_DEFAULTS[roleKey]?.has(permissionKey) || false;
+    setRoleDefault(roleKey, permissionKey, !current);
+    forceUpdate((n) => n + 1);
+  }
+
   return (
     <section className="space-y-3">
       <div className="rounded-xl bg-amber-50 border border-amber-200 px-3 py-2 inline-flex items-start gap-2 text-[12.5px] text-amber-900">
         <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" strokeWidth={2.5} />
         <span>
-          Role defaults are versioned in code (
-          <code className="font-mono text-[11.5px]">lib/permissions.js</code>
-          ). To grant or revoke a permission for a specific user without
-          touching everyone else with that role, use the "By user" tab.
+          Editing here changes the default for <strong>every user</strong>{" "}
+          with that role. For a single user without changing anyone else,
+          use the "By user" tab.
         </span>
       </div>
 
@@ -139,7 +153,7 @@ function RolesMatrix() {
             </thead>
             <tbody>
               {PERMISSION_GROUPS.map((group) => (
-                <PermissionGroupRows key={group} group={group} />
+                <PermissionGroupRows key={group} group={group} onToggle={toggle} />
               ))}
             </tbody>
           </table>
@@ -149,7 +163,7 @@ function RolesMatrix() {
   );
 }
 
-function PermissionGroupRows({ group }) {
+function PermissionGroupRows({ group, onToggle }) {
   const perms = PERMISSIONS.filter((p) => p.group === group);
   return (
     <>
@@ -164,15 +178,28 @@ function PermissionGroupRows({ group }) {
             <div className="font-heading font-bold text-[12.5px] text-ink">{p.label}</div>
             <div className="text-[11.5px] text-ink-muted leading-snug">{p.description}</div>
           </td>
-          {ROLE_ORDER.map((r) => (
-            <td key={r} className="px-3 py-2.5 text-center">
-              {ROLE_DEFAULTS[r]?.has(p.key) ? (
-                <Check className="w-4 h-4 text-emerald-600 inline-block" strokeWidth={3} />
-              ) : (
-                <X className="w-4 h-4 text-ink-subtle/50 inline-block" strokeWidth={2.5} />
-              )}
-            </td>
-          ))}
+          {ROLE_ORDER.map((r) => {
+            const on = ROLE_DEFAULTS[r]?.has(p.key) || false;
+            return (
+              <td key={r} className="px-3 py-2.5 text-center">
+                <button
+                  type="button"
+                  onClick={() => onToggle(r, p.key)}
+                  className={`inline-flex w-9 h-5 rounded-full p-0.5 transition-colors ${
+                    on ? "bg-emerald-500 hover:bg-emerald-600" : "bg-ink/15 hover:bg-ink/25"
+                  }`}
+                  aria-pressed={on}
+                  aria-label={`${on ? "Disable" : "Enable"} ${p.label} for ${getRoleLabel(r)}`}
+                >
+                  <span
+                    className={`block w-4 h-4 rounded-full bg-white shadow-sm transition-transform ${
+                      on ? "translate-x-4" : "translate-x-0"
+                    }`}
+                  />
+                </button>
+              </td>
+            );
+          })}
         </tr>
       ))}
     </>
@@ -337,8 +364,12 @@ function PermissionDrawer({ user: u, onClose }) {
     forceUpdate((n) => n + 1);
   }
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-stretch justify-end">
+  // Rendered through a portal to document.body so the fixed-inset overlay
+  // covers the full viewport instead of getting trapped inside the admin
+  // layout's flex container. Same fix we use for the participant journal
+  // modal.
+  return createPortal(
+    <div className="fixed inset-0 z-[100] flex items-stretch justify-end">
       <div className="absolute inset-0 bg-ink/50" onClick={onClose} />
       <div className="relative w-full max-w-md bg-surface-paper border-l border-soft overflow-y-auto shadow-2xl animate-fade-in-up">
         <div className="sticky top-0 bg-surface-paper border-b border-soft px-5 py-4 flex items-start gap-3">
@@ -428,6 +459,7 @@ function PermissionDrawer({ user: u, onClose }) {
           ))}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
