@@ -1,4 +1,16 @@
-import { userCapabilities, ROLES } from "./adminRoles";
+import { userCapabilities } from "./adminRoles";
+
+// Role keys are hardcoded here (rather than imported from adminRoles) to
+// avoid a circular-import bug: ROLE_DEFAULTS is built at module load, and
+// adminRoles.js may still be mid-evaluation when this file initializes.
+const ROLE_KEY = {
+  SUPER: "super",
+  ADMIN: "admin",
+  ORG: "org",
+  FACILITATOR: "facilitator",
+  COHORT_LEADER: "cohort-leader",
+  PARTICIPANT: "participant",
+};
 
 // ---------------------------------------------------------------------------
 // Permissions — fine-grained capability catalog + resolution.
@@ -143,9 +155,9 @@ export const PERMISSION_GROUPS = [
 const ALL_KEYS = PERMISSIONS.map((p) => p.key);
 
 export const ROLE_DEFAULTS = {
-  [ROLES.SUPER]: new Set(ALL_KEYS),
+  [ROLE_KEY.SUPER]: new Set(ALL_KEYS),
 
-  [ROLES.ADMIN]: new Set([
+  [ROLE_KEY.ADMIN]: new Set([
     "view.admin",
     "view.global",
     "cohorts.create",
@@ -160,25 +172,25 @@ export const ROLE_DEFAULTS = {
     "permissions.manage",
   ]),
 
-  [ROLES.ORG]: new Set([
+  [ROLE_KEY.ORG]: new Set([
     "view.admin",
     "cohorts.edit",
   ]),
 
-  [ROLES.FACILITATOR]: new Set([
+  [ROLE_KEY.FACILITATOR]: new Set([
     "view.admin",
     "cohorts.edit",
     "sessions.upload-recording",
     "homework.grade",
   ]),
 
-  "cohort-leader": new Set([
+  [ROLE_KEY.COHORT_LEADER]: new Set([
     // Cohort leaders see roster + journal + submissions for their cohort.
     // They don't manage anything — the Leader Dashboard handles visibility.
-    "view.admin", // they technically don't need this; their UI is /leader/cohort
+    // (Their UI is /leader/cohort, not /admin.)
   ]),
 
-  [ROLES.PARTICIPANT]: new Set(),
+  [ROLE_KEY.PARTICIPANT]: new Set(),
 };
 
 // ---------------------------------------------------------------------------
