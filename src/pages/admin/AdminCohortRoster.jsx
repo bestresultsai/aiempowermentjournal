@@ -3,7 +3,7 @@ import { Link, Navigate, useParams } from "react-router-dom";
 import {
   ArrowLeft, GraduationCap, BookCheck, NotebookPen, Sparkles, Clock, Users,
   ChevronUp, ChevronDown, Download, Target, Pencil, UserPlus, Crown, Mail,
-  Calendar as CalendarIcon, Video,
+  Calendar as CalendarIcon, Video, AlertCircle, Check, Loader2, X,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { getAccessibleCohorts, canEditCohort } from "../../lib/adminRoles";
@@ -13,7 +13,9 @@ import {
   getParticipantsForCohort, getCohortJournalStats,
   totalTimeSaved, formatMinutes,
 } from "../../lib/adminMockData";
-import { getAllCohortsForAdmin, getSessionsForCohort } from "../../lib/cohortAdmin";
+import { getAllCohortsForAdmin, getSessionsForCohort, setSessionRecording } from "../../lib/cohortAdmin";
+import { findAwaitingRecording } from "../../lib/sessionState";
+import { sanitizeUrl, clampString, LIMITS } from "../../lib/inputValidation";
 import { downloadCSV } from "../../lib/csvExport";
 
 // /admin/cohorts/:slug — roster of participants in a single cohort.
@@ -164,6 +166,9 @@ export default function AdminCohortRoster() {
       {/* Cohort leader — when one is set among the roster, surface them
           here so admins always know who the customer-side champion is. */}
       <CohortLeaderCard leader={roster.find((p) => p.isCohortLead)} />
+
+      {/* Sessions awaiting recording — a to-do list for the facilitator. */}
+      <AwaitingRecordingSection cohortSlug={slug} sessions={sessions} />
 
       {/* Cohort-level Journal summary */}
       {journal.totalEntries > 0 && (
@@ -402,6 +407,159 @@ function FacilitatorCard({ facilitator }) {
 // ---------------------------------------------------------------------------
 // MeetingScheduleCard — "Meets every Wednesday at 12:00 PM" + start + end.
 // ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// AwaitingRecordingSection — facilitator-facing to-do list. Lists any session
+// whose date has passed but has no videoUrl. Each row gets an inline form
+// to paste the recording URL.
+//
+// Hides itself entirely when there's nothing pending — keeps the page clean
+// for cohorts that are up to date.
+// ---------------------------------------------------------------------------
+function AwaitingRecordingSection({ cohortSlug, sessions }) {
+  const [version, setVersion] = useState(0);
+  // Re-read after each write so the section disappears row by row.
+  const pending = useMemo(
+    () => findAwaitingRecording(sessions),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [sessions, version],
+  );
+  if (pending.length === 0) return null;
+  return (
+    <section className="rounded-2xl bg-amber-50/60 border border-amber-200 p-5">
+      <div className="flex items-center gap-2 mb-3">
+        <AlertCircle className="w-4 h-4 text-amber-700" strokeWidth={2.5} />
+        <h2 className="font-heading text-[13px] font-bold uppercase tracking-wider text-amber-800">
+          {pending.length} {pending.length === 1 ? "session" : "sessions"} awaiting recording
+        </h2>
+      </div>
+      <p className="text-[12.5px] text-amber-900/80 leading-relaxed mb-4 max-w-2xl">
+        These sessions have wrapped but their recordings haven't been uploaded yet. Paste the Vimeo, YouTube, or Box link below and participants will see it appear on the session page.
+      </p>
+      <div className="space-y-2">
+        {pending.map((s) => (
+          <AwaitingRecordingRow
+            key={s.order}
+            session={s}
+            onSaved={() => setVersion((v) => v + 1)}
+            cohortSlug={cohortSlug}
+          />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function AwaitingRecordingRow({ session, cohortSlug, onSaved }) {
+  const [editing, setEditing] = useState(false);
+  const [url, setUrl] = useState("");
+  const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
+  const belt = BELT_COLORS[session.belt];
+
+  async function handleSave() {
+    setError("");
+    const check = sanitizeUrl(url);
+    if (!check.ok) {
+      setError(check.reason);
+      return;
+    }
+    setSaving(true);
+    try {
+      await new Promise((r) => setTimeout(r, 350));
+      setSessionRecording(cohortSlug, session.order, check.value);
+      onSaved?.();
+    } finally {
+      setSaving(false);
+      setEditing(false);
+      setUrl("");
+    }
+  }
+
+  return (
+    <div className="rounded-xl bg-white border border-amber-100 p-3">
+      <div className="flex items-center gap-3 flex-wrap">
+        {belt && (
+          <span
+            style={{
+              background: belt.gradient,
+              color: belt.contrast,
+              border: belt.needsBorder ? "1px solid #D1D5DB" : "none",
+            }}
+            className="inline-flex items-center justify-center w-9 h-9 rounded-xl font-heading font-extrabold text-[12px] shrink-0"
+          >
+            {session.order}
+          </span>
+        )}
+        <div className="flex-1 min-w-0">
+          <div className="font-heading text-[13.5px] font-bold text-ink truncate">
+            {session.belt} Belt · Session {session.order}
+          </div>
+          <div className="text-[11.5px] text-ink-muted">
+            {session.date
+              ? new Date(session.date).toLocaleDateString("en-US", {
+                  weekday: "short",
+                  month: "short",
+                  day: "numeric",
+                  year: "numeric",
+                })
+              : "TBD"}
+          </div>
+        </div>
+        {!editing && (
+          <button
+            type="button"
+            onClick={() => setEditing(true)}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-ink text-white text-[12px] font-heading font-bold hover:bg-brand-700 transition-colors shrink-0"
+          >
+            <Video className="w-3.5 h-3.5" strokeWidth={2.5} />
+            Add recording
+          </button>
+        )}
+      </div>
+      {editing && (
+        <div className="mt-3 flex items-center gap-2 flex-wrap">
+          <input
+            type="url"
+            autoFocus
+            value={url}
+            onChange={(e) => setUrl(clampString(e.target.value, LIMITS.url))}
+            placeholder="https://vimeo.com/... or https://www.youtube.com/watch?v=..."
+            maxLength={LIMITS.url}
+            className="flex-1 min-w-[260px] px-3 py-2 rounded-lg border border-amber-200 bg-white text-[13px] text-ink placeholder:text-ink-muted/60 focus:outline-none focus:border-amber-500"
+          />
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={saving || !url.trim()}
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-emerald-600 text-white text-[12px] font-heading font-bold hover:bg-emerald-700 transition-colors disabled:bg-emerald-300 disabled:cursor-not-allowed shrink-0"
+          >
+            {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" strokeWidth={3} />}
+            Save
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setEditing(false);
+              setUrl("");
+              setError("");
+            }}
+            className="p-2 rounded-lg text-ink-muted hover:text-ink hover:bg-surface-soft transition-colors shrink-0"
+            aria-label="Cancel"
+          >
+            <X className="w-4 h-4" strokeWidth={2.5} />
+          </button>
+        </div>
+      )}
+      {error && (
+        <div className="mt-2 text-[11.5px] text-rose-700 inline-flex items-center gap-1">
+          <AlertCircle className="w-3.5 h-3.5" strokeWidth={2.5} />
+          {error}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function MeetingScheduleCard({ schedule, timeZone }) {
   if (!schedule) {
     return (

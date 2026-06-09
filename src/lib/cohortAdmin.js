@@ -408,6 +408,34 @@ export function archiveCohort(slug) {
   emit();
 }
 
+// ---------------------------------------------------------------------------
+// Set the recording URL for a specific session on a specific cohort.
+//
+// We write the URL into the cohort's session overlay (cohortOverlays[slug])
+// so that getSessionsForCohort returns the recorded URL alongside the
+// program curriculum. Once persisted, the session's state flips from
+// "awaiting-recording" to "completed" automatically via getSessionState.
+//
+// Pass empty/null url to CLEAR the recording.
+// ---------------------------------------------------------------------------
+export function setSessionRecording(slug, sessionOrder, videoUrl) {
+  const overlay = cohortOverlays[slug] || {};
+  // Start from the merged current sessions so we don't lose anything
+  // (program defaults + any prior overlay).
+  const baseSessions = getSessionsForCohort(slug);
+  const overlaySessions = baseSessions.map((s) =>
+    s.order === Number(sessionOrder) ? { ...s, videoUrl: (videoUrl || "").trim() || null } : s,
+  );
+  cohortOverlays[slug] = {
+    ...overlay,
+    sessions: overlaySessions,
+    updatedAt: new Date().toISOString(),
+  };
+  safePersist(COHORTS_KEY, cohortOverlays);
+  emit();
+  return overlaySessions.find((s) => s.order === Number(sessionOrder));
+}
+
 // Debug-style reset used during demos.
 export function clearAllCohortOverlays() {
   for (const key of Object.keys(cohortOverlays)) delete cohortOverlays[key];

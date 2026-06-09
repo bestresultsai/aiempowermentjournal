@@ -11,6 +11,7 @@ import HomeworkSubmission from "../../components/cohort/HomeworkSubmission";
 import { BELT_COLORS } from "../../lib/mockCohort";
 import { getSession, markSessionComplete, submitHomework } from "../../lib/cohortApi";
 import { useResolvedCohort } from "../../lib/cohortResolution";
+import { getSessionState, SESSION_STATES, SESSION_STATE_META } from "../../lib/sessionState";
 
 // SessionDetail is mounted on two URL patterns:
 //   /session/:order               — generic; cohort resolves via useResolvedCohort()
@@ -76,9 +77,14 @@ export default function SessionDetail() {
   const prevSession = cohort?.sessions?.find((s) => s.order === Number(order) - 1);
   const nextSession = cohort?.sessions?.find((s) => s.order === Number(order) + 1);
 
-  // The video isn't available yet if the session hasn't happened.
-  const isUpcoming = session?.date ? new Date(session.date) > new Date() : false;
-  const hasRecording = !isUpcoming && session?.videoUrl;
+  // Canonical session lifecycle state — upcoming / live / awaiting-recording
+  // / completed. Drives whether we render the player, an "awaiting recording"
+  // placeholder, or the upcoming-preview card.
+  const state = session ? getSessionState(session) : null;
+  const isUpcoming = state === SESSION_STATES.UPCOMING;
+  const isLive = state === SESSION_STATES.LIVE;
+  const isAwaiting = state === SESSION_STATES.AWAITING_RECORDING;
+  const hasRecording = state === SESSION_STATES.COMPLETED && session?.videoUrl;
 
   return (
     <div className="min-h-screen bg-surface-paper">
@@ -132,10 +138,27 @@ export default function SessionDetail() {
               <span className="opacity-50">·</span>
               <span>{session.durationMinutes || 75} min</span>
 
-              {session.completed && (
-                <span className="ml-auto inline-flex items-center gap-1.5 text-[11.5px] font-bold tracking-wider uppercase px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
-                  <CheckCircle2 className="w-3 h-3" strokeWidth={3} />
-                  Completed
+              {/* Lifecycle pill — reflects where this session is in time. */}
+              {state && (
+                <span
+                  className={
+                    "ml-auto inline-flex items-center gap-1.5 text-[11.5px] font-bold tracking-wider uppercase px-2.5 py-1 rounded-full border " +
+                    {
+                      [SESSION_STATES.LIVE]: "bg-rose-50 text-rose-700 border-rose-200",
+                      [SESSION_STATES.UPCOMING]: "bg-brand-50 text-brand-700 border-brand-200",
+                      [SESSION_STATES.AWAITING_RECORDING]: "bg-amber-50 text-amber-800 border-amber-200",
+                      [SESSION_STATES.COMPLETED]: "bg-emerald-50 text-emerald-700 border-emerald-200",
+                    }[state]
+                  }
+                >
+                  {state === SESSION_STATES.LIVE && (
+                    <span className="relative flex h-2 w-2">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-500 opacity-60" />
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-rose-600" />
+                    </span>
+                  )}
+                  {state === SESSION_STATES.COMPLETED && <CheckCircle2 className="w-3 h-3" strokeWidth={3} />}
+                  {SESSION_STATE_META[state]?.short}
                 </span>
               )}
             </div>
@@ -154,16 +177,13 @@ export default function SessionDetail() {
 
         {data && (
           <>
-            {/* ---------- Video player (or upcoming placeholder) ---------- */}
+            {/* ---------- Video player or state-aware placeholder ---------- */}
             <section className="animate-fade-in-up">
-              {hasRecording ? (
-                <SessionPlayer session={session} />
-              ) : (
-                <UpcomingPlaceholder
-                  session={session}
-                  cohort={cohort}
-                  belt={belt}
-                />
+              {hasRecording && <SessionPlayer session={session} />}
+              {isLive && <LiveNowCard session={session} cohort={cohort} belt={belt} />}
+              {isAwaiting && <AwaitingRecordingCard session={session} belt={belt} />}
+              {isUpcoming && (
+                <UpcomingPlaceholder session={session} cohort={cohort} belt={belt} />
               )}
             </section>
 
@@ -228,6 +248,74 @@ export default function SessionDetail() {
 // ---------------------------------------------------------------------------
 // Upcoming placeholder — shown when the session hasn't happened yet.
 // ---------------------------------------------------------------------------
+
+// LiveNowCard — shown when the session is currently in its time window.
+// Big Join Zoom CTA, pulsing live dot.
+function LiveNowCard({ session, cohort, belt }) {
+  const zoomLink =
+    session?.zoomLink || cohort?.zoomLink || cohort?.trainer?.defaultZoomLink || "";
+  return (
+    <div className="rounded-3xl bg-gradient-to-br from-rose-600 to-brand-700 text-white relative overflow-hidden aspect-[16/9] flex flex-col items-center justify-center text-center p-8">
+      <div className="absolute inset-0 grain opacity-40 pointer-events-none" />
+      <div className="relative">
+        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/15 backdrop-blur mb-5">
+          <span className="relative flex h-2.5 w-2.5">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-60" />
+            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-white" />
+          </span>
+          <span className="text-[11px] font-heading font-bold uppercase tracking-[0.18em]">
+            Live now
+          </span>
+        </div>
+        <h3 className="font-heading text-[24px] lg:text-[28px] font-extrabold mb-2">
+          The session is happening right now
+        </h3>
+        <p className="text-[13.5px] text-white/85 leading-relaxed max-w-md mx-auto mb-5">
+          Join your facilitator + cohort on Zoom. The recording will be available here when the session wraps.
+        </p>
+        {zoomLink && (
+          <a
+            href={zoomLink}
+            target="_blank"
+            rel="noreferrer noopener"
+            className="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-white text-ink text-[14px] font-heading font-bold hover:bg-surface-soft transition-colors"
+          >
+            <Play className="w-4 h-4" strokeWidth={2.5} fill="currentColor" />
+            Join the session
+          </a>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// AwaitingRecordingCard — session is over but the facilitator hasn't
+// uploaded the recording yet. Sets expectation without showing a broken
+// player.
+function AwaitingRecordingCard({ session, belt }) {
+  return (
+    <div className="rounded-3xl bg-gradient-to-br from-amber-50 to-surface-card border border-amber-200 relative overflow-hidden aspect-[16/9] flex flex-col items-center justify-center text-center p-8">
+      <div className="relative">
+        <div
+          className="inline-flex w-14 h-14 rounded-2xl items-center justify-center mb-5"
+          style={{
+            background: belt?.gradient || "#FBBF24",
+            border: belt?.needsBorder ? "1px solid #D1D5DB" : "none",
+          }}
+        >
+          <Clock className="w-6 h-6" strokeWidth={2} style={{ color: belt?.contrast || "#92400E" }} />
+        </div>
+        <div className="h-eyebrow !text-amber-800 mb-2">Awaiting recording</div>
+        <h3 className="font-heading text-[20px] lg:text-[24px] font-extrabold text-ink mb-2">
+          Recording will be available soon
+        </h3>
+        <p className="text-[13.5px] text-ink-muted leading-relaxed max-w-md mx-auto">
+          The session is over. Your facilitator usually posts the recording within 24 hours. Materials and homework below are available now.
+        </p>
+      </div>
+    </div>
+  );
+}
 
 function UpcomingPlaceholder({ session, cohort, belt }) {
   const sessionDate = session?.date ? new Date(session.date) : null;
