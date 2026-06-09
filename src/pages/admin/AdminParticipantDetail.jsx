@@ -27,7 +27,7 @@ import {
   timeSavedFor,
   formatMinutes,
 } from "../../lib/adminMockData";
-import { canAssignRoles } from "../../lib/adminRoles";
+import { canAssignRoles, hasGlobalScope } from "../../lib/adminRoles";
 import HeadshotUpload from "../../components/HeadshotUpload";
 
 // /admin/users/:id — drill-in on a single participant.
@@ -38,8 +38,13 @@ export default function AdminParticipantDetail() {
   const p = getParticipantById(id);
 
   // Scope check — the participant must belong to a cohort the admin can see.
+  // Super + Admin see every user including standalone (no cohort). Org admins
+  // and facilitators only see participants in their scoped cohorts.
   const allowedSlugs = getAccessibleCohortSlugs(user, getAllCohortsForAdmin());
-  if (!p || !allowedSlugs.includes(p.cohortSlug)) {
+  const inScope =
+    hasGlobalScope(user) ||
+    (p && p.cohortSlug && allowedSlugs.includes(p.cohortSlug));
+  if (!p || !inScope) {
     return <Navigate to="/admin" replace />;
   }
 

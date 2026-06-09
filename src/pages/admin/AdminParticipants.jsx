@@ -6,7 +6,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { useScopeFilters } from "../../lib/useScopeFilters";
-import { canAccessAdmin } from "../../lib/adminRoles";
+import { canAccessAdmin, hasGlobalScope } from "../../lib/adminRoles";
 import { getAllCohortsForAdmin } from "../../lib/cohortAdmin";
 import ScopeFilterBar from "../../components/admin/ScopeFilterBar";
 import Select from "../../components/Select";
@@ -74,10 +74,17 @@ export default function AdminParticipants() {
   const filtered = useMemo(() => {
     const lc = q.trim().toLowerCase();
     const sortFn = SORTS[sortKey]?.compare || SORTS.name.compare;
+    const globalScope = hasGlobalScope(user);
     return ADMIN_MOCK_PARTICIPANTS
-      // Unassigned participants (cohortSlug=null) are visible to anyone with
-      // global scope; otherwise gate by cohort slug.
-      .filter((p) => !p.cohortSlug || cohortSlugs.includes(p.cohortSlug))
+      // Unassigned participants (cohortSlug=null) are visible only to roles
+      // with global scope (super + admin). Org admins + facilitators must
+      // see a cohort-scoped slug, otherwise they could surface admins-only
+      // standalone users.
+      .filter((p) =>
+        p.cohortSlug
+          ? cohortSlugs.includes(p.cohortSlug)
+          : globalScope,
+      )
       .filter((p) => !statusFilter || bucketForFilter(p) === statusFilter)
       .filter((p) =>
         !lc ||
@@ -87,7 +94,7 @@ export default function AdminParticipants() {
       )
       .sort(sortFn);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [q, cohortSlugs, statusFilter, sortKey, version]);
+  }, [q, cohortSlugs, statusFilter, sortKey, version, user]);
 
   function toggleSelected(id) {
     setSelectedIds((prev) => {

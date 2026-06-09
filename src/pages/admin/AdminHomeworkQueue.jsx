@@ -1,10 +1,11 @@
 import { useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, Navigate } from "react-router-dom";
 import {
   BookCheck, ExternalLink, ArrowRight, ListChecks, Search, Paperclip,
   Check, Clock, ChevronDown, ChevronUp, RotateCcw, Send, Loader2, Eye,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
+import { canGradeHomework } from "../../lib/adminRoles";
 import { useScopeFilters } from "../../lib/useScopeFilters";
 import { getAllCohortsForAdmin } from "../../lib/cohortAdmin";
 import { MOCK_SESSIONS, BELT_COLORS } from "../../lib/mockCohort";
@@ -36,6 +37,11 @@ const TABS = [
 
 export default function AdminHomeworkQueue() {
   const { user } = useAuth();
+  // Homework grading is super + admin + facilitator territory. Org admins
+  // see homework status on the cohort roster but don't manage the queue.
+  if (!canGradeHomework(user)) {
+    return <Navigate to="/admin" replace />;
+  }
   const scope = useScopeFilters(user, getAllCohortsForAdmin());
   const { cohorts, effectiveSlugs: cohortSlugs, orgs, facilitators } = scope;
 

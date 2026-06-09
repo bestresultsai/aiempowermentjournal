@@ -6,7 +6,13 @@ import {
   Calendar as CalendarIcon, Building2,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
-import { getRoleLabel, canCreateCohorts, canManageRoles } from "../../lib/adminRoles";
+import {
+  getRoleLabel,
+  canCreateCohorts,
+  canManageRoles,
+  canAssignRoles,
+  canGradeHomework,
+} from "../../lib/adminRoles";
 import { APP_CONFIG } from "../../lib/appConfig";
 import Logo from "../../components/Logo";
 
@@ -22,16 +28,21 @@ import Logo from "../../components/Logo";
 // menu instead.
 // ---------------------------------------------------------------------------
 
+// Sidebar nav — see docs/admin-visibility-matrix.md for the canonical role
+// → entry mapping. `requires` keys map to permission helpers below.
 const NAV = [
   { to: "/admin",              label: "Dashboard",     icon: LayoutDashboard, end: true },
   { to: "/admin/calendar",     label: "Calendar",      icon: CalendarIcon },
   { to: "/admin/cohorts",      label: "Cohorts",       icon: GraduationCap },
   { to: "/admin/journal",      label: "AI Journal",    icon: NotebookPen },
-  { to: "/admin/homework",     label: "Homework",      icon: BookCheck },
+  // Homework is the facilitator's grading queue — org admins don't grade,
+  // so this stays gated to roles that can act on submissions.
+  { to: "/admin/homework",     label: "Homework",      icon: BookCheck, requires: "grade" },
   { to: "/admin/participants", label: "Participants",  icon: Users },
+  // Platform-level surfaces — super + admin only.
   { to: "/admin/orgs",         label: "Organizations", icon: Building2, requires: "create" },
   { to: "/admin/facilitators", label: "Facilitators",  icon: Users, requires: "create" },
-  { to: "/admin/users",        label: "Users",         icon: Shield, requires: "create" },
+  { to: "/admin/users",        label: "Users",         icon: Shield, requires: "assign" },
 ];
 
 // Permission gate for sidebar items. Defaults to allow when no `requires`.
@@ -39,6 +50,8 @@ function navAllowed(item, user) {
   if (!item.requires) return true;
   if (item.requires === "super") return canManageRoles(user);
   if (item.requires === "create") return canCreateCohorts(user);
+  if (item.requires === "assign") return canAssignRoles(user);
+  if (item.requires === "grade") return canGradeHomework(user);
   return true;
 }
 
@@ -70,24 +83,28 @@ export default function AdminLayout() {
           ))}
 
           {/* Quick create — separated from the main nav with a divider so the
-              action reads as distinct from regular nav items. Only visible to
-              roles that can create cohorts. */}
-          {canCreateCohorts(user) && (
+              action reads as distinct from regular nav items. Each link gates
+              on its own permission helper. */}
+          {(canCreateCohorts(user) || canAssignRoles(user)) && (
             <div className="pt-6 mt-4 border-t border-white/10 space-y-2">
-              <Link
-                to="/admin/cohorts/new"
-                className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-[13.5px] font-heading font-bold transition-all duration-200 bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/25 hover:text-emerald-200 hover:border-emerald-400/40"
-              >
-                <Plus className="w-4 h-4" strokeWidth={3} />
-                New cohort
-              </Link>
-              <Link
-                to="/admin/users/new"
-                className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-[13.5px] font-heading font-bold transition-all duration-200 bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/25 hover:text-emerald-200 hover:border-emerald-400/40"
-              >
-                <Plus className="w-4 h-4" strokeWidth={3} />
-                New user
-              </Link>
+              {canCreateCohorts(user) && (
+                <Link
+                  to="/admin/cohorts/new"
+                  className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-[13.5px] font-heading font-bold transition-all duration-200 bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/25 hover:text-emerald-200 hover:border-emerald-400/40"
+                >
+                  <Plus className="w-4 h-4" strokeWidth={3} />
+                  New cohort
+                </Link>
+              )}
+              {canAssignRoles(user) && (
+                <Link
+                  to="/admin/users/new"
+                  className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-[13.5px] font-heading font-bold transition-all duration-200 bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/25 hover:text-emerald-200 hover:border-emerald-400/40"
+                >
+                  <Plus className="w-4 h-4" strokeWidth={3} />
+                  New user
+                </Link>
+              )}
             </div>
           )}
         </nav>
