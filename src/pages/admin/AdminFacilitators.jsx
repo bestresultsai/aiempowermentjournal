@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
   Users, Plus, Mail, GraduationCap, Pencil, Check, X, AlertCircle, Video,
 } from "lucide-react";
@@ -24,8 +25,23 @@ export default function AdminFacilitators() {
   const { user } = useAuth();
   const version = useCohortVersion();
   const facilitators = useMemo(() => getAllFacilitators(), [version]);
-  const [editing, setEditing] = useState(null);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const editFromUrl = searchParams.get("edit");
+  const [editing, setEditing] = useState(editFromUrl || null);
   const [creating, setCreating] = useState(false);
+
+  // If the URL has ?edit=:id (e.g. arriving from Super Admin), pop that
+  // facilitator into edit mode. Once opened we clear the param to keep the
+  // URL clean for back-button navigation.
+  useEffect(() => {
+    if (editFromUrl) {
+      setEditing(editFromUrl);
+      const next = new URLSearchParams(searchParams);
+      next.delete("edit");
+      setSearchParams(next, { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const rows = useMemo(
     () =>
@@ -196,7 +212,11 @@ function FacilitatorRow({ facilitator: f, cohortCount, editing, onEdit, onCancel
   }
 
   return (
-    <div className="px-5 py-4 grid md:grid-cols-[1fr_220px_120px_60px] gap-4 items-center border-b border-soft last:border-b-0 hover:bg-surface-soft transition-colors">
+    <button
+      type="button"
+      onClick={onEdit}
+      className="block w-full text-left px-5 py-4 grid md:grid-cols-[1fr_220px_120px_60px] gap-4 items-center border-b border-soft last:border-b-0 hover:bg-surface-soft transition-colors cursor-pointer"
+    >
       <div className="flex items-center gap-3 min-w-0">
         {f.headshotUrl ? (
           <img
@@ -218,26 +238,21 @@ function FacilitatorRow({ facilitator: f, cohortCount, editing, onEdit, onCancel
           </div>
         </div>
       </div>
-      <a
-        href={`mailto:${f.email || ""}`}
-        className="text-[12.5px] font-heading text-ink-muted hover:text-brand-700 inline-flex items-center gap-1.5 truncate"
-      >
+      <span className="text-[12.5px] font-heading text-ink-muted inline-flex items-center gap-1.5 truncate">
         <Mail className="w-3.5 h-3.5 shrink-0" strokeWidth={2} />
         <span className="truncate">{f.email || "—"}</span>
-      </a>
+      </span>
       <div className="text-right text-[14px] font-heading font-bold text-ink inline-flex items-center justify-end gap-1.5">
         <GraduationCap className="w-3.5 h-3.5 text-ink-muted" strokeWidth={2.5} />
         {cohortCount}
       </div>
-      <button
-        type="button"
-        onClick={onEdit}
-        className="p-2 rounded-lg text-ink-muted hover:text-ink hover:bg-white transition-colors shrink-0"
-        aria-label="Edit"
+      <span
+        className="p-2 rounded-lg text-ink-muted shrink-0"
+        aria-hidden
       >
         <Pencil className="w-3.5 h-3.5" strokeWidth={2.5} />
-      </button>
-    </div>
+      </span>
+    </button>
   );
 }
 

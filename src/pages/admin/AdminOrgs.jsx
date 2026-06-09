@@ -181,7 +181,11 @@ function OrgRow({ org, cohortCount, participantCount, editing, onEdit, onCancel,
   }
 
   return (
-    <div className="px-5 py-4 grid md:grid-cols-[1fr_120px_120px_60px] gap-4 items-center border-b border-soft last:border-b-0 hover:bg-surface-soft transition-colors">
+    <button
+      type="button"
+      onClick={onEdit}
+      className="block w-full text-left px-5 py-4 grid md:grid-cols-[1fr_120px_120px_60px] gap-4 items-center border-b border-soft last:border-b-0 hover:bg-surface-soft transition-colors cursor-pointer"
+    >
       <div className="flex items-center gap-3 min-w-0">
         <div className="w-10 h-10 rounded-xl bg-brand-50 text-brand-600 flex items-center justify-center shrink-0">
           <Building2 className="w-4 h-4" strokeWidth={2} />
@@ -203,15 +207,13 @@ function OrgRow({ org, cohortCount, participantCount, editing, onEdit, onCancel,
         <Users className="w-3.5 h-3.5 text-ink-muted" strokeWidth={2.5} />
         {participantCount}
       </div>
-      <button
-        type="button"
-        onClick={onEdit}
-        className="p-2 rounded-lg text-ink-muted hover:text-ink hover:bg-white transition-colors shrink-0"
-        aria-label="Edit"
+      <span
+        className="p-2 rounded-lg text-ink-muted shrink-0"
+        aria-hidden
       >
         <Pencil className="w-3.5 h-3.5" strokeWidth={2.5} />
-      </button>
-    </div>
+      </span>
+    </button>
   );
 }
 
