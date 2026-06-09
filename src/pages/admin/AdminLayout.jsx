@@ -3,6 +3,7 @@ import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-do
 import {
   LayoutDashboard, Users, BookCheck, GraduationCap, ArrowLeft,
   Shield, LogOut, ChevronDown, NotebookPen, Plus, User as UserIcon,
+  Calendar as CalendarIcon,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { getRoleLabel, canCreateCohorts } from "../../lib/adminRoles";
@@ -22,6 +23,7 @@ import Logo from "../../components/Logo";
 
 const NAV = [
   { to: "/admin",            label: "Dashboard",    icon: LayoutDashboard, end: true },
+  { to: "/admin/calendar",   label: "Calendar",     icon: CalendarIcon },
   { to: "/admin/cohorts",    label: "Cohorts",      icon: GraduationCap },
   { to: "/admin/journal",    label: "AI Journal",   icon: NotebookPen },
   { to: "/admin/homework",   label: "Homework",     icon: BookCheck },
@@ -301,6 +303,7 @@ function BreadCrumb({ path }) {
   const parts = path.split("/").filter(Boolean); // ["admin", "cohorts", ":slug"]
   const labels = {
     admin: "Admin",
+    calendar: "Calendar",
     cohorts: "Cohorts",
     journal: "AI Journal",
     homework: "Homework",

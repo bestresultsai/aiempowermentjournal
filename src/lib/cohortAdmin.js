@@ -136,6 +136,92 @@ export function getSessionsForCohort(slug) {
   return MOCK_SESSIONS.map((s) => ({ ...s }));
 }
 
+// ---------------------------------------------------------------------------
+// getFacilitatorScheduleByDay
+//
+// Aggregates LIVE SESSIONS across the given cohort slugs into a per-day
+// timeline. Used by /admin/calendar.
+//
+// Returns an array, one entry per UTC day that has events:
+//   [
+//     { dayMs, dayLabel, isToday, isTomorrow, events: [...] }
+//   ]
+//
+// Each event:
+//   {
+//     cohortSlug, cohortName, cohortShortName, programCode,
+//     belt, sessionOrder, sessionTitle, durationMinutes,
+//     startMs, endMs, zoomLink, isUpcoming
+//   }
+//
+// Filters out events with no `date` field. Past sessions (before now) are
+// excluded by default — pass `includePast: true` to keep them.
+// ---------------------------------------------------------------------------
+export function getFacilitatorScheduleByDay(cohortSlugs, daysAhead = 14, {
+  includePast = false,
+} = {}) {
+  const allCohorts = getAllCohortsForAdmin();
+  const slugSet = new Set(cohortSlugs);
+  const now = Date.now();
+  const cutoff = now + daysAhead * 24 * 60 * 60 * 1000;
+
+  // Flatten every session in scope into a single event array.
+  const events = [];
+  for (const cohort of allCohorts) {
+    if (!slugSet.has(cohort.slug)) continue;
+    const sessions = getSessionsForCohort(cohort.slug);
+    for (const s of sessions) {
+      if (!s.date) continue;
+      const startMs = new Date(s.date).getTime();
+      if (Number.isNaN(startMs)) continue;
+      if (!includePast && startMs < now) continue;
+      if (startMs > cutoff) continue;
+      const durationMinutes = Number(s.durationMinutes) || 75;
+      events.push({
+        cohortSlug: cohort.slug,
+        cohortName: cohort.name,
+        cohortShortName: cohort.organization?.shortName || cohort.programCode,
+        programCode: cohort.programCode,
+        belt: s.belt,
+        sessionOrder: s.order,
+        sessionTitle: s.title,
+        durationMinutes,
+        startMs,
+        endMs: startMs + durationMinutes * 60 * 1000,
+        zoomLink: s.zoomLink || cohort.zoomLink || cohort.trainer?.defaultZoomLink || "",
+        isUpcoming: startMs >= now,
+      });
+    }
+  }
+
+  // Sort + bucket by local-day midnight.
+  events.sort((a, b) => a.startMs - b.startMs);
+  const byDay = new Map();
+  for (const ev of events) {
+    const d = new Date(ev.startMs);
+    d.setHours(0, 0, 0, 0);
+    const dayMs = d.getTime();
+    if (!byDay.has(dayMs)) byDay.set(dayMs, []);
+    byDay.get(dayMs).push(ev);
+  }
+
+  const today = new Date(now);
+  today.setHours(0, 0, 0, 0);
+  const tomorrowMs = today.getTime() + 24 * 60 * 60 * 1000;
+
+  return Array.from(byDay.entries()).map(([dayMs, dayEvents]) => ({
+    dayMs,
+    dayLabel: new Date(dayMs).toLocaleDateString("en-US", {
+      weekday: "long",
+      month: "short",
+      day: "numeric",
+    }),
+    isToday: dayMs === today.getTime(),
+    isTomorrow: dayMs === tomorrowMs,
+    events: dayEvents,
+  }));
+}
+
 // Next "Open Cohort N" number — counts existing open cohorts.
 export function getNextOpenCohortNumber() {
   const cohorts = getAllCohortsForAdmin();

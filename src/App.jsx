@@ -13,6 +13,7 @@ import AdminCohortEdit from "./pages/admin/AdminCohortEdit";
 import AdminCohortAddParticipants from "./pages/admin/AdminCohortAddParticipants";
 import AdminJournalDashboard from "./pages/admin/AdminJournalDashboard";
 import AdminHomeworkQueue from "./pages/admin/AdminHomeworkQueue";
+import AdminCalendar from "./pages/admin/AdminCalendar";
 import AdminParticipants from "./pages/admin/AdminParticipants";
 import AdminParticipantDetail from "./pages/admin/AdminParticipantDetail";
 import AdminParticipantNew from "./pages/admin/AdminParticipantNew";
@@ -127,6 +128,7 @@ export default function App() {
               <Route path="cohorts/:slug/participants/add" element={<AdminCohortAddParticipants />} />
               <Route path="journal" element={<AdminJournalDashboard />} />
               <Route path="homework" element={<AdminHomeworkQueue />} />
+              <Route path="calendar" element={<AdminCalendar />} />
               <Route path="users" element={<AdminParticipants />} />
               <Route path="users/new" element={<AdminParticipantNew />} />
               <Route path="users/:id" element={<AdminParticipantDetail />} />
