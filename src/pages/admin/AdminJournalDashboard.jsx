@@ -4,6 +4,9 @@ import {
   NotebookPen, Clock, Users, Trophy, Sparkles, AlertCircle,
   TrendingUp, Building2, ArrowRight, Award, BarChart3, Download,
 } from "lucide-react";
+import Modal from "../../components/admin/Modal";
+import JournalEntryDetail from "../../components/admin/JournalEntryDetail";
+import { getParticipantById } from "../../lib/adminMockData";
 import { useAuth } from "../../context/AuthContext";
 import { useScopeFilters } from "../../lib/useScopeFilters";
 import { getAllCohortsForAdmin } from "../../lib/cohortAdmin";
@@ -50,6 +53,9 @@ export default function AdminJournalDashboard() {
 
   // Time filter is page-specific (not part of scope).
   const [range, setRange] = useState("all");
+  // Modal state for click-to-view on recent entries.
+  const [openEntry, setOpenEntry] = useState(null);
+  const openParticipant = openEntry ? getParticipantById(openEntry.participantId) : null;
   const sinceMs = getSinceMs(range);
   const rangeLabel = DATE_RANGES.find((r) => r.key === range)?.label || "All time";
 
@@ -439,10 +445,11 @@ export default function AdminJournalDashboard() {
         ) : (
           <div className="space-y-2">
             {recent.map((e) => (
-              <Link
+              <button
+                type="button"
                 key={`${e.participantId}-${e.id}`}
-                to={`/admin/users/${e.participantId}`}
-                className="block rounded-2xl bg-surface-card border border-soft p-4 hover:border-brand-500 hover:shadow-card transition-all duration-200"
+                onClick={() => setOpenEntry(e)}
+                className="block w-full text-left rounded-2xl bg-surface-card border border-soft p-4 hover:border-brand-500 hover:shadow-card transition-all duration-200"
               >
                 <div className="flex items-start gap-3">
                   <div className="w-9 h-9 rounded-full bg-brand-700 text-white flex items-center justify-center text-[11px] font-heading font-bold shrink-0">
@@ -470,11 +477,24 @@ export default function AdminJournalDashboard() {
                     </div>
                   )}
                 </div>
-              </Link>
+              </button>
             ))}
           </div>
         )}
       </section>
+
+      {/* Modal — opens when a recent entry is clicked. Reuses the same
+          JournalEntryDetail component as /admin/users/:id so the view is
+          consistent. Footer shows a CTA to drill into the participant. */}
+      <Modal open={!!openEntry} onClose={() => setOpenEntry(null)}>
+        {openEntry && (
+          <JournalEntryDetail
+            entry={openEntry}
+            participant={openParticipant}
+            onClose={() => setOpenEntry(null)}
+          />
+        )}
+      </Modal>
     </div>
   );
 }
