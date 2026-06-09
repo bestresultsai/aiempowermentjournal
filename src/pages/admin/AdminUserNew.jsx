@@ -90,17 +90,33 @@ export default function AdminUserNew() {
   const isSuper = canManageRoles(user);
   const cohorts = useMemo(() => getAllCohortsForAdmin(), []);
 
-  // Form state
+  // "one" — full identity form for a single user
+  // "bulk" — paste a list of emails, apply same roles + optional cohort to all
+  const [mode, setMode] = useState("one");
+
+  // Single-mode state
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [title, setTitle] = useState("");
   const [organization, setOrganization] = useState("");
   const [phone, setPhone] = useState("");
   const [headshotUrl, setHeadshotUrl] = useState("");
+
+  // Bulk-mode state
+  const [bulkText, setBulkText] = useState("");
+  const bulkEmails = useMemo(() => {
+    return bulkText
+      .split(/[\n,]/)
+      .map((s) => s.trim())
+      .filter((s) => isValidEmail(s));
+  }, [bulkText]);
+
+  // Shared
   const [capabilities, setCapabilities] = useState(new Set(["participant"]));
   const [cohortSlug, setCohortSlug] = useState("");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+  const [bulkResult, setBulkResult] = useState(null);
 
   function toggleCap(key) {
     setCapabilities((prev) => {
@@ -121,31 +137,63 @@ export default function AdminUserNew() {
   async function handleSubmit(e) {
     e.preventDefault();
     setError("");
-    if (!name.trim()) return setError("Name is required.");
-    if (!email.trim() || !isValidEmail(email)) {
-      return setError("A valid email is required.");
-    }
+    setBulkResult(null);
     if (capabilities.size === 0) return setError("Pick at least one role.");
-
     setSaving(true);
     await new Promise((r) => setTimeout(r, 250));
-    const result = createStandaloneUser({
-      name,
-      email,
-      title,
-      organization,
-      phone,
-      headshotUrl,
-      capabilities: [...capabilities],
-      cohortSlug: hasParticipant ? (cohortSlug || null) : null,
-    });
-    if (result.errors.length) {
-      setError(result.errors.join(" "));
-      setSaving(false);
+
+    if (mode === "one") {
+      if (!name.trim()) {
+        setSaving(false);
+        return setError("Name is required.");
+      }
+      if (!email.trim() || !isValidEmail(email)) {
+        setSaving(false);
+        return setError("A valid email is required.");
+      }
+      const result = createStandaloneUser({
+        name,
+        email,
+        title,
+        organization,
+        phone,
+        headshotUrl,
+        capabilities: [...capabilities],
+        cohortSlug: hasParticipant ? (cohortSlug || null) : null,
+      });
+      if (result.errors.length) {
+        setError(result.errors.join(" "));
+        setSaving(false);
+        return;
+      }
+      // Land on the new user's profile so the admin can verify + tweak.
+      navigate(`/admin/participants/${result.user.id}`);
       return;
     }
-    // Land on the new user's profile so the admin can verify + tweak.
-    navigate(`/admin/participants/${result.user.id}`);
+
+    // Bulk mode — one createStandaloneUser per parsed email.
+    if (bulkEmails.length === 0) {
+      setSaving(false);
+      return setError("Paste at least one valid email.");
+    }
+    const added = [];
+    const skipped = [];
+    for (const e of bulkEmails) {
+      const r = createStandaloneUser({
+        name: e.split("@")[0], // best-effort placeholder name from email
+        email: e,
+        capabilities: [...capabilities],
+        cohortSlug: hasParticipant ? (cohortSlug || null) : null,
+      });
+      if (r.user) added.push(r.user);
+      else skipped.push({ email: e, reason: r.errors.join(" ") });
+    }
+    setBulkResult({ added, skipped });
+    setSaving(false);
+    if (skipped.length === 0 && added.length > 0) {
+      // All clean — go to the Users page so the admin sees them in the directory.
+      setTimeout(() => navigate("/admin/users"), 800);
+    }
   }
 
   return (
@@ -171,7 +219,42 @@ export default function AdminUserNew() {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-5">
-        {/* Identity */}
+        {/* Mode toggle — Single vs Bulk paste. */}
+        <div className="inline-flex bg-surface-soft border border-soft rounded-xl p-1 gap-1">
+          <ModeButton active={mode === "one"} onClick={() => setMode("one")}>
+            Single user
+          </ModeButton>
+          <ModeButton active={mode === "bulk"} onClick={() => setMode("bulk")}>
+            Bulk paste
+          </ModeButton>
+        </div>
+
+        {/* Bulk paste — list of emails. */}
+        {mode === "bulk" && (
+          <section className="rounded-2xl bg-surface-card border border-soft p-5 space-y-3">
+            <SectionTitle>Paste emails</SectionTitle>
+            <p className="text-[12.5px] text-ink-muted -mt-1">
+              One per line, or comma-separated. We'll create one user per email
+              and apply the roles + cohort below to all of them. Names are
+              guessed from the email and can be edited later.
+            </p>
+            <textarea
+              value={bulkText}
+              onChange={(e) => setBulkText(e.target.value)}
+              rows={6}
+              placeholder="jane@acme.com&#10;ravi@acme.com&#10;sam@acme.com"
+              className="w-full px-3 py-2 rounded-lg bg-white border border-soft text-[13px] text-ink focus:outline-none focus:ring-2 focus:ring-brand-300 font-mono"
+            />
+            <div className="text-[12px] text-ink-muted">
+              {bulkEmails.length === 0
+                ? "No valid emails yet."
+                : `${bulkEmails.length} valid email${bulkEmails.length === 1 ? "" : "s"} parsed.`}
+            </div>
+          </section>
+        )}
+
+        {/* Identity — only in single mode. */}
+        {mode === "one" && (
         <section className="rounded-2xl bg-surface-card border border-soft p-5 space-y-4">
           <SectionTitle>Identity</SectionTitle>
           <div>
@@ -226,6 +309,7 @@ export default function AdminUserNew() {
             />
           </div>
         </section>
+        )}
 
         {/* Roles */}
         <section className="rounded-2xl bg-surface-card border border-soft p-5 space-y-4">
@@ -296,6 +380,32 @@ export default function AdminUserNew() {
           </section>
         )}
 
+        {bulkResult && (
+          <div className="rounded-2xl bg-surface-card border border-soft p-4 space-y-2">
+            <div className="font-heading text-[13px] font-extrabold text-ink inline-flex items-center gap-1.5">
+              <Check className="w-4 h-4 text-emerald-600" strokeWidth={3} />
+              Created {bulkResult.added.length} user{bulkResult.added.length === 1 ? "" : "s"}
+              {bulkResult.skipped.length > 0 && (
+                <span className="text-ink-muted font-semibold">
+                  · skipped {bulkResult.skipped.length}
+                </span>
+              )}
+            </div>
+            {bulkResult.skipped.length > 0 && (
+              <ul className="space-y-1 text-[12px]">
+                {bulkResult.skipped.map((s) => (
+                  <li key={s.email} className="flex items-start gap-1.5 text-ink-muted">
+                    <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0 mt-0.5" strokeWidth={2.5} />
+                    <span><span className="font-semibold text-ink">{s.email}</span> — {s.reason}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {bulkResult.skipped.length === 0 && (
+              <div className="text-[12px] text-ink-muted">Heading to the Users directory…</div>
+            )}
+          </div>
+        )}
         {error && (
           <div className="rounded-xl bg-rose-50 border border-rose-200 px-3 py-2 inline-flex items-center gap-2 text-[12.5px] text-rose-700">
             <AlertTriangle className="w-4 h-4" strokeWidth={2.5} />
@@ -317,7 +427,9 @@ export default function AdminUserNew() {
             ) : (
               <>
                 <UserPlus className="w-4 h-4" strokeWidth={2.5} />
-                Create user
+                {mode === "bulk"
+                  ? `Create ${bulkEmails.length || ""} user${bulkEmails.length === 1 ? "" : "s"}`.trim()
+                  : "Create user"}
               </>
             )}
           </button>
@@ -330,6 +442,22 @@ export default function AdminUserNew() {
         </div>
       </form>
     </div>
+  );
+}
+
+function ModeButton({ active, onClick, children }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`px-3 py-1.5 rounded-lg text-[12.5px] font-heading font-bold transition-colors ${
+        active
+          ? "bg-white border border-soft text-ink shadow-sm"
+          : "text-ink-muted hover:text-ink"
+      }`}
+    >
+      {children}
+    </button>
   );
 }
 
