@@ -50,38 +50,63 @@ export default function PipelineView({ rows }) {
               {stageRows.length === 0 ? (
                 <div className="text-[11.5px] text-ink-subtle">—</div>
               ) : (
-                stageRows.map(({ cohort: c, delivered }) => (
-                  <Link
-                    key={c.slug}
-                    to={`/admin/cohorts/${c.slug}`}
-                    className="block rounded-xl bg-surface-soft hover:bg-white border border-transparent hover:border-brand-500 p-3 transition-all duration-200"
-                  >
-                    <div className="text-[10.5px] font-heading font-bold uppercase tracking-wider text-ink-subtle truncate">
-                      {c.organization?.shortName || ""}
-                    </div>
-                    <div className="font-heading text-[12.5px] font-bold text-ink truncate mt-0.5">
-                      {c.name}
-                    </div>
-                    {/* Belt-progress pip strip */}
-                    <div className="flex items-center gap-0.5 mt-2">
-                      {MOCK_SESSIONS.map((s) => {
-                        const done = s.order <= delivered;
-                        const belt = BELT_COLORS[s.belt];
-                        return (
-                          <div
-                            key={s.order}
-                            title={`${s.belt} — Session ${s.order}`}
-                            style={{
-                              background: done ? belt.gradient : "#E5E7EB",
-                              border: done && belt.needsBorder ? "1px solid #D1D5DB" : "none",
-                            }}
-                            className="h-2 flex-1 rounded-sm"
-                          />
-                        );
-                      })}
-                    </div>
-                  </Link>
-                ))
+                stageRows.map(({ cohort: c, delivered }) => {
+                  const fac = c.facilitator || c.trainer;
+                  const facInitials = fac
+                    ? fac.name.split(" ").slice(0, 2).map((w) => w[0]).join("").toUpperCase()
+                    : "";
+                  return (
+                    <Link
+                      key={c.slug}
+                      to={`/admin/cohorts/${c.slug}`}
+                      className="block rounded-xl bg-surface-soft hover:bg-white border border-transparent hover:border-brand-500 p-3 transition-all duration-200"
+                    >
+                      <div className="text-[10.5px] font-heading font-bold uppercase tracking-wider text-ink-subtle truncate">
+                        {c.organization?.shortName || ""}
+                      </div>
+                      <div className="font-heading text-[12.5px] font-bold text-ink truncate mt-0.5">
+                        {c.name}
+                      </div>
+                      {/* Facilitator — tiny avatar + first name */}
+                      {fac && (
+                        <div className="mt-1.5 flex items-center gap-1.5 text-[10.5px] text-ink-muted">
+                          {fac.headshotUrl ? (
+                            <img
+                              src={fac.headshotUrl}
+                              alt=""
+                              className="w-4 h-4 rounded-full object-cover shrink-0"
+                            />
+                          ) : (
+                            <span className="w-4 h-4 rounded-full bg-brand-700 text-white inline-flex items-center justify-center text-[8px] font-heading font-bold shrink-0">
+                              {facInitials}
+                            </span>
+                          )}
+                          <span className="font-heading font-semibold text-ink-muted truncate">
+                            {fac.name}
+                          </span>
+                        </div>
+                      )}
+                      {/* Belt-progress pip strip */}
+                      <div className="flex items-center gap-0.5 mt-2">
+                        {MOCK_SESSIONS.map((s) => {
+                          const done = s.order <= delivered;
+                          const belt = BELT_COLORS[s.belt];
+                          return (
+                            <div
+                              key={s.order}
+                              title={`${s.belt} — Session ${s.order}`}
+                              style={{
+                                background: done ? belt.gradient : "#E5E7EB",
+                                border: done && belt.needsBorder ? "1px solid #D1D5DB" : "none",
+                              }}
+                              className="h-2 flex-1 rounded-sm"
+                            />
+                          );
+                        })}
+                      </div>
+                    </Link>
+                  );
+                })
               )}
             </div>
           </div>

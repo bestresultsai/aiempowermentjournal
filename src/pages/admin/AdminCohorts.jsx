@@ -170,6 +170,10 @@ export default function AdminCohorts() {
         <div className="rounded-2xl bg-surface-card border border-soft overflow-hidden">
           {rows.map(({ cohort: c, participants, avgProgress, delivered, last, next, stage, startMs, endMs }) => {
             const stageCfg = stageMeta[stage];
+            const fac = c.facilitator || c.trainer;
+            const facInitials = fac
+              ? fac.name.split(" ").slice(0, 2).map((w) => w[0]).join("").toUpperCase()
+              : "";
             return (
               <Link
                 key={c.slug}
@@ -202,6 +206,25 @@ export default function AdminCohorts() {
                     </div>
                     <div className="text-[11.5px] text-ink-muted truncate">
                       {c.methodName} · {c.programCode}
+                      {fac && (
+                        <>
+                          <span className="text-ink-subtle mx-1.5">·</span>
+                          <span className="inline-flex items-center gap-1.5 align-middle">
+                            {fac.headshotUrl ? (
+                              <img
+                                src={fac.headshotUrl}
+                                alt=""
+                                className="w-4 h-4 rounded-full object-cover"
+                              />
+                            ) : (
+                              <span className="w-4 h-4 rounded-full bg-brand-700 text-white inline-flex items-center justify-center text-[8px] font-heading font-bold">
+                                {facInitials}
+                              </span>
+                            )}
+                            <span className="font-heading font-semibold text-ink">{fac.name}</span>
+                          </span>
+                        </>
+                      )}
                     </div>
 
                     {/* Date range — start → end of the cohort */}
