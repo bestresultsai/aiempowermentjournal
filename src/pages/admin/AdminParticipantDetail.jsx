@@ -3,7 +3,7 @@ import { Link, Navigate, useParams } from "react-router-dom";
 import {
   ArrowLeft, Mail, Building2, BookCheck, Check, Clock, GraduationCap,
   ExternalLink, NotebookPen, Sparkles, Lightbulb, Target, Lock, Save, Crown,
-  AlertTriangle, X, Download, MessageSquare, Paperclip,
+  AlertTriangle, X, Download, MessageSquare, Paperclip, Zap,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { getAccessibleCohortSlugs } from "../../lib/adminRoles";
@@ -12,6 +12,7 @@ import { MOCK_SESSIONS, BELT_COLORS } from "../../lib/mockCohort";
 import Modal from "../../components/admin/Modal";
 import JournalEntryDetail from "../../components/admin/JournalEntryDetail";
 import SubmissionDetail from "../../components/admin/SubmissionDetail";
+import { getProductionMethod, leveragePerWeek } from "../../lib/journalConstants";
 import {
   getParticipantById,
   getSubmissionsForParticipant,
@@ -205,6 +206,8 @@ export default function AdminParticipantDetail() {
           <div className="space-y-3">
             {journalEntries.map((e) => {
               const saved = timeSavedFor(e);
+              const method = getProductionMethod(e.productionMethod);
+              const leverage = leveragePerWeek(e);
               return (
                 <button
                   type="button"
@@ -213,20 +216,35 @@ export default function AdminParticipantDetail() {
                   className="block w-full text-left rounded-2xl bg-surface-card border border-soft p-5 hover:border-brand-500 hover:shadow-card transition-all duration-200"
                 >
                   <div className="flex items-start justify-between gap-3 flex-wrap">
-                    <div>
-                      <div className="text-[11px] text-ink-muted font-heading">
-                        {dateLabel(e.date)}
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap mb-1">
+                        <span className="text-[11px] text-ink-muted font-heading">
+                          {dateLabel(e.date)}
+                        </span>
+                        {method && (
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10.5px] font-heading font-bold ${method.chipBg} ${method.chipText}`}>
+                            {method.short}
+                          </span>
+                        )}
                       </div>
-                      <h3 className="font-heading font-bold text-ink text-[14.5px] leading-snug mt-0.5">
+                      <h3 className="font-heading font-bold text-ink text-[14.5px] leading-snug">
                         {e.title}
                       </h3>
                     </div>
-                    {saved > 0 && (
-                      <div className="shrink-0 inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 text-[11px] font-heading font-bold">
-                        <Sparkles className="w-3 h-3" strokeWidth={3} />
-                        {formatMinutes(saved)} saved
-                      </div>
-                    )}
+                    <div className="shrink-0 flex items-center gap-2 flex-wrap justify-end">
+                      {leverage > 0 && (
+                        <div className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-purple-50 text-purple-700 text-[11px] font-heading font-bold">
+                          <Zap className="w-3 h-3" strokeWidth={3} />
+                          {formatMinutes(leverage)}/wk
+                        </div>
+                      )}
+                      {saved > 0 && (
+                        <div className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 text-[11px] font-heading font-bold">
+                          <Sparkles className="w-3 h-3" strokeWidth={3} />
+                          {formatMinutes(saved)} saved
+                        </div>
+                      )}
+                    </div>
                   </div>
                   <p className="mt-2 text-[13.5px] text-ink leading-relaxed">{e.description}</p>
                   {(e.timeBeforeAI > 0 || e.timeWithAI > 0) && (
