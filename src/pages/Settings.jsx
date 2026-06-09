@@ -2,12 +2,13 @@ import { useState, useRef } from "react";
 import { Link } from "react-router-dom";
 import {
   User, Mail, Phone, Briefcase, Building2, Camera, ArrowRight, Check, GraduationCap,
-  Video, Globe,
+  Video, Globe, Calendar as CalendarIcon, RefreshCw, Link2Off, Loader2,
 } from "lucide-react";
 import NavBar from "../components/NavBar";
 import { useAuth } from "../context/AuthContext";
 import { getUserCohorts } from "../lib/cohortResolution";
 import { groupTimeZones } from "../lib/timeZones";
+import { useGoogleCalendarConnection } from "../lib/googleCalendar";
 
 // ---------------------------------------------------------------------------
 // SETTINGS PAGE — /settings
@@ -215,6 +216,13 @@ export default function Settings() {
             </Section>
           )}
 
+          {/* ============ GOOGLE CALENDAR (facilitators / admins) ============ */}
+          {showCohortDefaults && (
+            <div id="google-calendar">
+              <GoogleCalendarSection user={user} />
+            </div>
+          )}
+
           {/* ============ COHORTS (read-only) ============ */}
           <Section title="Your cohorts" icon={GraduationCap} muted>
             {cohorts.length === 0 ? (
@@ -277,6 +285,126 @@ export default function Settings() {
 }
 
 // ---- Helpers ----
+
+// ---------------------------------------------------------------------------
+// GoogleCalendarSection — connect / disconnect / sync controls.
+//
+// Visual rhythm matches the other Section blocks. Two states:
+//   - NOT connected — blue Connect button + explainer
+//   - CONNECTED     — green pill + email + last synced + Sync now + Disconnect
+//
+// The Connect button kicks off the mock OAuth flow today; in production it
+// will redirect to /api/auth/google/start.
+// ---------------------------------------------------------------------------
+function GoogleCalendarSection({ user }) {
+  const { connected, email, calendarName, lastSyncedAt, syncing, connect, disconnect, syncNow } =
+    useGoogleCalendarConnection(user);
+  const [connecting, setConnecting] = useState(false);
+
+  async function handleConnect() {
+    setConnecting(true);
+    try {
+      await connect();
+    } finally {
+      setConnecting(false);
+    }
+  }
+
+  return (
+    <Section title="Google Calendar" icon={CalendarIcon}>
+      {!connected ? (
+        <div className="space-y-3">
+          <p className="text-[12.5px] text-ink-muted leading-relaxed">
+            Sync every cohort session to a calendar called{" "}
+            <span className="font-heading font-semibold text-ink">"BRAI Sessions"</span> in your Google account.
+            Changes you make in BRAI flow to your calendar automatically — including new cohorts, reschedules, and cancellations.
+          </p>
+          <button
+            type="button"
+            onClick={handleConnect}
+            disabled={connecting}
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-ink text-white text-[13px] font-heading font-bold hover:bg-brand-700 transition-colors disabled:bg-ink/40 disabled:cursor-not-allowed"
+          >
+            {connecting ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" strokeWidth={2.5} />
+                Connecting…
+              </>
+            ) : (
+              <>
+                <CalendarIcon className="w-4 h-4" strokeWidth={2.5} />
+                Connect Google Calendar
+              </>
+            )}
+          </button>
+          <p className="text-[11px] text-ink-subtle">
+            You'll be redirected to Google to grant calendar access.
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          <div className="flex items-center gap-3 rounded-xl bg-emerald-50/60 border border-emerald-100 p-3">
+            <div className="w-9 h-9 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
+              <Check className="w-4 h-4" strokeWidth={3} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="inline-flex items-center gap-1.5 text-[10.5px] font-heading font-bold uppercase tracking-wider text-emerald-700">
+                Connected
+              </div>
+              <div className="text-[13px] font-heading font-semibold text-ink truncate">
+                {email}
+              </div>
+              <div className="text-[11.5px] text-ink-muted">
+                Writing to <span className="font-semibold text-ink">{calendarName}</span>
+                {lastSyncedAt && (
+                  <>
+                    {" · "}
+                    Last synced {timeAgoShort(lastSyncedAt)}
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              type="button"
+              onClick={syncNow}
+              disabled={syncing}
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-brand-50 text-brand-700 text-[12.5px] font-heading font-semibold hover:bg-brand-100 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              {syncing ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" strokeWidth={2.5} />
+              ) : (
+                <RefreshCw className="w-3.5 h-3.5" strokeWidth={2.5} />
+              )}
+              {syncing ? "Syncing…" : "Sync now"}
+            </button>
+            <button
+              type="button"
+              onClick={disconnect}
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-[12.5px] font-heading font-semibold text-ink-muted hover:text-ink hover:bg-surface-soft transition-colors"
+            >
+              <Link2Off className="w-3.5 h-3.5" strokeWidth={2.5} />
+              Disconnect
+            </button>
+          </div>
+        </div>
+      )}
+    </Section>
+  );
+}
+
+// Tiny relative-time helper used in the connection card.
+function timeAgoShort(iso) {
+  const sec = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
+  if (sec < 60) return "just now";
+  const min = Math.floor(sec / 60);
+  if (min < 60) return `${min}m ago`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return `${hr}h ago`;
+  const d = Math.floor(hr / 24);
+  return `${d}d ago`;
+}
 
 function Section({ title, icon: Icon, muted, children }) {
   return (

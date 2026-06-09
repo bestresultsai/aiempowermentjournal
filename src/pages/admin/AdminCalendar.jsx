@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   Calendar as CalendarIcon, Clock, ExternalLink, Video,
-  ArrowRight, AlertCircle, Sparkles,
+  ArrowRight, AlertCircle, Sparkles, X,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { useScopeFilters } from "../../lib/useScopeFilters";
@@ -11,6 +11,7 @@ import {
   getFacilitatorScheduleByDay,
 } from "../../lib/cohortAdmin";
 import { BELT_COLORS } from "../../lib/mockCohort";
+import { useGoogleCalendarConnection } from "../../lib/googleCalendar";
 import ScopeFilterBar from "../../components/admin/ScopeFilterBar";
 import SegmentedControl from "../../components/admin/SegmentedControl";
 
@@ -36,8 +37,26 @@ export default function AdminCalendar() {
   const { user } = useAuth();
   const scope = useScopeFilters(user, getAllCohortsForAdmin());
   const { cohorts, effectiveCohorts, effectiveSlugs: cohortSlugs, orgs, facilitators } = scope;
+  const gcal = useGoogleCalendarConnection(user);
 
   const [daysAhead, setDaysAhead] = useState(14);
+  const [bannerDismissed, setBannerDismissed] = useState(() => {
+    if (typeof window === "undefined") return false;
+    try {
+      return window.sessionStorage.getItem("brai_gcal_nudge_dismissed") === "1";
+    } catch {
+      return false;
+    }
+  });
+
+  function dismissBanner() {
+    setBannerDismissed(true);
+    try {
+      window.sessionStorage.setItem("brai_gcal_nudge_dismissed", "1");
+    } catch {
+      /* ignore */
+    }
+  }
 
   const days = useMemo(
     () => getFacilitatorScheduleByDay(cohortSlugs, daysAhead),
@@ -88,6 +107,11 @@ export default function AdminCalendar() {
           setFacilitatorFilter={scope.setFacilitatorFilter}
         />
       </div>
+
+      {/* Google Calendar nudge banner — only when not connected and not dismissed */}
+      {!gcal.connected && !bannerDismissed && (
+        <GoogleCalendarNudge onDismiss={dismissBanner} />
+      )}
 
       {/* "Next up" hero — only when there's at least one upcoming session */}
       {nextEvent && (
@@ -341,6 +365,47 @@ function EventRow({ event }) {
           </Link>
         </div>
       </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// GoogleCalendarNudge — amber banner asking the facilitator to connect their
+// Google Calendar so sessions sync automatically. Dismissable for the session.
+// Hash link drops the user straight into the section on /settings.
+// ---------------------------------------------------------------------------
+function GoogleCalendarNudge({ onDismiss }) {
+  return (
+    <div className="rounded-2xl bg-amber-50/70 border border-amber-200 p-4 flex items-start gap-3">
+      <div className="w-9 h-9 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center shrink-0">
+        <CalendarIcon className="w-4 h-4" strokeWidth={2.5} />
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="text-[13.5px] font-heading font-bold text-amber-900">
+          Sync these sessions to your Google Calendar
+        </div>
+        <p className="text-[12.5px] text-amber-900/80 leading-relaxed mt-0.5">
+          Connect once in Settings and every cohort session you facilitate flows into a calendar called "BRAI Sessions" automatically. Reschedules, cancellations, and new cohorts all sync.
+        </p>
+        <div className="mt-2 flex items-center gap-2 flex-wrap">
+          <Link
+            to="/settings#google-calendar"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-ink text-white text-[12px] font-heading font-bold hover:bg-brand-700 transition-colors"
+          >
+            <CalendarIcon className="w-3.5 h-3.5" strokeWidth={2.5} />
+            Connect Google Calendar
+            <ArrowRight className="w-3.5 h-3.5" strokeWidth={2.5} />
+          </Link>
+        </div>
+      </div>
+      <button
+        type="button"
+        onClick={onDismiss}
+        aria-label="Dismiss"
+        className="p-1.5 rounded-lg text-amber-700/70 hover:text-amber-900 hover:bg-amber-100/60 transition-colors shrink-0"
+      >
+        <X className="w-4 h-4" strokeWidth={2.5} />
+      </button>
     </div>
   );
 }
