@@ -139,6 +139,10 @@ export default function AdminSuper() {
       });
       u.capabilities.add("participant");
       if (p.isCohortLead) u.capabilities.add("cohort-leader");
+      // Extra capabilities granted via the participant profile editor.
+      if (Array.isArray(p.capabilities)) {
+        for (const c of p.capabilities) u.capabilities.add(c);
+      }
     }
     // Materialize capability Set → array for downstream consumers.
     return [...seen.values()].map((u) => ({

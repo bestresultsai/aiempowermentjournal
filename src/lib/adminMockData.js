@@ -709,6 +709,26 @@ export function setFacilitatorNote(participantId, text) {
 }
 
 // ---------------------------------------------------------------------------
+// Capabilities — per-participant role grants beyond the implicit "participant"
+// + "cohort-leader" (which is still driven by p.isCohortLead).
+//
+// Super + Admin can grant a participant additional capabilities (admin, org,
+// facilitator) from the participant profile. Persisted on the participant
+// record so it round-trips through getParticipantById.
+// ---------------------------------------------------------------------------
+export function setParticipantCapabilities(participantId, capabilities) {
+  const p = getParticipantById(participantId);
+  if (!p) return null;
+  const list = Array.isArray(capabilities) ? capabilities : [];
+  // "participant" + "cohort-leader" are derived from the participant record,
+  // not from explicit capabilities — strip them so we don't double-store.
+  p.capabilities = list.filter((c) => c !== "participant" && c !== "cohort-leader");
+  // Sync isCohortLead if it's being toggled via capability UI.
+  if (list.includes("cohort-leader")) p.isCohortLead = true;
+  return p.capabilities;
+}
+
+// ---------------------------------------------------------------------------
 // Date range filter — used by /admin/journal selector.
 //
 // Returns { label, sinceMs } where sinceMs filters entries by `date >= sinceMs`

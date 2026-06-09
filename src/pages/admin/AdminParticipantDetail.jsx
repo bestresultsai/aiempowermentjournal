@@ -20,10 +20,12 @@ import {
   getJournalEntriesForParticipant,
   getFacilitatorNote,
   setFacilitatorNote,
+  setParticipantCapabilities,
   totalTimeSaved,
   timeSavedFor,
   formatMinutes,
 } from "../../lib/adminMockData";
+import { canAssignRoles } from "../../lib/adminRoles";
 
 // /admin/users/:id — drill-in on a single participant.
 // Read-only this round.
@@ -147,6 +149,9 @@ export default function AdminParticipantDetail() {
 
       {/* Facilitator notes — private to admins, persisted locally for now */}
       <FacilitatorNotes participantId={p.id} participantName={p.name} />
+
+      {/* Capabilities — super + admin can grant extra roles to this user. */}
+      <ParticipantCapabilities participant={p} />
 
       {/* Quick stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
@@ -400,6 +405,123 @@ function SmallKpi({ label, value, accent, sub }) {
         </div>
       )}
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// ParticipantCapabilities — Super + Admin can grant a participant additional
+// roles (cohort leader, facilitator, admin, org). Reflects to the Super Admin
+// directory so the chips update on save.
+//
+// Participant + Cohort Leader are derived from the record itself
+// (isCohortLead). Everything else lives in participant.capabilities[].
+// ---------------------------------------------------------------------------
+function ParticipantCapabilities({ participant }) {
+  const { user } = useAuth();
+  const canEdit = canAssignRoles(user);
+
+  const [capabilities, setCapabilities] = useState(() => {
+    const s = new Set();
+    s.add("participant");
+    if (participant.isCohortLead) s.add("cohort-leader");
+    for (const c of participant.capabilities || []) s.add(c);
+    return s;
+  });
+  const [savedAt, setSavedAt] = useState(null);
+
+  function toggleCap(cap) {
+    setCapabilities((prev) => {
+      const next = new Set(prev);
+      if (next.has(cap)) next.delete(cap);
+      else next.add(cap);
+      return next;
+    });
+  }
+
+  function handleSave() {
+    setParticipantCapabilities(participant.id, [...capabilities]);
+    // Cohort-leader is also a flag on the participant — keep them in sync.
+    participant.isCohortLead = capabilities.has("cohort-leader");
+    setSavedAt(new Date().toISOString());
+  }
+
+  // Read-only view for non-privileged admins.
+  if (!canEdit) {
+    const chips = [...capabilities];
+    return (
+      <section className="rounded-2xl bg-surface-card border border-soft p-5">
+        <div className="text-[10.5px] font-heading font-bold uppercase tracking-wider text-ink-subtle mb-2 inline-flex items-center gap-1.5">
+          <Lock className="w-3 h-3" strokeWidth={2.5} />
+          Capabilities
+        </div>
+        <div className="flex items-center gap-1.5 flex-wrap">
+          {chips.map((c) => (
+            <span key={c} className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-heading font-bold bg-ink/5 text-ink-muted">
+              {c}
+            </span>
+          ))}
+        </div>
+        <p className="text-[11.5px] text-ink-muted mt-2">
+          Only super and admin users can change capabilities.
+        </p>
+      </section>
+    );
+  }
+
+  return (
+    <section className="rounded-2xl bg-purple-50/40 border border-purple-200 p-5">
+      <div className="flex items-center gap-2 mb-1">
+        <Lock className="w-4 h-4 text-purple-700" strokeWidth={2.5} />
+        <h2 className="font-heading text-[13px] font-bold uppercase tracking-wider text-purple-700">
+          Capabilities
+        </h2>
+        {savedAt && (
+          <span className="text-[11.5px] text-emerald-700 inline-flex items-center gap-1">
+            <Check className="w-3 h-3" strokeWidth={3} />
+            Saved
+          </span>
+        )}
+      </div>
+      <p className="text-[12.5px] text-ink-muted leading-relaxed mb-3 max-w-2xl">
+        Grant this user additional roles. Multi-role example: a participant who's also a cohort leader, or a facilitator who's also their org's admin.
+      </p>
+      <div className="flex items-center gap-1.5 flex-wrap mb-3">
+        {["participant", "cohort-leader", "facilitator", "org", "admin"].map((cap) => {
+          const meta = {
+            participant:    { label: "Participant" },
+            "cohort-leader":{ label: "Cohort Leader" },
+            facilitator:    { label: "Facilitator" },
+            org:            { label: "Org Admin" },
+            admin:          { label: "Admin" },
+          }[cap];
+          const active = capabilities.has(cap);
+          return (
+            <button
+              key={cap}
+              type="button"
+              onClick={() => toggleCap(cap)}
+              className={
+                "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] font-heading font-bold transition-colors cursor-pointer " +
+                (active
+                  ? "bg-purple-600 text-white"
+                  : "bg-white border border-soft text-ink-muted hover:text-ink")
+              }
+            >
+              {active && <Check className="w-3 h-3" strokeWidth={3} />}
+              {meta.label}
+            </button>
+          );
+        })}
+      </div>
+      <button
+        type="button"
+        onClick={handleSave}
+        className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-purple-600 text-white text-[12.5px] font-heading font-bold hover:bg-purple-700 transition-colors"
+      >
+        <Save className="w-3.5 h-3.5" strokeWidth={2.5} />
+        Save capabilities
+      </button>
+    </section>
   );
 }
 
