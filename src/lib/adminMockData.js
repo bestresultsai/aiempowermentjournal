@@ -25,7 +25,18 @@ function daysAgoISO(n) {
 }
 
 // Tiny helper for building journal entries with consistent shape.
-function entry({ days, title, description, before, after }) {
+function entry({
+  days, title, description, before, after,
+  productionMethod = null, // "no-sop" | "with-sop" | "ai-workflow" | "ai-agent" | "ai-swarm"
+  volumePerDay = null,     // "1" | "2-5" | "6-10" | "10+"
+  frequency = null,        // "multiple-per-day" | "daily" | "weekly" | "monthly" | "rare"
+  scope = null,            // "Individual" | "Department-wide" | "Organization-wide"
+  qualityOutcome = null,
+  innovationTitle = null,
+  innovationDescription = null,
+  attachment = null,       // { name, dataUrl, sizeBytes, mimeType }
+  link = null,
+}) {
   return {
     id: `${days}-${title.slice(0, 8)}`,
     date: daysAgoISO(days),
@@ -33,6 +44,15 @@ function entry({ days, title, description, before, after }) {
     description,
     timeBeforeAI: before,
     timeWithAI: after,
+    productionMethod,
+    volumePerDay,
+    frequency,
+    scope,
+    qualityOutcome,
+    innovationTitle,
+    innovationDescription,
+    attachment,
+    link,
   };
 }
 
@@ -55,11 +75,11 @@ export const ADMIN_MOCK_PARTICIPANTS = [
       3: { response: "Spun up a custom GPT for facilitator post-session notes.", link: "", submittedAt: daysAgoISO(14) },
     },
     journalEntries: [
-      entry({ days: 2,  title: "Cohort retention pivot tables from raw Notion export", description: "Pulled a messy Notion export and let Claude build the pivots + write the exec summary.", before: 240, after: 35 }),
-      entry({ days: 9,  title: "Facilitator post-session note GPT", description: "Custom GPT structures raw post-session notes + drafts the participant follow-up email.", before: 45, after: 8 }),
-      entry({ days: 16, title: "Gong transcripts → 6-week content calendar", description: "Extracted recurring participant questions from transcripts and turned them into a LinkedIn calendar.", before: 180, after: 25 }),
-      entry({ days: 23, title: "Competitive teardown — LearnUpon vs Thinkific vs Mighty", description: "Side-by-side feature matrix built in a single afternoon.", before: 360, after: 60 }),
-      entry({ days: 30, title: "Magic-link auth design doc + sequence diagram", description: "Drafted the whole doc in 45 minutes.", before: 180, after: 45 }),
+      entry({ days: 2,  title: "Cohort retention pivot tables from raw Notion export", description: "Pulled a messy Notion export and let Claude build the pivots + write the exec summary.", before: 240, after: 35, productionMethod: "ai-workflow", volumePerDay: "1", frequency: "weekly", scope: "Department-wide", qualityOutcome: "Better than original" }),
+      entry({ days: 9,  title: "Facilitator post-session note GPT", description: "Custom GPT structures raw post-session notes + drafts the participant follow-up email.", before: 45, after: 8, productionMethod: "ai-agent", volumePerDay: "2-5", frequency: "weekly", scope: "Department-wide", qualityOutcome: "Better than original" }),
+      entry({ days: 16, title: "Gong transcripts → 6-week content calendar", description: "Extracted recurring participant questions from transcripts and turned them into a LinkedIn calendar.", before: 180, after: 25, productionMethod: "ai-workflow", volumePerDay: "1", frequency: "monthly", scope: "Organization-wide" }),
+      entry({ days: 23, title: "Competitive teardown — LearnUpon vs Thinkific vs Mighty", description: "Side-by-side feature matrix built in a single afternoon.", before: 360, after: 60, productionMethod: "ai-swarm", volumePerDay: "1", frequency: "rare", scope: "Organization-wide", innovationTitle: "Multi-agent feature scorecard", innovationDescription: "Researcher + writer + scorer agents collaborated on the full teardown." }),
+      entry({ days: 30, title: "Magic-link auth design doc + sequence diagram", description: "Drafted the whole doc in 45 minutes.", before: 180, after: 45, productionMethod: "ai-workflow", volumePerDay: "1", frequency: "rare", scope: "Individual" }),
     ],
   },
   {
@@ -79,10 +99,10 @@ export const ADMIN_MOCK_PARTICIPANTS = [
       2: { response: "Built a workflow but still hitting hallucination issues — need to chat.", link: "", submittedAt: daysAgoISO(20) },
     },
     journalEntries: [
-      entry({ days: 5,  title: "Credentialing intake email drafts", description: "Cut a recurring 4-hour task to 25 minutes with a custom GPT.", before: 240, after: 25 }),
-      entry({ days: 12, title: "CE program needs assessment from raw survey data", description: "Claude clustered open-ended responses and surfaced 6 priority themes.", before: 180, after: 30 }),
-      entry({ days: 19, title: "Board prep deck from quarterly KPI dashboard", description: "Three iteration loops with Claude got the deck board-ready.", before: 240, after: 60 }),
-      entry({ days: 26, title: "Conference RFP responses, drafted in parallel", description: "Drafted 3 RFPs simultaneously by parameterizing a single prompt.", before: 480, after: 90 }),
+      entry({ days: 5,  title: "Credentialing intake email drafts", description: "Cut a recurring 4-hour task to 25 minutes with a custom GPT.", before: 240, after: 25, productionMethod: "ai-agent", volumePerDay: "6-10", frequency: "daily", scope: "Department-wide", qualityOutcome: "Better than original" }),
+      entry({ days: 12, title: "CE program needs assessment from raw survey data", description: "Claude clustered open-ended responses and surfaced 6 priority themes.", before: 180, after: 30, productionMethod: "ai-workflow", volumePerDay: "1", frequency: "monthly", scope: "Organization-wide" }),
+      entry({ days: 19, title: "Board prep deck from quarterly KPI dashboard", description: "Three iteration loops with Claude got the deck board-ready.", before: 240, after: 60, productionMethod: "with-sop", volumePerDay: "1", frequency: "rare", scope: "Organization-wide" }),
+      entry({ days: 26, title: "Conference RFP responses, drafted in parallel", description: "Drafted 3 RFPs simultaneously by parameterizing a single prompt.", before: 480, after: 90, productionMethod: "ai-workflow", volumePerDay: "2-5", frequency: "rare", scope: "Department-wide", qualityOutcome: "Equal to original" }),
     ],
   },
   {
@@ -122,11 +142,11 @@ export const ADMIN_MOCK_PARTICIPANTS = [
       4: { response: "Three high-reliability workflows live with my team.", link: "https://notion.so/z", submittedAt: daysAgoISO(7) },
     },
     journalEntries: [
-      entry({ days: 1,  title: "Patient education rewrite at 6th-grade reading level", description: "Built an internal GPT that consistently hits the reading-level target.", before: 60, after: 5 }),
-      entry({ days: 7,  title: "Three high-reliability content-grading workflows shipped", description: "Reusable prompt chains that the whole team now leans on.", before: 180, after: 30 }),
-      entry({ days: 15, title: "Curriculum review checklist generator", description: "Claude generates a per-module review checklist from the syllabus alone.", before: 120, after: 20 }),
-      entry({ days: 22, title: "CME activity outline drafting", description: "Pivot from blank page to draft in under 15 minutes.", before: 90, after: 15 }),
-      entry({ days: 29, title: "Faculty feedback synthesis", description: "30+ open-ended responses clustered + summarized.", before: 150, after: 25 }),
+      entry({ days: 1,  title: "Patient education rewrite at 6th-grade reading level", description: "Built an internal GPT that consistently hits the reading-level target.", before: 60, after: 5, productionMethod: "ai-agent", volumePerDay: "10+", frequency: "daily", scope: "Department-wide", qualityOutcome: "Better than original", innovationTitle: "Reading-level guardrail", innovationDescription: "Reusable verifier ensures every rewrite hits 6th-grade Flesch-Kincaid." }),
+      entry({ days: 7,  title: "Three high-reliability content-grading workflows shipped", description: "Reusable prompt chains that the whole team now leans on.", before: 180, after: 30, productionMethod: "ai-swarm", volumePerDay: "2-5", frequency: "daily", scope: "Organization-wide", qualityOutcome: "Better than original" }),
+      entry({ days: 15, title: "Curriculum review checklist generator", description: "Claude generates a per-module review checklist from the syllabus alone.", before: 120, after: 20, productionMethod: "ai-workflow", volumePerDay: "2-5", frequency: "weekly", scope: "Department-wide" }),
+      entry({ days: 22, title: "CME activity outline drafting", description: "Pivot from blank page to draft in under 15 minutes.", before: 90, after: 15, productionMethod: "ai-workflow", volumePerDay: "1", frequency: "weekly", scope: "Individual" }),
+      entry({ days: 29, title: "Faculty feedback synthesis", description: "30+ open-ended responses clustered + summarized.", before: 150, after: 25, productionMethod: "ai-workflow", volumePerDay: "1", frequency: "monthly", scope: "Organization-wide" }),
     ],
   },
 
@@ -539,6 +559,36 @@ export function submitHomeworkAsParticipant(email, sessionOrder, { response, lin
   };
   persistStoredReviews(stored);
   return p.submissions[order];
+}
+
+// Write a new journal entry from the participant side. Mirrors the same
+// pattern as submitHomeworkAsParticipant — the entry shows up immediately
+// on the admin views because they read from the same array.
+export function submitJournalEntryAsParticipant(email, payload) {
+  const p = getParticipantByEmail(email);
+  if (!p) return null;
+  const newEntry = {
+    id: `local-${Date.now()}`,
+    date: new Date().toISOString(),
+    title: (payload?.projectName || "Untitled").trim(),
+    description: (payload?.description || "").trim(),
+    timeBeforeAI: Number(payload?.hoursWithoutAI || 0) * 60,
+    timeWithAI: Number(payload?.hoursWithAI || 0) * 60,
+    productionMethod: payload?.productionMethod || null,
+    volumePerDay: payload?.volumePerDay || null,
+    frequency: payload?.frequency || null,
+    scope: payload?.scope || null,
+    qualityOutcome: payload?.qualityOutcome || null,
+    innovationTitle: payload?.innovationTitle || null,
+    innovationDescription: payload?.innovationDescription || null,
+    link: (payload?.link || "").trim() || null,
+    attachment: payload?.attachment || null,
+    notes: (payload?.notes || "").trim() || null,
+  };
+  if (!Array.isArray(p.journalEntries)) p.journalEntries = [];
+  p.journalEntries = [newEntry, ...p.journalEntries];
+  p.lastJournalDaysAgo = 0;
+  return newEntry;
 }
 
 // Mark a session complete for a participant identified by email.
@@ -1005,6 +1055,30 @@ export function getWeeklyTrend(cohortSlugs, weeks = 8) {
     }
   }
   return buckets;
+}
+
+// Production-method mix — how many entries used each production tier.
+// Returns ordered slices ready to feed a donut chart.
+export function getProductionMethodMix(cohortSlugs, sinceMs = null) {
+  const allowed = new Set(cohortSlugs);
+  const counts = {
+    "no-sop":      { key: "no-sop",      label: "No SOP",      count: 0, color: "#94A3B8" },
+    "with-sop":    { key: "with-sop",    label: "With SOP",    count: 0, color: "#F59E0B" },
+    "ai-workflow": { key: "ai-workflow", label: "AI Workflow", count: 0, color: "#3B82F6" },
+    "ai-agent":    { key: "ai-agent",    label: "AI Agent",    count: 0, color: "#10B981" },
+    "ai-swarm":    { key: "ai-swarm",    label: "AI Swarm",    count: 0, color: "#A855F7" },
+  };
+  let unlabeled = 0;
+  for (const p of ADMIN_MOCK_PARTICIPANTS) {
+    if (!allowed.has(p.cohortSlug)) continue;
+    for (const e of filterEntriesByRange(p.journalEntries || [], sinceMs)) {
+      const key = e.productionMethod;
+      if (key && counts[key]) counts[key].count++;
+      else unlabeled++;
+    }
+  }
+  const slices = Object.values(counts);
+  return { slices, unlabeled };
 }
 
 // Engagement segmentation — group participants by entry count (optionally

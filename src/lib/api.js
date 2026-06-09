@@ -1,4 +1,13 @@
+import { isDemoModeActive } from "./demoData";
+import { submitJournalEntryAsParticipant } from "./adminMockData";
+
 const API_BASE = "";
+
+// Demo mode short-circuits the network and writes through the unified
+// in-memory store so admin views see new entries immediately.
+function useMockData() {
+  return isDemoModeActive();
+}
 
 function getToken() {
   return localStorage.getItem("auth_token");
@@ -42,6 +51,13 @@ export async function getEntries({ cohort, org, email } = {}) {
 }
 
 export async function submitJournalEntry(data) {
+  if (useMockData()) {
+    // Demo/preview mode — route through the unified store so the entry
+    // immediately appears on /admin/journal, /admin/users/:id, the leader
+    // dashboard, and the participant's own journal dashboard.
+    const written = submitJournalEntryAsParticipant(data?.participantEmail, data);
+    return { success: true, entry: written };
+  }
   return fetchJSON("/api/journal", {
     method: "POST",
     body: JSON.stringify(data),

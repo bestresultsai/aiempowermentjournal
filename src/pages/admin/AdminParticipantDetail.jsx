@@ -10,6 +10,12 @@ import { getAccessibleCohortSlugs } from "../../lib/adminRoles";
 import { getAllCohortsForAdmin } from "../../lib/cohortAdmin";
 import { MOCK_SESSIONS, BELT_COLORS } from "../../lib/mockCohort";
 import {
+  getProductionMethod,
+  getVolumeBucket,
+  getFrequencyBucket,
+  leveragePerWeek,
+} from "../../lib/journalConstants";
+import {
   getParticipantById,
   getSubmissionsForParticipant,
   getJournalEntriesForParticipant,
@@ -447,6 +453,10 @@ function ModalHeader({ eyebrow, title, onClose }) {
 // ---------------------------------------------------------------------------
 function JournalEntryDetail({ entry, onClose }) {
   const saved = timeSavedFor(entry);
+  const method = getProductionMethod(entry.productionMethod);
+  const volume = getVolumeBucket(entry.volumePerDay);
+  const freq = getFrequencyBucket(entry.frequency);
+  const leverage = leveragePerWeek(entry);
   return (
     <>
       <ModalHeader
@@ -455,19 +465,120 @@ function JournalEntryDetail({ entry, onClose }) {
         onClose={onClose}
       />
       <div className="p-6 space-y-5">
-        {saved > 0 && (
-          <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-50 text-emerald-700 text-[12.5px] font-heading font-bold">
-            <Sparkles className="w-3.5 h-3.5" strokeWidth={3} />
-            {formatMinutes(saved)} saved
+        {/* Top chips — production method + saved chip */}
+        <div className="flex items-center gap-2 flex-wrap">
+          {method && (
+            <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[11.5px] font-heading font-bold ${method.chipBg} ${method.chipText}`}>
+              {method.label}
+            </span>
+          )}
+          {entry.scope && (
+            <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[11.5px] font-heading font-semibold bg-ink/5 text-ink-muted">
+              {entry.scope}
+            </span>
+          )}
+          {entry.qualityOutcome && (
+            <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[11.5px] font-heading font-semibold bg-amber-50 text-amber-800">
+              {entry.qualityOutcome}
+            </span>
+          )}
+          {saved > 0 && (
+            <span className="ml-auto inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-50 text-emerald-700 text-[12.5px] font-heading font-bold">
+              <Sparkles className="w-3.5 h-3.5" strokeWidth={3} />
+              {formatMinutes(saved)} saved
+            </span>
+          )}
+        </div>
+
+        {/* Description */}
+        {entry.description && (
+          <p className="text-[14.5px] text-ink leading-relaxed whitespace-pre-wrap">
+            {entry.description}
+          </p>
+        )}
+
+        {/* Frequency × Volume + leverage */}
+        {(freq || volume || leverage > 0) && (
+          <div className="grid grid-cols-3 gap-3">
+            <SmallKpi
+              label="Frequency"
+              value={freq?.label || "—"}
+            />
+            <SmallKpi
+              label="Volume / day"
+              value={volume?.label || "—"}
+            />
+            <SmallKpi
+              label="Leverage / week"
+              value={leverage > 0 ? formatMinutes(leverage) : "—"}
+              accent="emerald"
+            />
           </div>
         )}
-        <p className="text-[14.5px] text-ink leading-relaxed whitespace-pre-wrap">
-          {entry.description}
-        </p>
+
+        {/* Hours */}
         {(entry.timeBeforeAI > 0 || entry.timeWithAI > 0) && (
           <div className="grid grid-cols-2 gap-3">
             <SmallKpi label="Before AI" value={formatMinutes(entry.timeBeforeAI)} />
             <SmallKpi label="With AI" value={formatMinutes(entry.timeWithAI)} accent="emerald" />
+          </div>
+        )}
+
+        {/* Attachments / link */}
+        {(entry.link || entry.attachment?.dataUrl) && (
+          <div className="flex items-center gap-2 flex-wrap">
+            {entry.link && (
+              <a
+                href={entry.link}
+                target="_blank"
+                rel="noreferrer noopener"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-brand-50 text-brand-700 text-[12.5px] font-heading font-semibold hover:bg-brand-100 transition-colors"
+              >
+                <ExternalLink className="w-3.5 h-3.5" strokeWidth={2.5} />
+                Open link
+              </a>
+            )}
+            {entry.attachment?.dataUrl && (
+              <a
+                href={entry.attachment.dataUrl}
+                download={entry.attachment.name}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-brand-50 text-brand-700 text-[12.5px] font-heading font-semibold hover:bg-brand-100 transition-colors"
+              >
+                <Download className="w-3.5 h-3.5" strokeWidth={2.5} />
+                {entry.attachment.name}
+              </a>
+            )}
+          </div>
+        )}
+
+        {/* Innovation */}
+        {(entry.innovationTitle || entry.innovationDescription) && (
+          <div className="rounded-xl bg-amber-50/60 border border-amber-100 p-4">
+            <div className="text-[10.5px] font-heading font-bold uppercase tracking-wider text-amber-800 mb-1.5">
+              Innovation
+            </div>
+            {entry.innovationTitle && (
+              <div className="text-[14px] font-heading font-bold text-ink">
+                {entry.innovationTitle}
+              </div>
+            )}
+            {entry.innovationDescription && (
+              <p className="text-[13px] text-ink leading-relaxed mt-1 whitespace-pre-wrap">
+                {entry.innovationDescription}
+              </p>
+            )}
+          </div>
+        )}
+
+        {/* Notes */}
+        {entry.notes && (
+          <div className="rounded-xl bg-surface-soft px-4 py-3">
+            <div className="text-[10.5px] font-heading font-bold uppercase tracking-wider text-ink-subtle mb-1">
+              Notes
+            </div>
+            <p className="text-[13px] text-ink leading-relaxed whitespace-pre-wrap">
+              {entry.notes}
+            </p>
           </div>
         )}
       </div>

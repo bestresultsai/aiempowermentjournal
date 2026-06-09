@@ -18,6 +18,7 @@ import {
   getBiggestWinsInScope,
   getWeeklyTrend,
   getEngagementSegments,
+  getProductionMethodMix,
   filterEntriesByRange,
   timeSavedFor,
   totalTimeSaved,
@@ -59,6 +60,8 @@ export default function AdminJournalDashboard() {
   const biggestWins = getBiggestWinsInScope(cohortSlugs, 3, sinceMs);
   const weeklyTrend = getWeeklyTrend(cohortSlugs, 8);
   const segments = getEngagementSegments(cohortSlugs, sinceMs);
+  const productionMix = getProductionMethodMix(cohortSlugs, sinceMs);
+  const productionTotal = productionMix.slices.reduce((s, x) => s + x.count, 0);
 
 
   // Per-cohort breakdown — only cohorts that pass the filters.
@@ -259,6 +262,57 @@ export default function AdminJournalDashboard() {
           <EngagementDonut segments={segments} />
         </div>
       </section>
+
+      {/* Production method mix — how entries break down across the maturity ladder */}
+      {productionTotal > 0 && (
+        <section className="rounded-2xl bg-surface-card border border-soft p-5">
+          <div className="flex items-center gap-2 mb-1">
+            <BarChart3 className="w-4 h-4 text-emerald-700" strokeWidth={2.25} />
+            <h2 className="font-heading text-[14px] font-extrabold text-ink">
+              Production method mix
+            </h2>
+            <span className="text-[11.5px] text-ink-muted">
+              · {productionTotal} {productionTotal === 1 ? "entry" : "entries"} tagged
+              {productionMix.unlabeled > 0 && ` · ${productionMix.unlabeled} untagged`}
+            </span>
+          </div>
+          <p className="text-[12.5px] text-ink-muted mb-4 max-w-2xl">
+            Where the cohort sits on the maturity ladder, from No SOP to full AI Swarm. Higher tiers compound leverage.
+          </p>
+          <div className="grid lg:grid-cols-[260px_1fr] gap-6 items-center">
+            <EngagementDonut segments={productionMix.slices} />
+            <div className="space-y-2">
+              {productionMix.slices.map((s) => {
+                const pct = productionTotal ? Math.round((s.count / productionTotal) * 100) : 0;
+                return (
+                  <div key={s.key} className="flex items-center gap-3">
+                    <span
+                      className="w-2.5 h-2.5 rounded-full shrink-0"
+                      style={{ background: s.color }}
+                    />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-baseline justify-between gap-2">
+                        <span className="text-[13px] font-heading font-semibold text-ink">
+                          {s.label}
+                        </span>
+                        <span className="text-[11.5px] text-ink-muted">
+                          {s.count} ({pct}%)
+                        </span>
+                      </div>
+                      <div className="h-1.5 rounded-full bg-ink/5 overflow-hidden mt-1">
+                        <div
+                          className="h-full rounded-full transition-all"
+                          style={{ width: `${pct}%`, background: s.color }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* Cohort comparison */}
       {cohortRows.length > 0 && (
