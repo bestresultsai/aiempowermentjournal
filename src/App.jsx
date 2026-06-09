@@ -17,6 +17,9 @@ import AdminCalendar from "./pages/admin/AdminCalendar";
 import AdminParticipants from "./pages/admin/AdminParticipants";
 import AdminParticipantDetail from "./pages/admin/AdminParticipantDetail";
 import AdminParticipantNew from "./pages/admin/AdminParticipantNew";
+import AdminOrgs from "./pages/admin/AdminOrgs";
+import AdminFacilitators from "./pages/admin/AdminFacilitators";
+import AdminSuper from "./pages/admin/AdminSuper";
 import Home from "./pages/Home";
 import Login from "./pages/Login";
 import AuthVerify from "./pages/AuthVerify";
@@ -133,6 +136,9 @@ export default function App() {
               <Route path="users" element={<AdminParticipants />} />
               <Route path="users/new" element={<AdminParticipantNew />} />
               <Route path="users/:id" element={<AdminParticipantDetail />} />
+              <Route path="orgs" element={<AdminOrgs />} />
+              <Route path="facilitators" element={<AdminFacilitators />} />
+              <Route path="super" element={<AdminSuper />} />
             </Route>
 
             {/* Legacy + utility */}

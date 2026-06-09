@@ -15,8 +15,9 @@ import { DEMO_COHORTS } from "./demoData";
 import { MOCK_SESSIONS } from "./mockCohort";
 import { getProgramForCohort, getSessionsForProgram } from "./programs";
 
-const COHORTS_KEY = "brai_admin_cohorts";
-const ORGS_KEY    = "brai_admin_orgs";
+const COHORTS_KEY       = "brai_admin_cohorts";
+const ORGS_KEY          = "brai_admin_orgs";
+const FACILITATORS_KEY  = "brai_admin_facilitators";
 
 // ---- localStorage helpers ----
 function safeLoad(key) {
@@ -36,8 +37,9 @@ function safePersist(key, value) {
 }
 
 // In-memory overlays.
-const cohortOverlays = safeLoad(COHORTS_KEY);
-const orgOverlays    = safeLoad(ORGS_KEY);
+const cohortOverlays       = safeLoad(COHORTS_KEY);
+const orgOverlays          = safeLoad(ORGS_KEY);
+const facilitatorOverlays  = safeLoad(FACILITATORS_KEY);
 
 // ---- Pubsub ----
 const listeners = new Set();
@@ -108,6 +110,117 @@ export function createOrganization({ name, shortName }) {
   safePersist(ORGS_KEY, orgOverlays);
   emit();
   return org;
+}
+
+// Edit an org's name + shortName. Pass {} to clear shortName.
+export function updateOrganization(id, { name, shortName }) {
+  const existing = getAllOrganizations().find((o) => o.id === id);
+  if (!existing) throw new Error("Organization not found.");
+  const next = {
+    ...existing,
+    name: (name ?? existing.name).trim() || existing.name,
+    shortName: (shortName ?? existing.shortName).trim().slice(0, 40),
+  };
+  orgOverlays[id] = next;
+  safePersist(ORGS_KEY, orgOverlays);
+  emit();
+  return next;
+}
+
+// ---------------------------------------------------------------------------
+// Facilitators
+// ---------------------------------------------------------------------------
+
+// Base facilitators derived from DEMO_COHORTS, deduplicated by id.
+function baseFacilitators() {
+  const seen = new Map();
+  for (const c of DEMO_COHORTS) {
+    if (c.facilitator && !seen.has(c.facilitator.id)) {
+      seen.set(c.facilitator.id, c.facilitator);
+    }
+  }
+  return [...seen.values()];
+}
+
+// Full list = base (from cohort assignments) merged with overlay edits +
+// user-created facilitators that don't have a cohort yet.
+export function getAllFacilitators() {
+  const base = baseFacilitators();
+  const merged = new Map(base.map((f) => [f.id, f]));
+  for (const [id, overlay] of Object.entries(facilitatorOverlays)) {
+    merged.set(id, { ...(merged.get(id) || {}), ...overlay });
+  }
+  return [...merged.values()];
+}
+
+export function getFacilitatorById(id) {
+  return getAllFacilitators().find((f) => f.id === id) || null;
+}
+
+// Return the cohorts a given facilitator is assigned to. Used by the
+// facilitators management page to show how many cohorts each runs.
+export function getCohortsForFacilitator(facilitatorId) {
+  return getAllCohortsForAdmin().filter(
+    (c) => c.facilitator?.id === facilitatorId || c.trainer?.id === facilitatorId,
+  );
+}
+
+export function createFacilitator({ name, email, title, headshotUrl, defaultZoomLink, defaultTimeZone }) {
+  const trimmedName = (name || "").trim();
+  const trimmedEmail = (email || "").trim().toLowerCase();
+  if (!trimmedName) throw new Error("Facilitator name is required.");
+  if (!trimmedEmail) throw new Error("Facilitator email is required.");
+  const id = "fac-" + slugify(trimmedName);
+  if (facilitatorOverlays[id] || baseFacilitators().some((f) => f.id === id || f.email?.toLowerCase() === trimmedEmail)) {
+    throw new Error("A facilitator with that name or email already exists.");
+  }
+  const fac = {
+    id,
+    name: trimmedName,
+    email: trimmedEmail,
+    title: (title || "").trim() || "Facilitator",
+    headshotUrl: headshotUrl || null,
+    defaultZoomLink: (defaultZoomLink || "").trim() || null,
+    defaultTimeZone: defaultTimeZone || "America/New_York",
+    createdAt: new Date().toISOString(),
+  };
+  facilitatorOverlays[id] = fac;
+  safePersist(FACILITATORS_KEY, facilitatorOverlays);
+  emit();
+  return fac;
+}
+
+export function updateFacilitator(id, patch) {
+  const existing = getFacilitatorById(id);
+  if (!existing) throw new Error("Facilitator not found.");
+  const next = {
+    ...existing,
+    ...patch,
+    updatedAt: new Date().toISOString(),
+  };
+  facilitatorOverlays[id] = next;
+  safePersist(FACILITATORS_KEY, facilitatorOverlays);
+  emit();
+  return next;
+}
+
+// Restore a previously archived cohort (admin can recover from accidental
+// archive). Removes the archivedAt flag.
+export function restoreCohort(slug) {
+  const overlay = cohortOverlays[slug];
+  if (!overlay) return null;
+  delete overlay.archivedAt;
+  cohortOverlays[slug] = overlay;
+  safePersist(COHORTS_KEY, cohortOverlays);
+  emit();
+  return overlay;
+}
+
+// Return the list of archived cohorts. Today: just overlays with archivedAt.
+export function getArchivedCohorts() {
+  return Object.entries(cohortOverlays)
+    .filter(([, overlay]) => overlay.archivedAt)
+    .map(([slug, overlay]) => ({ slug, ...overlay }));
 }
 
 // ---------------------------------------------------------------------------

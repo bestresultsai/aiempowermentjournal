@@ -1,14 +1,21 @@
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import {
   GraduationCap, ArrowRight, Users, Building2, CheckCircle2,
-  Calendar, Sparkles, Plus,
+  Calendar, Sparkles, Plus, Archive, RotateCcw,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { useScopeFilters } from "../../lib/useScopeFilters";
 import { canCreateCohorts } from "../../lib/adminRoles";
 import { MOCK_SESSIONS, BELT_COLORS } from "../../lib/mockCohort";
 import { getParticipantsForCohort } from "../../lib/adminMockData";
-import { getAllCohortsForAdmin, getSessionsForCohort } from "../../lib/cohortAdmin";
+import {
+  getAllCohortsForAdmin,
+  getSessionsForCohort,
+  getArchivedCohorts,
+  restoreCohort,
+  useCohortVersion,
+} from "../../lib/cohortAdmin";
 import { getSessionsCountForCohort } from "../../lib/programs";
 import PipelineView, { stageForDelivered } from "../../components/admin/PipelineView";
 import ScopeFilterBar from "../../components/admin/ScopeFilterBar";
@@ -72,11 +79,16 @@ function formatFullDate(ms) {
 
 export default function AdminCohorts() {
   const { user } = useAuth();
+  const version = useCohortVersion(); // re-render after archive/restore
   // Merge user-created cohorts (from localStorage) with the base list so newly
   // created cohorts appear here without a refresh.
   const allCohorts = getAllCohortsForAdmin();
   const scope = useScopeFilters(user, allCohorts);
   const { cohorts, effectiveCohorts, orgs, facilitators } = scope;
+
+  // Active vs Archived view.
+  const [view, setView] = useState("active"); // "active" | "archived"
+  const archived = view === "archived" ? getArchivedCohorts() : [];
 
   // Compute the row data once so the pipeline + list share the same shape.
   // Delivery info is per-cohort now — each cohort runs on its own schedule.
@@ -152,23 +164,58 @@ export default function AdminCohorts() {
         )}
       </header>
 
-      {/* Scope filter — Org + Facilitator (cohort chip hidden on the cohorts list). */}
-      <ScopeFilterBar
-        cohorts={cohorts}
-        orgs={orgs}
-        facilitators={facilitators}
-        orgFilter={scope.orgFilter}
-        cohortFilter={scope.cohortFilter}
-        facilitatorFilter={scope.facilitatorFilter}
-        setOrgFilter={scope.setOrgFilter}
-        setCohortFilter={scope.setCohortFilter}
-        setFacilitatorFilter={scope.setFacilitatorFilter}
-        includeCohort={false}
-      />
+      {/* Active / Archived view toggle */}
+      <div className="flex items-center gap-1.5 p-1 rounded-xl bg-surface-soft border border-soft w-fit">
+        <button
+          type="button"
+          onClick={() => setView("active")}
+          className={
+            "px-3 py-1.5 rounded-lg text-[12.5px] font-heading font-bold transition-colors " +
+            (view === "active"
+              ? "bg-white text-ink shadow-sm"
+              : "text-ink-muted hover:text-ink")
+          }
+        >
+          Active
+        </button>
+        <button
+          type="button"
+          onClick={() => setView("archived")}
+          className={
+            "px-3 py-1.5 rounded-lg text-[12.5px] font-heading font-bold transition-colors inline-flex items-center gap-1.5 " +
+            (view === "archived"
+              ? "bg-white text-ink shadow-sm"
+              : "text-ink-muted hover:text-ink")
+          }
+        >
+          <Archive className="w-3.5 h-3.5" strokeWidth={2.5} />
+          Archived
+        </button>
+      </div>
+
+      {view === "active" && (
+        /* Scope filter — Org + Facilitator (cohort chip hidden on the cohorts list). */
+        <ScopeFilterBar
+          cohorts={cohorts}
+          orgs={orgs}
+          facilitators={facilitators}
+          orgFilter={scope.orgFilter}
+          cohortFilter={scope.cohortFilter}
+          facilitatorFilter={scope.facilitatorFilter}
+          setOrgFilter={scope.setOrgFilter}
+          setCohortFilter={scope.setCohortFilter}
+          setFacilitatorFilter={scope.setFacilitatorFilter}
+          includeCohort={false}
+        />
+      )}
+
+      {view === "archived" && (
+        <ArchivedCohortsList archived={archived} onRestore={() => {/* version bumps */}} />
+      )}
 
       {/* Pipeline view — cohorts grouped by lifecycle stage. Shared component
           so the dashboard renders identical cards. */}
-      {rows.length > 0 && (
+      {view === "active" && rows.length > 0 && (
         <section>
           <h2 className="font-heading text-[14px] font-extrabold text-ink mb-3">
             Pipeline
@@ -177,7 +224,8 @@ export default function AdminCohorts() {
         </section>
       )}
 
-      {/* Full list */}
+      {/* Full list — only visible in active view */}
+      {view === "active" && (
       <section>
         <h2 className="font-heading text-[14px] font-extrabold text-ink mb-3">
           All cohorts
@@ -287,7 +335,63 @@ export default function AdminCohorts() {
           )}
         </div>
       </section>
+      )}
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// ArchivedCohortsList — shown when the user toggles to "Archived". Lets them
+// restore a cohort back into the active list.
+// ---------------------------------------------------------------------------
+function ArchivedCohortsList({ archived }) {
+  if (archived.length === 0) {
+    return (
+      <div className="rounded-2xl border border-dashed border-soft p-8 text-center">
+        <Archive className="w-8 h-8 text-ink-muted mx-auto mb-3" strokeWidth={2} />
+        <h3 className="font-heading text-[15px] font-bold text-ink">
+          No archived cohorts
+        </h3>
+        <p className="text-[12.5px] text-ink-muted mt-1 max-w-sm mx-auto">
+          When you archive a cohort it shows up here so you can restore it later.
+        </p>
+      </div>
+    );
+  }
+  return (
+    <section>
+      <h2 className="font-heading text-[14px] font-extrabold text-ink mb-3">
+        Archived cohorts · {archived.length}
+      </h2>
+      <div className="rounded-2xl bg-surface-card border border-soft overflow-hidden">
+        {archived.map((c) => (
+          <div
+            key={c.slug}
+            className="px-5 py-4 flex items-center gap-4 border-b border-soft last:border-b-0"
+          >
+            <div className="w-10 h-10 rounded-xl bg-ink/5 text-ink-muted flex items-center justify-center shrink-0">
+              <Archive className="w-4 h-4" strokeWidth={2} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="font-heading text-[14px] font-bold text-ink truncate">
+                {c.name || c.slug}
+              </div>
+              <div className="text-[11.5px] text-ink-muted">
+                Archived {new Date(c.archivedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => restoreCohort(c.slug)}
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-emerald-50 text-emerald-700 text-[12.5px] font-heading font-bold hover:bg-emerald-100 transition-colors"
+            >
+              <RotateCcw className="w-3.5 h-3.5" strokeWidth={2.5} />
+              Restore
+            </button>
+          </div>
+        ))}
+      </div>
+    </section>
   );
 }
 

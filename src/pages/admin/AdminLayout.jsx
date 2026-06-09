@@ -3,10 +3,10 @@ import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-do
 import {
   LayoutDashboard, Users, BookCheck, GraduationCap, ArrowLeft,
   Shield, LogOut, ChevronDown, NotebookPen, Plus, User as UserIcon,
-  Calendar as CalendarIcon,
+  Calendar as CalendarIcon, Building2,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
-import { getRoleLabel, canCreateCohorts } from "../../lib/adminRoles";
+import { getRoleLabel, canCreateCohorts, canManageRoles } from "../../lib/adminRoles";
 import { APP_CONFIG } from "../../lib/appConfig";
 import Logo from "../../components/Logo";
 
@@ -23,13 +23,24 @@ import Logo from "../../components/Logo";
 // ---------------------------------------------------------------------------
 
 const NAV = [
-  { to: "/admin",            label: "Dashboard",    icon: LayoutDashboard, end: true },
-  { to: "/admin/calendar",   label: "Calendar",     icon: CalendarIcon },
-  { to: "/admin/cohorts",    label: "Cohorts",      icon: GraduationCap },
-  { to: "/admin/journal",    label: "AI Journal",   icon: NotebookPen },
-  { to: "/admin/homework",   label: "Homework",     icon: BookCheck },
-  { to: "/admin/users",      label: "Participants", icon: Users },
+  { to: "/admin",              label: "Dashboard",     icon: LayoutDashboard, end: true },
+  { to: "/admin/calendar",     label: "Calendar",      icon: CalendarIcon },
+  { to: "/admin/cohorts",      label: "Cohorts",       icon: GraduationCap },
+  { to: "/admin/journal",      label: "AI Journal",    icon: NotebookPen },
+  { to: "/admin/homework",     label: "Homework",      icon: BookCheck },
+  { to: "/admin/users",        label: "Participants",  icon: Users },
+  { to: "/admin/orgs",         label: "Organizations", icon: Building2, requires: "create" },
+  { to: "/admin/facilitators", label: "Facilitators",  icon: Users, requires: "create" },
+  { to: "/admin/super",        label: "Super Admin",   icon: Shield, requires: "super" },
 ];
+
+// Permission gate for sidebar items. Defaults to allow when no `requires`.
+function navAllowed(item, user) {
+  if (!item.requires) return true;
+  if (item.requires === "super") return canManageRoles(user);
+  if (item.requires === "create") return canCreateCohorts(user);
+  return true;
+}
 
 export default function AdminLayout() {
   const { user, logout } = useAuth();
@@ -54,7 +65,7 @@ export default function AdminLayout() {
         </div>
 
         <nav className="flex-1 px-3 py-4 space-y-1">
-          {NAV.map((item) => (
+          {NAV.filter((item) => navAllowed(item, user)).map((item) => (
             <SidebarLink key={item.to} {...item} />
           ))}
 
@@ -128,7 +139,7 @@ export default function AdminLayout() {
         {/* Mobile collapse nav */}
         {mobileOpen && (
           <nav className="lg:hidden border-b border-soft bg-surface-card px-3 py-2">
-            {NAV.map((item) => (
+            {NAV.filter((item) => navAllowed(item, user)).map((item) => (
               <NavLink
                 key={item.to}
                 to={item.to}
@@ -312,6 +323,9 @@ function BreadCrumb({ path }) {
     journal: "AI Journal",
     homework: "Homework",
     users: "Participants",
+    orgs: "Organizations",
+    facilitators: "Facilitators",
+    super: "Super Admin",
     new: "New",
     edit: "Edit",
   };
