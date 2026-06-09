@@ -2,9 +2,10 @@ import { useMemo } from "react";
 import { Link, Navigate } from "react-router-dom";
 import {
   Crown, Sparkles, Users, BookCheck, GraduationCap,
-  Calendar, ExternalLink, Trophy, AlertTriangle,
+  Calendar, ExternalLink, Trophy, AlertTriangle, Zap, BarChart3,
 } from "lucide-react";
 import NavBar from "../../components/NavBar";
+import EngagementDonut from "../../components/admin/EngagementDonut";
 import { useCohortLeader } from "../../hooks/useCohortLeader";
 import { getAllCohortsForAdmin } from "../../lib/cohortAdmin";
 import {
@@ -16,8 +17,10 @@ import {
   getParticipantCurrentSession,
   getParticipantJournalStat,
   getJournalEntriesForParticipant,
+  getProductionMethodMix,
 } from "../../lib/adminMockData";
 import { MOCK_SESSIONS, BELT_COLORS } from "../../lib/mockCohort";
+import { leveragePerWeek } from "../../lib/journalConstants";
 
 // ---------------------------------------------------------------------------
 // /leader/cohort — Cohort Leader Dashboard.
@@ -88,6 +91,20 @@ export default function CohortLeaderDashboard() {
     return (stat.entries || 0) > 0;
   }).length;
 
+  // --- Maturity ladder (production-method mix) -------------------------------
+  const productionMix = getProductionMethodMix([cohortSlug]);
+  const productionTotal = productionMix.slices.reduce((s, x) => s + x.count, 0);
+  // Highest-tier slice with any entries — the "where the cohort is" headline.
+  const topTierSlice = [...productionMix.slices].reverse().find((s) => s.count > 0) || null;
+
+  // --- Total leverage per week (sum over all entries in the cohort) ----------
+  let totalLeveragePerWeek = 0;
+  for (const p of roster) {
+    for (const e of p.journalEntries || []) {
+      totalLeveragePerWeek += leveragePerWeek(e);
+    }
+  }
+
   // --- Upcoming sessions -----------------------------------------------------
   const now = Date.now();
   const upcoming = MOCK_SESSIONS.filter((s) => new Date(s.date).getTime() > now).slice(0, 3);
@@ -121,7 +138,7 @@ export default function CohortLeaderDashboard() {
         </header>
 
         {/* KPI cards */}
-        <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <section className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
           <KpiCard
             icon={Users}
             label="Participants"
@@ -150,7 +167,23 @@ export default function CohortLeaderDashboard() {
             sub={`${stats?.totalEntries || 0} journal entries`}
             color="emerald"
           />
+          <KpiCard
+            icon={Zap}
+            label="Leverage / week"
+            value={totalLeveragePerWeek > 0 ? formatMinutes(totalLeveragePerWeek) : "—"}
+            sub="frequency × volume × saved"
+            color="purple"
+          />
         </section>
+
+        {/* Maturity ladder — where this cohort sits on the AI maturity ladder */}
+        {productionTotal > 0 && (
+          <MaturityLadderCard
+            slices={productionMix.slices}
+            total={productionTotal}
+            topTier={topTierSlice}
+          />
+        )}
 
         {/* Roster + Upcoming sessions */}
         <section className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -197,6 +230,7 @@ function KpiCard({ icon: Icon, label, value, sub, color = "brand" }) {
     brand: { bg: "bg-brand-50", text: "text-brand-700" },
     amber: { bg: "bg-amber-50", text: "text-amber-700" },
     emerald: { bg: "bg-emerald-50", text: "text-emerald-700" },
+    purple: { bg: "bg-purple-50", text: "text-purple-700" },
   }[color];
   return (
     <div className="rounded-2xl bg-surface-card border border-soft p-5">
@@ -396,6 +430,70 @@ function TopContributorCard({ participant, minutes }) {
 // ---------------------------------------------------------------------------
 // Date helpers — minimal local formatting (matches admin date style).
 // ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// MaturityLadderCard — shows how the cohort's journal entries break down by
+// production method (No SOP → AI Swarm). Doubles as an aggregate proof point
+// for leadership and a coaching signal for the leader.
+// ---------------------------------------------------------------------------
+function MaturityLadderCard({ slices, total, topTier }) {
+  return (
+    <section className="rounded-2xl bg-surface-card border border-soft p-5 lg:p-6">
+      <div className="flex items-start gap-3 mb-4 flex-wrap">
+        <div className="w-9 h-9 rounded-xl bg-purple-50 text-purple-700 flex items-center justify-center shrink-0">
+          <BarChart3 className="w-4 h-4" strokeWidth={2.5} />
+        </div>
+        <div className="flex-1 min-w-0">
+          <h2 className="font-heading text-[18px] font-extrabold text-ink leading-tight">
+            Maturity ladder
+          </h2>
+          <p className="text-[12.5px] text-ink-muted mt-0.5 max-w-xl">
+            Where your cohort sits on the AI maturity ladder — from manual work with no SOP through multi-agent swarms. Higher tiers compound leverage.
+          </p>
+        </div>
+        {topTier && (
+          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-purple-50 text-purple-700 text-[11.5px] font-heading font-bold">
+            <Sparkles className="w-3 h-3" strokeWidth={3} />
+            Top tier reached: {topTier.label}
+          </span>
+        )}
+      </div>
+
+      <div className="grid lg:grid-cols-[220px_1fr] gap-6 items-center">
+        <EngagementDonut segments={slices} />
+        <div className="space-y-2">
+          {slices.map((s) => {
+            const pct = total ? Math.round((s.count / total) * 100) : 0;
+            return (
+              <div key={s.key} className="flex items-center gap-3">
+                <span
+                  className="w-2.5 h-2.5 rounded-full shrink-0"
+                  style={{ background: s.color }}
+                />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-baseline justify-between gap-2">
+                    <span className="text-[13px] font-heading font-semibold text-ink">
+                      {s.label}
+                    </span>
+                    <span className="text-[11.5px] text-ink-muted">
+                      {s.count} ({pct}%)
+                    </span>
+                  </div>
+                  <div className="h-1.5 rounded-full bg-ink/5 overflow-hidden mt-1">
+                    <div
+                      className="h-full rounded-full transition-all"
+                      style={{ width: `${pct}%`, background: s.color }}
+                    />
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function dayLabel(iso) {
   if (!iso) return "—";
   const d = new Date(iso);
