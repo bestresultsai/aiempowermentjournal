@@ -359,6 +359,20 @@ function nameFromEmail(email) {
   return parts.slice(0, 2).join(" ");
 }
 
+// Identity-first default for user.role given a capability list. Kept inline
+// (rather than imported from viewAs.js) to avoid a circular import — this
+// file is itself referenced by adminRoles/permissions/viewAs.
+function defaultPrimaryRoleFromCaps(capabilities) {
+  const caps = Array.isArray(capabilities) ? capabilities : [...capabilities];
+  if (caps.includes("facilitator")) return "facilitator";
+  if (caps.includes("org")) return "org";
+  if (caps.includes("cohort-leader")) return "cohort-leader";
+  if (caps.includes("participant")) return "participant";
+  if (caps.includes("super")) return "super";
+  if (caps.includes("admin")) return "admin";
+  return "participant";
+}
+
 export function addParticipantsToCohort(cohortSlug, payloads) {
   if (!Array.isArray(payloads)) payloads = [payloads];
   const added = [];
@@ -464,6 +478,13 @@ export function createStandaloneUser(payload) {
   const idSeed = cohortSlug || "user";
   const id = `user-${idSeed}-${email.replace(/[^a-z0-9]/g, "-").slice(0, 32)}-${Date.now().toString(36).slice(-4)}`;
 
+  // Primary role — explicit identity field. If the admin picked one in the
+  // form (payload.role), respect it. Otherwise default to the identity-
+  // first heuristic from defaultPrimaryRole(): facilitator > org >
+  // cohort-leader > participant > super > admin.
+  const explicitRole = payload.role && typeof payload.role === "string" ? payload.role : null;
+  const role = explicitRole || defaultPrimaryRoleFromCaps(caps);
+
   const user = {
     id,
     name,
@@ -474,6 +495,7 @@ export function createStandaloneUser(payload) {
     headshotUrl: (payload.headshotUrl || "").trim() || null,
     location: payload.location || { country: "", state: "", city: "" },
     defaultTimeZone: (payload.defaultTimeZone || "").trim() || null,
+    role,
     isCohortLead: isLeader,
     capabilities: storedCaps,
     cohortSlug,

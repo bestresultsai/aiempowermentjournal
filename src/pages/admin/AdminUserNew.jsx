@@ -11,6 +11,8 @@ import { getAllCohortsForAdmin } from "../../lib/cohortAdmin";
 import { LIMITS, isValidEmail } from "../../lib/inputValidation";
 import HeadshotUpload from "../../components/HeadshotUpload";
 import Select from "../../components/Select";
+import { defaultPrimaryRole, VIEW_AS_LABELS } from "../../lib/viewAs";
+import { getRoleLabel } from "../../lib/adminRoles";
 import {
   COUNTRY_OPTIONS,
   getStateOptionsForCountry,
@@ -132,6 +134,10 @@ export default function AdminUserNew() {
   // Shared
   const [capabilities, setCapabilities] = useState(new Set(["participant"]));
   const [cohortSlug, setCohortSlug] = useState("");
+  // Explicit primary-role override. null = "use the identity-first default
+  // computed from capabilities". The override field is only surfaced when
+  // the user has more than one capability ticked.
+  const [primaryRoleOverride, setPrimaryRoleOverride] = useState(null);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   const [bulkResult, setBulkResult] = useState(null);
@@ -151,6 +157,14 @@ export default function AdminUserNew() {
   }
 
   const hasParticipant = capabilities.has("participant");
+  // Identity-first default for the primary role given the current capability
+  // tick state. The override field below uses this as its placeholder.
+  const defaultPrimary = defaultPrimaryRole([...capabilities]);
+  // What we'll actually persist to user.role.
+  const resolvedPrimary = primaryRoleOverride || defaultPrimary;
+  // Only ask for the override when more than one capability is ticked.
+  // Single-capability users have no ambiguity to resolve.
+  const shouldShowPrimaryOverride = capabilities.size > 1;
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -177,6 +191,7 @@ export default function AdminUserNew() {
         phone,
         headshotUrl,
         capabilities: [...capabilities],
+        role: resolvedPrimary,
         cohortSlug: hasParticipant ? (cohortSlug || null) : null,
         location: { country, state: stateCode, city },
         defaultTimeZone,
@@ -419,6 +434,40 @@ export default function AdminUserNew() {
               );
             })}
           </div>
+
+          {/* Primary role override — only relevant when multiple capabilities
+              are ticked. Defaults to the identity-first pick (facilitator >
+              org > cohort-leader > participant > super > admin) so the
+              field is usually leave-as-is. Admins can pick any of the
+              user's capabilities. */}
+          {shouldShowPrimaryOverride && (
+            <div className="rounded-xl border border-soft bg-surface-soft p-3 space-y-2">
+              <div className="flex items-baseline gap-1.5">
+                <label className="text-[10.5px] font-heading font-bold uppercase tracking-wider text-ink-muted">
+                  Primary role
+                </label>
+                <span className="text-[10.5px] text-ink-subtle">
+                  what this user's home + role chip use
+                </span>
+              </div>
+              <Select
+                value={resolvedPrimary}
+                onChange={(v) => setPrimaryRoleOverride(v === defaultPrimary ? null : v)}
+                options={[...capabilities].map((cap) => ({
+                  value: cap,
+                  label:
+                    cap === defaultPrimary
+                      ? `${VIEW_AS_LABELS[cap] || getRoleLabel(cap)} (default)`
+                      : VIEW_AS_LABELS[cap] || getRoleLabel(cap),
+                }))}
+              />
+              <div className="text-[11px] text-ink-muted leading-snug">
+                Defaults to <strong className="font-bold text-ink">{VIEW_AS_LABELS[defaultPrimary] || getRoleLabel(defaultPrimary)}</strong>{" "}
+                — identity roles (Facilitator, Org Admin, Participant) win over
+                power roles (Admin, Super Admin).
+              </div>
+            </div>
+          )}
         </section>
 
         {/* Cohort assignment — only if Participant role is selected */}

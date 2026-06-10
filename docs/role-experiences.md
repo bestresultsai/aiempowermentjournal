@@ -5,30 +5,86 @@ their home, and how "view as" works. Pairs with
 `docs/admin-visibility-matrix.md` (permissions per role) — this doc is about
 *UX shape*, not access control.
 
+## Two parallel role ladders
+
+Roles live on two separate ladders. They are NOT one global hierarchy.
+
+| Internal (BRAI staff) | External (clients) |
+| --- | --- |
+| Super Admin | Org Admin |
+| Admin | Participant |
+| Facilitator | Cohort Leader (sub-flavor of Participant) |
+
+An Org Admin is not "below" a Facilitator — they're on different sides.
+A Facilitator can't preview an Org Admin and vice versa.
+
+## Identity roles vs power roles
+
+`user.role` is an explicit field representing **identity** — what someone IS,
+their job. `capabilities` is a separate list representing **powers** — what
+someone can DO on top of that identity.
+
+| Identity (a job) | Power (an extra ability) |
+| --- | --- |
+| Facilitator | Admin |
+| Org Admin | Super Admin |
+| Participant | |
+| Cohort Leader | |
+
+Mike is a Facilitator (his job) who also has the Admin power. His record:
+- `role: "facilitator"` (the identity)
+- `capabilities: ["facilitator", "admin"]` (job + extra power)
+
+Default primary-role rule when creating a user — identity-laden capabilities
+win over power capabilities. Surfaced in the `/admin/users/new` form as a
+"Primary role" override field that defaults to the identity pick.
+
 ## Home landings
 
-When a user hits `/home` (or clicks the Home nav item), where do they go?
+`user.role` drives where Home goes. The capability list determines what
+*else* the user can access from the avatar dropdown.
 
-| Capabilities | Lands at | Why |
+| user.role | Lands at | Notes |
 | --- | --- | --- |
-| Participant only | `/home` (CohortLanding) | The cohort experience is their workspace |
-| Cohort Leader | `/home` then drills to `/leader/cohort` | Same as participant, with leader badge + leader dashboard link |
-| Facilitator | `/facilitator/home` | Their own home — cohorts they lead, grading queue, upcoming sessions |
-| Org Admin | `/org/home` | Their own home — cohorts in their org, ROI, completion |
-| Admin / Super Admin | `/admin` | Cross-org Dashboard already plays this role |
+| `participant` | `/home` (CohortLanding) | The cohort experience is their workspace |
+| `cohort-leader` | `/home` | Same as participant; the Cohort dashboard is one click away |
+| `facilitator` | `/facilitator/home` | Their own home — cohorts they lead, grading queue, upcoming sessions |
+| `org` | `/org/home` | Their own home — cohorts in their org, ROI, completion |
+| `admin` | `/admin` | Cross-org Dashboard plays this role |
+| `super` | `/admin` | Same as admin landing + access to Permissions surface |
 
-If a user has multiple capabilities, the highest-leverage home wins. Mike
-(facilitator + admin) lands at `/admin` by default but his NavBar gives him
-quick access to `/facilitator/home` too.
+Mike (`role: "facilitator"`, capabilities including admin) lands at
+`/facilitator/home`. The Admin panel button stays one click away in the
+avatar dropdown because the gate is capability-based.
 
 ## View as
 
-Any user with elevated capabilities can switch into a lower-role view to
-preview what that role experiences. Examples:
+Elevated users can preview the platform as someone on a more restricted
+role. Rules:
 
-- Mike (facilitator + admin) → can view as **Participant** or **Facilitator**
-- An Org Admin → can view as **Participant** or **Facilitator** (within scope)
-- Super Admin → can view as **Anything**
+1. **Internal staff can preview internal roles below them on their ladder.**
+   Super can preview Admin + Facilitator. Admin can preview Facilitator.
+2. **Internal staff can additionally preview external roles for QA** —
+   BRAI needs to see the customer experience. Super + Admin can preview
+   Org Admin + Participant.
+3. **External users can preview lower external roles.** Org Admin can
+   preview Participant. Participants can't preview anything (no one is
+   below them).
+4. **External users cannot preview internal roles.** An Org Admin would
+   never need to see how BRAI's internal facilitator workflow operates.
+5. **Subtract any role the user already has as a capability.** No point
+   in "view as Facilitator" for someone who IS a facilitator.
+
+Resulting menu by user:
+
+| User | Capabilities | View-as options |
+| --- | --- | --- |
+| Super Admin | `super` | Admin, Facilitator, Org Admin, Participant |
+| Pure Admin | `admin` | Facilitator, Org Admin, Participant |
+| Mike (facilitator + admin) | `facilitator, admin` | Org Admin, Participant |
+| Pure Facilitator | `facilitator` | Participant |
+| Pure Org Admin | `org` | Participant |
+| Participant | — | (switcher hidden) |
 
 While view-as is active:
 
@@ -98,15 +154,15 @@ at. Specifically on `CohortLanding`:
 If the viewer is in view-as-participant mode, these cards re-appear (they're
 previewing the participant view, after all).
 
-## Open questions (queued)
+## Resolved decisions
 
-- Should Org Admins be able to switch between their assigned orgs from the
-  org home? Today they see all of them aggregated. (Probably yes if more
-  than one — but no Org Admin in the demo has multiple orgs yet.)
-- Should Facilitators get push-style notifications (banner on `/home`) when
-  homework has been pending for over 3 days? (Yes eventually, but not in
-  this round.)
-- Should the "View as" picker show user-level granularity (view as Marcus
-  Williams specifically) or just role-level (view as Participant)? Today
-  it's role-level. Per-user impersonation is a bigger lift + has audit
-  implications.
+- **Multi-org Org Admin switcher** — yes, build it (small dropdown on
+  `/org/home`). Queued for the next round.
+- **Stale-homework banner on `/facilitator/home`** — yes, top-of-page
+  amber banner when any homework has been pending 3+ days, complementary
+  to the existing 7-day red escalation. Queued for the next round.
+- **User-level view-as** — yes, demo-only initially (pick a specific user
+  from a dropdown, no audit log). Production version with audit logging
+  is queued separately. Queued for the next round.
+- **Facilitator participant adds** — yes, current behavior stays
+  (facilitators can add participants to their assigned cohorts).
