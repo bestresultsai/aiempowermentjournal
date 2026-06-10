@@ -6,6 +6,7 @@ import Footer from "./components/Footer";
 import OnboardingGate from "./components/OnboardingGate";
 import AdminGate from "./components/AdminGate";
 import AuthGate from "./components/AuthGate";
+import ErrorBoundary from "./components/ErrorBoundary";
 import AdminLayout from "./pages/admin/AdminLayout";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import AdminCohorts from "./pages/admin/AdminCohorts";
@@ -118,9 +119,28 @@ export default function App() {
                 mode). See docs/role-experiences.md. */}
             <Route path="/home" element={<AuthGate><RoleAwareHome /></AuthGate>} />
 
-            {/* Role-specific homes (super-only redirect when their cap doesn't match) */}
-            <Route path="/facilitator/home" element={<AuthGate><FacilitatorHome /></AuthGate>} />
-            <Route path="/org/home" element={<AuthGate><OrgAdminHome /></AuthGate>} />
+            {/* Role-specific homes. Wrapped in ErrorBoundary so a runtime
+                error surfaces a visible message instead of blanking the page. */}
+            <Route
+              path="/facilitator/home"
+              element={
+                <AuthGate>
+                  <ErrorBoundary title="Couldn't load the facilitator home">
+                    <FacilitatorHome />
+                  </ErrorBoundary>
+                </AuthGate>
+              }
+            />
+            <Route
+              path="/org/home"
+              element={
+                <AuthGate>
+                  <ErrorBoundary title="Couldn't load the org home">
+                    <OrgAdminHome />
+                  </ErrorBoundary>
+                </AuthGate>
+              }
+            />
 
             {/* JOURNEY — workshop-focused */}
             <Route path="/journey" element={<AuthGate><JourneyPage /></AuthGate>} />
