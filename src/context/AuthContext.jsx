@@ -38,7 +38,9 @@ export function AuthProvider({ children }) {
         activateDemoMode({ multi: true });
       } else if (demoParam === "onboarding") {
         activateDemoMode({ onboarding: true });
-      } else if (["super", "admin", "org", "facilitator", "leader"].includes(demoParam)) {
+      } else if (
+        ["super", "admin", "org", "facilitator", "facilitator-pure", "leader"].includes(demoParam)
+      ) {
         activateDemoMode({ role: demoParam });
       }
     } catch {

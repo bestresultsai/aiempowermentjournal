@@ -284,7 +284,8 @@ const STORAGE_KEY = "brai_demo_mode";
 //   "facilitator" — Mike Burkesmith — sees only IAHE cohort, can grade
 
 const VALID_VALUES = new Set([
-  "1", "multi", "onboarding", "super", "admin", "org", "facilitator", "leader",
+  "1", "multi", "onboarding", "super", "admin", "org",
+  "facilitator", "facilitator-pure", "leader",
 ]);
 
 export function isDemoModeActive() {
@@ -312,12 +313,19 @@ export function isSuperDemo()        { return readDemoFlavor() === "super"; }
 export function isAdminDemo()        { return readDemoFlavor() === "admin"; }
 export function isOrgDemo()          { return readDemoFlavor() === "org"; }
 export function isFacilitatorDemo()  { return readDemoFlavor() === "facilitator"; }
+export function isFacilitatorPureDemo() { return readDemoFlavor() === "facilitator-pure"; }
 export function isLeaderDemo()       { return readDemoFlavor() === "leader"; }
 
 // True when the demo flavor is any admin-tier role.
 export function isAnyAdminDemo() {
   const v = readDemoFlavor();
-  return v === "super" || v === "admin" || v === "org" || v === "facilitator";
+  return (
+    v === "super" ||
+    v === "admin" ||
+    v === "org" ||
+    v === "facilitator" ||
+    v === "facilitator-pure"
+  );
 }
 
 export function getDemoFlavor() { return readDemoFlavor(); }
@@ -325,12 +333,16 @@ export function getDemoFlavor() { return readDemoFlavor(); }
 export function activateDemoMode({
   multi = false,
   onboarding = false,
-  role = null, // "super" | "admin" | "org" | "facilitator" | "leader"
+  role = null, // "super" | "admin" | "org" | "facilitator" | "facilitator-pure" | "leader"
 } = {}) {
   if (typeof window === "undefined") return;
   let value = "1";
-  if (role && ["super", "admin", "org", "facilitator", "leader"].includes(role)) value = role;
-  else if (onboarding) value = "onboarding";
+  if (
+    role &&
+    ["super", "admin", "org", "facilitator", "facilitator-pure", "leader"].includes(role)
+  ) {
+    value = role;
+  } else if (onboarding) value = "onboarding";
   else if (multi) value = "multi";
   try {
     window.localStorage.setItem(STORAGE_KEY, value);
@@ -395,6 +407,21 @@ export const DEMO_USER_OVERRIDES = {
     assignedCohorts: ["iahe-aiew3-2026q1"],
     defaultTimeZone: "America/New_York",
     defaultZoomLink: "https://us02web.zoom.us/j/9876543210",
+  },
+  // Pure facilitator — no admin capability layered on. Use ?demo=facilitator-pure
+  // to QA the experience for a facilitator who can ONLY do facilitator things
+  // (no Admin panel link, no cross-org views, no permissions menu).
+  "facilitator-pure": {
+    name: "Jordan Park",
+    email: "jordan.park@bestresults.ai",
+    title: "Facilitator, BestResults.AI",
+    organization: "BestResults.AI",
+    role: "facilitator",
+    capabilities: ["facilitator"],
+    assignedOrgs: [],
+    assignedCohorts: ["iahe-aiew3-2026q1"],
+    defaultTimeZone: "America/New_York",
+    defaultZoomLink: "https://us02web.zoom.us/j/5550001111",
   },
   // Cohort leader — a participant from the customer side with extra
   // aggregate-only visibility into their cohort. Stays at participant role;
