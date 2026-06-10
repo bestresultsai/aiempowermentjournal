@@ -8,6 +8,7 @@ import {
 import NavBar from "../../components/NavBar";
 import SessionPlayer from "../../components/cohort/SessionPlayer";
 import HomeworkSubmission from "../../components/cohort/HomeworkSubmission";
+import AddToCalendar from "../../components/AddToCalendar";
 import { BELT_COLORS } from "../../lib/mockCohort";
 import { getSession, markSessionComplete, submitHomework } from "../../lib/cohortApi";
 import { useResolvedCohort } from "../../lib/cohortResolution";
@@ -162,6 +163,24 @@ export default function SessionDetail() {
                 </span>
               )}
             </div>
+
+            {/* Add to calendar — only useful when the session is still in
+                the future or currently live. Past + recorded sessions hide
+                this. */}
+            {session?.date && (state === SESSION_STATES.UPCOMING || state === SESSION_STATES.LIVE) && (
+              <div className="mt-4 flex justify-end">
+                <AddToCalendar
+                  mode="session"
+                  cohort={cohort}
+                  session={{
+                    ...session,
+                    dateObj: new Date(session.date),
+                  }}
+                  variant="light"
+                  size="sm"
+                />
+              </div>
+            )}
           </div>
         </div>
       )}

@@ -10,6 +10,7 @@ import JournalGameCard from "../../components/cohort/JournalGameCard";
 import NextMilestoneCard from "../../components/cohort/NextMilestoneCard";
 import CohortStats from "../../components/cohort/CohortStats";
 import SessionRow from "../../components/cohort/SessionRow";
+import AddToCalendar from "../../components/AddToCalendar";
 import { useAuth } from "../../context/AuthContext";
 import { calculateStreakWeeks } from "../../lib/gamification";
 import { useResolvedCohort, useCohortEntries } from "../../lib/cohortResolution";
@@ -119,7 +120,10 @@ export default function CohortLanding() {
                     Your AI Empowerment Journey
                   </h2>
                 </div>
-                <FilterTabs current={sessionFilter} onChange={setSessionFilter} />
+                <div className="flex items-center gap-2 flex-wrap">
+                  <AddAllUpcomingButton cohort={cohort} />
+                  <FilterTabs current={sessionFilter} onChange={setSessionFilter} />
+                </div>
               </div>
 
               <div className="space-y-2.5">
@@ -218,6 +222,26 @@ function ProgressBand({ cohort, currentBelt }) {
 }
 
 // ---- Small pieces ----
+
+// Wraps AddToCalendar in cohort mode, pre-filtering to sessions with a real
+// date that's still in the future (or today). Hides itself entirely when
+// the cohort is complete + has nothing left to add.
+function AddAllUpcomingButton({ cohort }) {
+  const upcoming = (cohort.sessions || [])
+    .filter((s) => s.date)
+    .map((s) => ({ ...s, dateObj: new Date(s.date) }))
+    .filter((s) => s.dateObj.getTime() >= Date.now() - 60 * 60 * 1000); // include sessions starting within the last hour (still live)
+  if (upcoming.length === 0) return null;
+  return (
+    <AddToCalendar
+      mode="cohort"
+      cohort={cohort}
+      sessions={upcoming}
+      size="sm"
+      label={`Add ${upcoming.length} to calendar`}
+    />
+  );
+}
 
 function FilterTabs({ current, onChange }) {
   const tabs = [
