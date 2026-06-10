@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "./context/AuthContext";
 import DemoBanner from "./components/DemoBanner";
+import ViewAsBanner from "./components/ViewAsBanner";
 import Footer from "./components/Footer";
 import OnboardingGate from "./components/OnboardingGate";
 import AdminGate from "./components/AdminGate";
@@ -36,6 +37,9 @@ import WelcomeWizard from "./pages/WelcomeWizard";
 import CohortLanding from "./pages/cohort/CohortLanding";
 import SessionDetail from "./pages/cohort/SessionDetail";
 import CohortLeaderDashboard from "./pages/leader/CohortLeaderDashboard";
+import FacilitatorHome from "./pages/facilitator/FacilitatorHome";
+import OrgAdminHome from "./pages/orgadmin/OrgAdminHome";
+import RoleAwareHome from "./components/RoleAwareHome";
 import BeltsPreview from "./pages/design/BeltsPreview";
 import NotFound from "./pages/NotFound";
 
@@ -95,6 +99,7 @@ export default function App() {
     <AuthProvider>
       <BrowserRouter>
         <DemoBanner />
+        <ViewAsBanner />
         <OnboardingGate>
           <Routes>
             <Route path="/" element={<Home />} />
@@ -108,8 +113,14 @@ export default function App() {
                 Unauthed visits bounce to /login?next=<original-path> so they
                 land back on the intended page after sign-in. */}
 
-            {/* HOME — comprehensive overview */}
-            <Route path="/home" element={<AuthGate><CohortLanding /></AuthGate>} />
+            {/* HOME — role-aware. Routes the user to the right home for
+                their role (or to CohortLanding when in view-as-participant
+                mode). See docs/role-experiences.md. */}
+            <Route path="/home" element={<AuthGate><RoleAwareHome /></AuthGate>} />
+
+            {/* Role-specific homes (super-only redirect when their cap doesn't match) */}
+            <Route path="/facilitator/home" element={<AuthGate><FacilitatorHome /></AuthGate>} />
+            <Route path="/org/home" element={<AuthGate><OrgAdminHome /></AuthGate>} />
 
             {/* JOURNEY — workshop-focused */}
             <Route path="/journey" element={<AuthGate><JourneyPage /></AuthGate>} />

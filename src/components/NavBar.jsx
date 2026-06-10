@@ -2,16 +2,20 @@ import { useState, useRef, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import {
   Plus, Home as HomeIcon, GraduationCap, NotebookPen, Library,
-  ChevronDown, Check, LogOut, User, Shield, Crown,
+  ChevronDown, Check, LogOut, User, Shield, Crown, Eye, X,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { getUserCohorts, STORAGE_KEY } from "../lib/cohortResolution";
 import { canAccessAdmin } from "../lib/adminRoles";
 import { useCohortLeader } from "../hooks/useCohortLeader";
+import { useViewAs, homePathForRole, VIEW_AS_LABELS } from "../lib/viewAs";
 import Logo from "./Logo";
 
 export default function NavBar() {
   const { user, logout } = useAuth();
+  // Where should "Home" actually take this user? Role-aware via view-as.
+  const { effectiveRole } = useViewAs(user);
+  const homePath = homePathForRole(effectiveRole);
   const navigate = useNavigate();
   const { pathname } = useLocation();
 
@@ -52,7 +56,7 @@ export default function NavBar() {
       >
         <div className="flex items-center gap-8">
           <Link
-            to={user ? "/home" : "/"}
+            to={user ? homePath : "/"}
             className="flex items-center transition-transform duration-200 hover:scale-[1.02]"
           >
             <Logo size={scrolled ? "md" : "lg"} />
@@ -60,8 +64,8 @@ export default function NavBar() {
           {user && (
             <nav className="hidden md:flex items-center gap-1 text-[15px]">
               <NavLink
-                to="/home"
-                active={pathname === "/home" || pathname.startsWith("/cohort")}
+                to={homePath}
+                active={pathname === "/home" || pathname === homePath || pathname.startsWith("/cohort") || pathname.startsWith("/facilitator") || pathname.startsWith("/org/home")}
                 icon={HomeIcon}
               >
                 Home
@@ -147,6 +151,8 @@ function UserMenu({ user, onLogout, withDivider = true }) {
   const ref = useRef(null);
   const navigate = useNavigate();
   const { isLeader } = useCohortLeader();
+  // View-as switcher. Available options depend on the user's real role.
+  const { mode: viewAsMode, set: setViewAs, clear: clearViewAs, availableRoles: viewAsRoles } = useViewAs(user);
 
   useEffect(() => {
     function onDocClick(e) {
@@ -220,6 +226,50 @@ function UserMenu({ user, onLogout, withDivider = true }) {
               <Shield className="w-4 h-4 text-brand-600" strokeWidth={2} />
               Admin panel
             </button>
+          )}
+          {/* View as — only for users with elevated roles. Lets BRAI staff
+              preview the platform as a lower role to QA the experience. */}
+          {viewAsRoles.length > 0 && (
+            <>
+              <div className="border-t border-soft" />
+              <div className="px-4 pt-3 pb-1 text-[10.5px] font-heading font-bold uppercase tracking-wider text-ink-subtle">
+                View as
+              </div>
+              {viewAsRoles.map((role) => (
+                <button
+                  key={role}
+                  onClick={() => {
+                    setOpen(false);
+                    setViewAs(role);
+                    navigate("/home");
+                  }}
+                  className={`w-full px-4 py-2.5 text-left text-[13.5px] font-heading font-medium hover:bg-surface-soft transition-colors inline-flex items-center gap-2.5 ${
+                    viewAsMode === role ? "text-brand-700" : "text-ink"
+                  }`}
+                >
+                  <Eye className={`w-4 h-4 ${viewAsMode === role ? "text-brand-700" : "text-ink-muted"}`} strokeWidth={2} />
+                  {VIEW_AS_LABELS[role]}
+                  {viewAsMode === role && (
+                    <span className="ml-auto text-[10.5px] font-heading font-bold uppercase tracking-wider text-brand-700">
+                      Active
+                    </span>
+                  )}
+                </button>
+              ))}
+              {viewAsMode && (
+                <button
+                  onClick={() => {
+                    setOpen(false);
+                    clearViewAs();
+                    navigate("/home");
+                  }}
+                  className="w-full px-4 py-2.5 text-left text-[13.5px] font-heading font-medium text-ink-muted hover:text-ink hover:bg-surface-soft transition-colors inline-flex items-center gap-2.5"
+                >
+                  <X className="w-4 h-4" strokeWidth={2} />
+                  Exit view-as
+                </button>
+              )}
+            </>
           )}
           <div className="border-t border-soft" />
           <button

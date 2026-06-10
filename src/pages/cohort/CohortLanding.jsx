@@ -14,6 +14,8 @@ import AddToCalendar from "../../components/AddToCalendar";
 import { useAuth } from "../../context/AuthContext";
 import { calculateStreakWeeks } from "../../lib/gamification";
 import { useResolvedCohort, useCohortEntries } from "../../lib/cohortResolution";
+import { useViewAs } from "../../lib/viewAs";
+import { MOCK_COHORT } from "../../lib/mockCohort";
 
 // ---------------------------------------------------------------------------
 // HOME page (the comprehensive overview). Mounted at:
@@ -34,9 +36,36 @@ import { useResolvedCohort, useCohortEntries } from "../../lib/cohortResolution"
 
 export default function CohortLanding() {
   const { user } = useAuth();
+  const { mode: viewAsMode } = useViewAs(user);
   const [sessionFilter, setSessionFilter] = useState("all");
 
-  const { cohort, isLoading, error, resolvedFrom } = useResolvedCohort();
+  const { cohort: realCohort, isLoading, error, resolvedFrom } = useResolvedCohort();
+  // When an admin (or any elevated user) enters view-as-participant mode
+  // and doesn't actually have a cohort, render the IAHE demo cohort so they
+  // can preview the participant experience. The DemoParticipantNotice
+  // below explains what's happening.
+  const isDemoFallback = !realCohort && viewAsMode === "participant";
+  const cohort = isDemoFallback ? MOCK_COHORT : realCohort;
+
+  // Self-referential UI gating.
+  //   - If the viewer IS the cohort's facilitator, hide FacilitatorCard
+  //     (they'd be looking at themselves)
+  //   - If the viewer isn't a real participant in this cohort, hide the
+  //     participant-only progression cards (MissingHomework, Journal,
+  //     NextMilestone) — they have no homework, no journal, no belt path
+  //
+  // When the viewer is in view-as-participant mode, all of these come back
+  // — they're previewing the participant view.
+  const inViewAsMode = viewAsMode === "participant";
+  const isCohortFacilitator =
+    !!cohort?.facilitator?.email &&
+    cohort.facilitator.email.toLowerCase() === (user?.email || "").toLowerCase();
+  const isParticipantInCohort = (user?.cohortSlug || user?.cohorts || []).length
+    ? Array.isArray(user.cohorts)
+      ? user.cohorts.some((c) => c.slug === cohort?.slug)
+      : user.cohortSlug === cohort?.slug
+    : false;
+  const showParticipantUI = inViewAsMode || isParticipantInCohort;
   const { entries: cohortEntries, isLoading: entriesLoading, error: entriesError } = useCohortEntries(cohort);
 
   // Only generate slug-scoped session URLs when an admin/multi-cohort user is
@@ -82,6 +111,9 @@ export default function CohortLanding() {
         {error && <ErrorPanel message={error.message} />}
         {!isLoading && !error && !cohort && <NoCohortPanel />}
 
+        {/* Banner: this is the IAHE demo cohort, not their real one. */}
+        {isDemoFallback && <DemoParticipantNotice />}
+
         {cohort && (
           <>
             {/* ==================== HERO ROW ==================== */}
@@ -89,24 +121,30 @@ export default function CohortLanding() {
               <div className="animate-fade-in-up">
                 <CohortHero cohort={cohort} />
               </div>
-              <FacilitatorCard
-                facilitator={cohort.trainer}
-                coachingNote={cohort.coachingNote}
-              />
+              {!isCohortFacilitator && (
+                <FacilitatorCard
+                  facilitator={cohort.trainer}
+                  coachingNote={cohort.coachingNote}
+                />
+              )}
             </section>
 
             {/* ==================== AI EMPOWERMENT JOURNEY ==================== */}
             <NextLiveSessionCard cohort={cohort} />
-            <MissingHomeworkCard cohort={cohort} />
+            {showParticipantUI && <MissingHomeworkCard cohort={cohort} />}
             <div className="animate-fade-in-up delay-300">
               <ProgressBand cohort={cohort} currentBelt={currentBelt} />
             </div>
 
             {/* ==================== AI EMPOWERMENT JOURNAL ==================== */}
-            <div className="mt-6">
-              <JournalGameCard entries={cohortEntries} currentUserEmail={user?.email} />
-            </div>
-            <NextMilestoneCard entries={cohortEntries} currentUserEmail={user?.email} />
+            {showParticipantUI && (
+              <>
+                <div className="mt-6">
+                  <JournalGameCard entries={cohortEntries} currentUserEmail={user?.email} />
+                </div>
+                <NextMilestoneCard entries={cohortEntries} currentUserEmail={user?.email} />
+              </>
+            )}
 
             {/* ==================== NDA ==================== */}
             {cohort.ndaRequired && <NDABanner />}
@@ -304,6 +342,22 @@ function NoCohortPanel() {
         Once you're enrolled in a cohort, your sessions, materials, and homework will appear here.
         Contact your facilitator if you think this is a mistake.
       </p>
+    </div>
+  );
+}
+
+// Inline strip that appears when an elevated user enters view-as-participant
+// mode but doesn't have a real cohort. We fall back to the IAHE demo cohort
+// so they can preview the participant experience; this notice keeps them
+// honest about what they're looking at.
+function DemoParticipantNotice() {
+  return (
+    <div className="mt-4 rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 text-[13px] text-amber-900 font-heading">
+      <div className="font-extrabold text-amber-900">Viewing as Participant · Demo cohort</div>
+      <div className="font-medium text-amber-900/85 mt-0.5">
+        You're not enrolled in a cohort, so this is the IAHE demo cohort —
+        useful for QA-ing the participant experience without real data.
+      </div>
     </div>
   );
 }
