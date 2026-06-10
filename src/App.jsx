@@ -39,8 +39,14 @@ import CohortLanding from "./pages/cohort/CohortLanding";
 import SessionDetail from "./pages/cohort/SessionDetail";
 import CohortLeaderDashboard from "./pages/leader/CohortLeaderDashboard";
 import FacilitatorHome from "./pages/facilitator/FacilitatorHome";
+import FacilitatorJourney from "./pages/facilitator/FacilitatorJourney";
+import FacilitatorJournal from "./pages/facilitator/FacilitatorJournal";
 import OrgAdminHome from "./pages/orgadmin/OrgAdminHome";
+import OrgAdminJourney from "./pages/orgadmin/OrgAdminJourney";
+import OrgAdminJournal from "./pages/orgadmin/OrgAdminJournal";
 import RoleAwareHome from "./components/RoleAwareHome";
+import RoleAwareJourney from "./components/RoleAwareJourney";
+import RoleAwareJournal from "./components/RoleAwareJournal";
 import BeltsPreview from "./pages/design/BeltsPreview";
 import NotFound from "./pages/NotFound";
 
@@ -142,12 +148,55 @@ export default function App() {
               }
             />
 
-            {/* JOURNEY — workshop-focused */}
-            <Route path="/journey" element={<AuthGate><JourneyPage /></AuthGate>} />
+            {/* JOURNEY — role-aware. Participants see the workshop-focused
+                JourneyPage; facilitators/org admins get redirected to their
+                portfolio view. See docs/role-experiences.md. */}
+            <Route path="/journey" element={<AuthGate><RoleAwareJourney /></AuthGate>} />
+            <Route
+              path="/facilitator/journey"
+              element={
+                <AuthGate>
+                  <ErrorBoundary title="Couldn't load the facilitator journey">
+                    <FacilitatorJourney />
+                  </ErrorBoundary>
+                </AuthGate>
+              }
+            />
+            <Route
+              path="/org/journey"
+              element={
+                <AuthGate>
+                  <ErrorBoundary title="Couldn't load the org journey">
+                    <OrgAdminJourney />
+                  </ErrorBoundary>
+                </AuthGate>
+              }
+            />
             <Route path="/session/:order" element={<AuthGate><SessionDetail /></AuthGate>} />
 
-            {/* JOURNAL — gamified impact tracking */}
-            <Route path="/journal" element={<AuthGate><JournalDashboard /></AuthGate>} />
+            {/* JOURNAL — role-aware. Participants see the gamified personal
+                view; facilitators/org admins get their portfolio dashboard. */}
+            <Route path="/journal" element={<AuthGate><RoleAwareJournal /></AuthGate>} />
+            <Route
+              path="/facilitator/journal"
+              element={
+                <AuthGate>
+                  <ErrorBoundary title="Couldn't load the facilitator journal">
+                    <FacilitatorJournal />
+                  </ErrorBoundary>
+                </AuthGate>
+              }
+            />
+            <Route
+              path="/org/journal"
+              element={
+                <AuthGate>
+                  <ErrorBoundary title="Couldn't load the org journal">
+                    <OrgAdminJournal />
+                  </ErrorBoundary>
+                </AuthGate>
+              }
+            />
             <Route path="/journal/new" element={<AuthGate><Journal /></AuthGate>} />
             <Route path="/journal/result" element={<AuthGate><JournalResult /></AuthGate>} />
 

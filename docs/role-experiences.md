@@ -104,6 +104,25 @@ notice: *"You're not enrolled in a cohort. Here's the participant view with
 demo data."* That lets BRAI staff QA the participant experience without
 having to manually enroll.
 
+## Journey + Journal per role
+
+Every elevated user gets their own version of Journey and Journal. The
+NavBar links always point at `/journey` and `/journal`; smart wrappers
+(`RoleAwareJourney`, `RoleAwareJournal`) route to the right concrete page
+based on effective role. View-as-participant mode renders the participant
+versions, matching the home-page pattern.
+
+| Effective role | /journey | /journal |
+| --- | --- | --- |
+| participant / cohort-leader | `JourneyPage` (workshop list) | `JournalDashboard` (personal gamified) |
+| facilitator | `/facilitator/journey` (cohort progress matrix) | `/facilitator/journal` (portfolio dashboard) |
+| org | `/org/journey` (org cohorts matrix) | `/org/journal` (org dashboard) |
+| admin / super | `/admin/cohorts` (operational list) | `/admin/journal` (full dashboard) |
+
+The "+ New Entry" CTA in the NavBar only appears for participant /
+cohort-leader effective role. Facilitators and admins don't log their own
+wins — their Journal view is a read-only portfolio.
+
 ## Facilitator home (`/facilitator/home`)
 
 The facilitator's morning view. Cards:

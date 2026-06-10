@@ -65,17 +65,36 @@ export default function NavBar() {
             <nav className="hidden md:flex items-center gap-1 text-[15px]">
               <NavLink
                 to={homePath}
-                active={pathname === "/home" || pathname === homePath || pathname.startsWith("/cohort") || pathname.startsWith("/facilitator") || pathname.startsWith("/org/home")}
+                active={
+                  pathname === "/home" ||
+                  pathname === homePath ||
+                  pathname.startsWith("/cohort") ||
+                  pathname === "/facilitator/home" ||
+                  pathname === "/org/home"
+                }
                 icon={HomeIcon}
               >
                 Home
               </NavLink>
-              <NavLink to="/journey" active={pathname === "/journey"} icon={GraduationCap}>
+              <NavLink
+                to="/journey"
+                active={
+                  pathname === "/journey" ||
+                  pathname === "/facilitator/journey" ||
+                  pathname === "/org/journey"
+                }
+                icon={GraduationCap}
+              >
                 Journey
               </NavLink>
               <NavLink
                 to="/journal"
-                active={pathname === "/journal" || pathname === "/journal/result"}
+                active={
+                  pathname === "/journal" ||
+                  pathname === "/journal/result" ||
+                  pathname === "/facilitator/journal" ||
+                  pathname === "/org/journal"
+                }
                 icon={NotebookPen}
               >
                 Journal
@@ -88,13 +107,22 @@ export default function NavBar() {
         </div>
 
         <div className="flex items-center gap-4">
-          <Link
-            to="/journal/new"
-            className="group hidden sm:inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white border border-soft text-[14px] font-heading font-semibold text-ink hover:bg-surface-soft hover:border-brand-500 transition-all duration-200"
-          >
-            <Plus className="w-4 h-4 text-brand-600 transition-transform duration-200 group-hover:rotate-90" strokeWidth={2.5} />
-            New Entry
-          </Link>
+          {/* "+ New Entry" CTA only makes sense for users whose effective
+              role is participant/cohort-leader — they're the ones who log
+              their own journal wins. Facilitators and admins don't journal
+              themselves (their /facilitator/journal view is read-only over
+              their cohorts' entries). */}
+          {(effectiveRole === "participant" ||
+            effectiveRole === "cohort-leader" ||
+            effectiveRole === null) && (
+            <Link
+              to="/journal/new"
+              className="group hidden sm:inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white border border-soft text-[14px] font-heading font-semibold text-ink hover:bg-surface-soft hover:border-brand-500 transition-all duration-200"
+            >
+              <Plus className="w-4 h-4 text-brand-600 transition-transform duration-200 group-hover:rotate-90" strokeWidth={2.5} />
+              New Entry
+            </Link>
+          )}
 
           {/* Cohort switcher — only renders for users with 2+ cohorts, sits
               right next to the profile so it reads as "which identity am I
