@@ -44,9 +44,8 @@ export default function FacilitatorHome() {
   const cohortSlugs = useMemo(() => cohorts.map((c) => c.slug), [cohorts]);
   const upNext = useMemo(() => findNextSession(cohorts), [cohorts]);
   const homeworkPending = useMemo(() => {
-    return getHomeworkRows({ status: "pending" }).filter((row) =>
-      cohortSlugs.includes(row.cohortSlug),
-    );
+    // getHomeworkRows is positional: (cohortSlugs, status).
+    return getHomeworkRows(cohortSlugs, "pending");
   }, [cohortSlugs, version]);
   const oldestPendingDays = useMemo(() => {
     return homeworkPending.reduce((max, r) => {
@@ -371,7 +370,8 @@ function findNextSession(cohorts) {
 function isAtRisk(p) {
   if ((p.lastJournalDaysAgo || 0) > 14) return true;
   const stats = getParticipantHomeworkStats(p);
-  // More than 2 unsubmitted homework on completed sessions.
-  if (stats.expected - stats.submitted >= 2) return true;
+  // Sessions they've completed but haven't yet submitted homework for.
+  const completed = p.progress?.length || 0;
+  if (completed - stats.submitted >= 2) return true;
   return false;
 }

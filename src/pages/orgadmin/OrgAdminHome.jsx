@@ -313,6 +313,7 @@ function LeaderActivityPanel({ items, cohorts }) {
 function isAtRisk(p) {
   if ((p.lastJournalDaysAgo || 0) > 14) return true;
   const stats = getParticipantHomeworkStats(p);
-  if (stats.expected - stats.submitted >= 2) return true;
+  const completed = p.progress?.length || 0;
+  if (completed - stats.submitted >= 2) return true;
   return false;
 }
