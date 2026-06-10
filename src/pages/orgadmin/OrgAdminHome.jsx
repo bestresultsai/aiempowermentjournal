@@ -30,34 +30,21 @@ import { primaryEffectiveRole } from "../../lib/viewAs";
 // ---------------------------------------------------------------------------
 
 export default function OrgAdminHome() {
+  // All hooks must run in the same order every render. Compute first, then
+  // decide if we redirect.
   const { user } = useAuth();
   const version = useCohortVersion();
-  const role = primaryEffectiveRole(user);
-
-  // Reachable by users with the `org` capability (or above) only.
-  if (
-    role !== "org" &&
-    !user?.capabilities?.includes?.("org") &&
-    !user?.capabilities?.includes?.("admin") &&
-    !user?.capabilities?.includes?.("super")
-  ) {
-    return <Navigate to="/home" replace />;
-  }
 
   const allCohorts = useMemo(() => getAllCohortsForAdmin(), [version]);
-  // Cohorts the user can see — filtered by their assignedOrgs.
   const cohorts = useMemo(() => getAccessibleCohorts(user, allCohorts), [user, allCohorts]);
   const orgs = useMemo(() => getAccessibleOrgs(user, allCohorts), [user, allCohorts]);
-
   const cohortSlugs = useMemo(() => cohorts.map((c) => c.slug), [cohorts]);
 
-  // All participants in scope.
   const participants = useMemo(
     () => ADMIN_MOCK_PARTICIPANTS.filter((p) => cohortSlugs.includes(p.cohortSlug)),
     [cohortSlugs, version],
   );
 
-  // Aggregate KPIs.
   const totalMinutesSaved = useMemo(() => {
     let sum = 0;
     for (const p of participants) {
@@ -69,15 +56,10 @@ export default function OrgAdminHome() {
     () => participants.filter((p) => (p.journalEntries || []).length > 0).length,
     [participants],
   );
-
-  // At-risk strip.
-  const atRisk = useMemo(() => {
-    return participants
-      .filter((p) => isAtRisk(p))
-      .slice(0, 5);
-  }, [participants]);
-
-  // Cohort leaders' recent activity.
+  const atRisk = useMemo(
+    () => participants.filter((p) => isAtRisk(p)).slice(0, 5),
+    [participants],
+  );
   const recentLeaderActivity = useMemo(() => {
     const out = [];
     for (const p of participants) {
@@ -90,6 +72,17 @@ export default function OrgAdminHome() {
       .sort((a, b) => new Date(b.entry.date) - new Date(a.entry.date))
       .slice(0, 4);
   }, [participants]);
+
+  const role = primaryEffectiveRole(user);
+  // Reachable by users with the `org` capability (or above) only.
+  if (
+    role !== "org" &&
+    !user?.capabilities?.includes?.("org") &&
+    !user?.capabilities?.includes?.("admin") &&
+    !user?.capabilities?.includes?.("super")
+  ) {
+    return <Navigate to="/home" replace />;
+  }
 
   const firstName = (user?.name || "").trim().split(/\s+/)[0] || "there";
   const orgLabel = orgs.length === 1 ? orgs[0].name : `${orgs.length} orgs`;

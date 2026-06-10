@@ -30,28 +30,19 @@ import { primaryEffectiveRole } from "../../lib/viewAs";
 // ---------------------------------------------------------------------------
 
 export default function FacilitatorHome() {
+  // All hooks must run in the same order every render — even when the user
+  // is about to be redirected. Compute everything first, then decide if we
+  // redirect.
   const { user } = useAuth();
   const version = useCohortVersion();
   const gcal = useGoogleCalendarConnection(user);
 
-  const role = primaryEffectiveRole(user);
-  // Only Facilitators (and roles that include facilitator capabilities) get
-  // this home. Anyone else gets bounced to their own home.
-  if (role !== "facilitator" && !user?.capabilities?.includes?.("facilitator")) {
-    return <Navigate to="/home" replace />;
-  }
-
-  // Scope.
   const cohorts = useMemo(
     () => getAccessibleCohorts(user, getAllCohortsForAdmin()),
     [user, version],
   );
   const cohortSlugs = useMemo(() => cohorts.map((c) => c.slug), [cohorts]);
-
-  // Next session across all cohorts.
   const upNext = useMemo(() => findNextSession(cohorts), [cohorts]);
-
-  // Homework awaiting review (scoped to facilitator's cohorts).
   const homeworkPending = useMemo(() => {
     return getHomeworkRows({ status: "pending" }).filter((row) =>
       cohortSlugs.includes(row.cohortSlug),
@@ -66,15 +57,20 @@ export default function FacilitatorHome() {
       return Math.max(max, days);
     }, 0);
   }, [homeworkPending]);
-
-  // At-risk participants (no journal in >14 days OR no homework on a
-  // completed session). Scoped to facilitator's cohorts.
   const atRisk = useMemo(() => {
     return ADMIN_MOCK_PARTICIPANTS
       .filter((p) => cohortSlugs.includes(p.cohortSlug))
       .filter((p) => isAtRisk(p))
       .slice(0, 4);
   }, [cohortSlugs, version]);
+
+  const role = primaryEffectiveRole(user);
+  // Only users with the facilitator capability get this home. Anyone else
+  // bounces back to their own home. The redirect happens AFTER all hooks
+  // above have run, so React sees a consistent hook count.
+  if (role !== "facilitator" && !user?.capabilities?.includes?.("facilitator")) {
+    return <Navigate to="/home" replace />;
+  }
 
   const firstName = (user?.name || "").trim().split(/\s+/)[0] || "Facilitator";
 

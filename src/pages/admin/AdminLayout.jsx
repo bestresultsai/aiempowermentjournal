@@ -3,7 +3,7 @@ import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-do
 import {
   LayoutDashboard, Users, BookCheck, GraduationCap, ArrowLeft,
   Shield, LogOut, ChevronDown, NotebookPen, Plus, User as UserIcon,
-  Calendar as CalendarIcon, Building2, Lock,
+  Calendar as CalendarIcon, Building2, Lock, Eye, X,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import {
@@ -14,6 +14,7 @@ import {
   canGradeHomework,
 } from "../../lib/adminRoles";
 import { APP_CONFIG } from "../../lib/appConfig";
+import { useViewAs, VIEW_AS_LABELS } from "../../lib/viewAs";
 import Logo from "../../components/Logo";
 
 // ---------------------------------------------------------------------------
@@ -229,6 +230,9 @@ function AdminUserMenu({ user, roleLabel, onLogout }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
   const navigate = useNavigate();
+  // View-as switcher — same options as the participant NavBar so an admin
+  // can step down to any lower role without leaving /admin.
+  const { mode: viewAsMode, set: setViewAs, clear: clearViewAs, availableRoles: viewAsRoles } = useViewAs(user);
 
   useEffect(() => {
     if (!open) return;
@@ -287,17 +291,57 @@ function AdminUserMenu({ user, roleLabel, onLogout }) {
             <UserIcon className="w-4 h-4 text-ink-muted" strokeWidth={2} />
             View profile
           </button>
-          {/* Participant view — symmetric to "Admin panel" on the participant
-              NavBar. Lets admins jump back to the participant-facing platform
-              (their cohort journey, journal, etc.) without signing out. */}
-          <button
-            type="button"
-            onClick={() => { setOpen(false); navigate("/home"); }}
-            className="w-full px-4 py-2.5 text-left text-[13.5px] font-heading font-medium text-ink hover:bg-surface-soft transition-colors inline-flex items-center gap-2.5"
-          >
-            <ArrowLeft className="w-4 h-4 text-brand-600" strokeWidth={2} />
-            Participant view
-          </button>
+          {/* View as — admin can step down to any lower role to preview the
+              platform from that role's perspective. Persists across pages
+              via the view-as banner; the existing "Participant view" entry
+              from earlier rounds is now part of this switcher. */}
+          {viewAsRoles.length > 0 && (
+            <>
+              <div className="border-t border-soft" />
+              <div className="px-4 pt-3 pb-1 text-[10.5px] font-heading font-bold uppercase tracking-wider text-ink-subtle">
+                View as
+              </div>
+              {viewAsRoles.map((role) => (
+                <button
+                  key={role}
+                  type="button"
+                  onClick={() => {
+                    setOpen(false);
+                    // Set the view-as mode FIRST so RoleAwareHome at /home
+                    // routes to the participant view instead of bouncing
+                    // back to /admin.
+                    setViewAs(role);
+                    navigate("/home");
+                  }}
+                  className={`w-full px-4 py-2.5 text-left text-[13.5px] font-heading font-medium hover:bg-surface-soft transition-colors inline-flex items-center gap-2.5 ${
+                    viewAsMode === role ? "text-brand-700" : "text-ink"
+                  }`}
+                >
+                  <Eye className={`w-4 h-4 ${viewAsMode === role ? "text-brand-700" : "text-ink-muted"}`} strokeWidth={2} />
+                  {VIEW_AS_LABELS[role]}
+                  {viewAsMode === role && (
+                    <span className="ml-auto text-[10.5px] font-heading font-bold uppercase tracking-wider text-brand-700">
+                      Active
+                    </span>
+                  )}
+                </button>
+              ))}
+              {viewAsMode && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setOpen(false);
+                    clearViewAs();
+                    navigate("/admin");
+                  }}
+                  className="w-full px-4 py-2.5 text-left text-[13.5px] font-heading font-medium text-ink-muted hover:text-ink hover:bg-surface-soft transition-colors inline-flex items-center gap-2.5"
+                >
+                  <X className="w-4 h-4" strokeWidth={2} />
+                  Exit view-as
+                </button>
+              )}
+            </>
+          )}
           <div className="border-t border-soft" />
           <button
             type="button"
