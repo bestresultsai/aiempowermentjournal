@@ -131,12 +131,25 @@ export function useGoogleCalendarConnection(user) {
     setSyncing(false);
   }
 
+  // Toggle "auto-invite cohort participants" — when on, every cohort session
+  // the facilitator owns is created on their Google Calendar with the
+  // participant emails as attendees, so participants get the meeting in
+  // their own calendar automatically (production wiring still queued).
+  function setAutoInvite(value) {
+    if (!userId) return;
+    const current = readState(userId);
+    if (!current?.connected) return;
+    writeState(userId, { ...current, autoInvite: !!value });
+  }
+
   return {
     connected: !!state?.connected,
     email: state?.email || null,
     calendarName: state?.calendarName || "BRAI Sessions",
     lastSyncedAt: state?.lastSyncedAt || null,
     connectedAt: state?.connectedAt || null,
+    autoInvite: !!state?.autoInvite,
+    setAutoInvite,
     connect,
     disconnect,
     syncNow,

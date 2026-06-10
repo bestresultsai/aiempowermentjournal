@@ -64,10 +64,15 @@ export async function submitJournalEntry(data) {
   });
 }
 
-export async function sendMagicLink(email) {
+// `opts.next` is a same-origin path the API should redirect to after the
+// user clicks the magic link. The server should embed it in the verify URL
+// (e.g. /auth/verify?token=…&next=…). For now the client also passes it
+// through the URL so AuthVerify can read it directly without round-tripping
+// through the API.
+export async function sendMagicLink(email, opts = {}) {
   return fetchJSON("/api/auth/send-magic-link", {
     method: "POST",
-    body: JSON.stringify({ email }),
+    body: JSON.stringify({ email, next: opts.next || null }),
   });
 }
 

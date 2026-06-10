@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { verifyToken } from "../lib/api";
 import Logo from "../components/Logo";
+import { safeNext } from "../components/AuthGate";
 
 export default function AuthVerify() {
   const [searchParams] = useSearchParams();
@@ -13,6 +14,10 @@ export default function AuthVerify() {
 
   useEffect(() => {
     const token = searchParams.get("token");
+    // Same-origin path the user originally tried to visit before being
+    // bounced to /login. We sanitize before redirecting so a hostile
+    // magic-link URL can't open-redirect off-platform.
+    const next = safeNext(searchParams.get("next")) || "/home";
     if (!token) {
       setStatus("error");
       setErrorMsg("No token provided");
@@ -23,7 +28,7 @@ export default function AuthVerify() {
       .then(data => {
         login(data.token, data.user);
         setStatus("success");
-        setTimeout(() => navigate("/dashboard"), 1000);
+        setTimeout(() => navigate(next, { replace: true }), 800);
       })
       .catch(err => {
         setStatus("error");

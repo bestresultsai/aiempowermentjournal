@@ -10,6 +10,7 @@ import { useAuth } from "../context/AuthContext";
 import { getUserCohorts } from "../lib/cohortResolution";
 import { groupTimeZones } from "../lib/timeZones";
 import { useGoogleCalendarConnection } from "../lib/googleCalendar";
+import { hasCapability } from "../lib/adminRoles";
 
 // ---------------------------------------------------------------------------
 // SETTINGS PAGE — /settings
@@ -298,9 +299,15 @@ export default function Settings() {
 // will redirect to /api/auth/google/start.
 // ---------------------------------------------------------------------------
 function GoogleCalendarSection({ user }) {
-  const { connected, email, calendarName, lastSyncedAt, syncing, connect, disconnect, syncNow } =
-    useGoogleCalendarConnection(user);
+  const {
+    connected, email, calendarName, lastSyncedAt, syncing,
+    autoInvite, setAutoInvite,
+    connect, disconnect, syncNow,
+  } = useGoogleCalendarConnection(user);
   const [connecting, setConnecting] = useState(false);
+  // The "auto-invite participants" toggle is only meaningful to users who
+  // actually run sessions. Hide it for pure participants.
+  const isFacilitator = hasCapability(user, "facilitator");
 
   async function handleConnect() {
     setConnecting(true);
@@ -366,6 +373,42 @@ function GoogleCalendarSection({ user }) {
               </div>
             </div>
           </div>
+          {/* Facilitator-only: auto-invite participants when a session lands
+              on the calendar. Today this just flips a setting; production
+              wiring (Google Calendar API events.insert with attendees) is
+              queued — see docs/admin-visibility-matrix.md follow-ups. */}
+          {isFacilitator && (
+            <div className="rounded-xl border border-soft bg-surface-card p-3 flex items-start gap-3">
+              <button
+                type="button"
+                onClick={() => setAutoInvite(!autoInvite)}
+                aria-pressed={autoInvite}
+                className={`shrink-0 mt-0.5 w-9 h-5 rounded-full p-0.5 transition-colors ${
+                  autoInvite ? "bg-brand-600" : "bg-ink/15"
+                }`}
+              >
+                <span
+                  className={`block w-4 h-4 rounded-full bg-white shadow-sm transition-transform ${
+                    autoInvite ? "translate-x-4" : "translate-x-0"
+                  }`}
+                />
+              </button>
+              <div className="flex-1 min-w-0">
+                <div className="font-heading font-bold text-[12.5px] text-ink inline-flex items-center gap-1.5">
+                  Auto-invite participants
+                  <span className="inline-flex items-center px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-800 text-[9.5px] font-heading font-bold uppercase tracking-wider">
+                    Coming soon
+                  </span>
+                </div>
+                <div className="text-[11.5px] text-ink-muted leading-snug mt-0.5">
+                  When you create or reschedule a session, BRAI will add it
+                  to your "{calendarName}" calendar with every cohort
+                  participant invited — so it lands on their personal
+                  calendar with a Zoom link. They can RSVP from there.
+                </div>
+              </div>
+            </div>
+          )}
           <div className="flex items-center gap-2 flex-wrap">
             <button
               type="button"

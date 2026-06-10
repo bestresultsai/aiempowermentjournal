@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
+import { safeNext } from "../components/AuthGate";
 import {
   Mail, ArrowRight, GraduationCap, NotebookPen, Trophy, CheckCircle2,
 } from "lucide-react";
@@ -16,6 +17,10 @@ export default function Login() {
   const [status, setStatus] = useState("idle"); // idle | sending | sent | error
   const [errorMsg, setErrorMsg] = useState("");
   const [hasVisited, setHasVisited] = useState(false);
+  // Where to land after sign-in. Set by AuthGate when an unauthed user
+  // tries to visit a protected route. Falls back to /home.
+  const [searchParams] = useSearchParams();
+  const next = safeNext(searchParams.get("next"));
 
   useEffect(() => {
     try {
@@ -30,7 +35,7 @@ export default function Login() {
     if (!email.trim()) return;
     setStatus("sending");
     try {
-      await sendMagicLink(email.trim());
+      await sendMagicLink(email.trim(), { next });
       setStatus("sent");
       // Mark this device as having signed in so the next visit feels familiar.
       try {

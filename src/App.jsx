@@ -4,6 +4,7 @@ import DemoBanner from "./components/DemoBanner";
 import Footer from "./components/Footer";
 import OnboardingGate from "./components/OnboardingGate";
 import AdminGate from "./components/AdminGate";
+import AuthGate from "./components/AuthGate";
 import AdminLayout from "./pages/admin/AdminLayout";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import AdminCohorts from "./pages/admin/AdminCohorts";
@@ -103,28 +104,32 @@ export default function App() {
             {/* ONBOARDING */}
             <Route path="/welcome" element={<WelcomeWizard />} />
 
+            {/* Every participant-facing route is wrapped in <AuthGate>.
+                Unauthed visits bounce to /login?next=<original-path> so they
+                land back on the intended page after sign-in. */}
+
             {/* HOME — comprehensive overview */}
-            <Route path="/home" element={<CohortLanding />} />
+            <Route path="/home" element={<AuthGate><CohortLanding /></AuthGate>} />
 
             {/* JOURNEY — workshop-focused */}
-            <Route path="/journey" element={<JourneyPage />} />
-            <Route path="/session/:order" element={<SessionDetail />} />
+            <Route path="/journey" element={<AuthGate><JourneyPage /></AuthGate>} />
+            <Route path="/session/:order" element={<AuthGate><SessionDetail /></AuthGate>} />
 
             {/* JOURNAL — gamified impact tracking */}
-            <Route path="/journal" element={<JournalDashboard />} />
-            <Route path="/journal/new" element={<Journal />} />
-            <Route path="/journal/result" element={<JournalResult />} />
+            <Route path="/journal" element={<AuthGate><JournalDashboard /></AuthGate>} />
+            <Route path="/journal/new" element={<AuthGate><Journal /></AuthGate>} />
+            <Route path="/journal/result" element={<AuthGate><JournalResult /></AuthGate>} />
 
             {/* Resources + Settings */}
-            <Route path="/resources" element={<Resources />} />
-            <Route path="/settings" element={<Settings />} />
+            <Route path="/resources" element={<AuthGate><Resources /></AuthGate>} />
+            <Route path="/settings" element={<AuthGate><Settings /></AuthGate>} />
 
             {/* COHORT LEADER — aggregate view, only for participants flagged as leader */}
-            <Route path="/leader/cohort" element={<CohortLeaderDashboard />} />
+            <Route path="/leader/cohort" element={<AuthGate><CohortLeaderDashboard /></AuthGate>} />
 
             {/* Explicit cohort routes (admin / multi-cohort) */}
-            <Route path="/cohort/:slug" element={<CohortLanding />} />
-            <Route path="/cohort/:slug/session/:order" element={<SessionDetail />} />
+            <Route path="/cohort/:slug" element={<AuthGate><CohortLanding /></AuthGate>} />
+            <Route path="/cohort/:slug/session/:order" element={<AuthGate><SessionDetail /></AuthGate>} />
 
             {/* ADMIN PANEL — role-gated; participants are redirected to /home */}
             <Route
