@@ -7,8 +7,12 @@ import {
 import { useAuth } from "../../context/AuthContext";
 import { hasGlobalScope, getRoleLabel } from "../../lib/adminRoles";
 import { useScopeFilters } from "../../lib/useScopeFilters";
-import { getAllCohortsForAdmin, getSessionsForCohort } from "../../lib/cohortAdmin";
-import { MOCK_SESSIONS, BELT_COLORS } from "../../lib/mockCohort";
+import {
+  getAllCohortsForAdmin,
+  getSessionsForCohort,
+  getUpcomingSessionsInScope,
+} from "../../lib/cohortAdmin";
+import { BELT_COLORS } from "../../lib/mockCohort";
 import {
   ADMIN_MOCK_PARTICIPANTS,
   getParticipantsForCohort,
@@ -18,7 +22,6 @@ import {
   getAtRiskParticipants,
   getBiggestWinsInScope,
   getDeltaStats,
-  getUpcomingSessions,
   getActivityStream,
   getCohortSparkline,
   formatMinutes,
@@ -93,7 +96,10 @@ export default function AdminDashboard() {
   const atRisk = getAtRiskParticipants(cohortSlugs);
   const topWin = getBiggestWinsInScope(cohortSlugs, 1)[0] || null;
   const deltas = getDeltaStats(cohortSlugs, 7);
-  const upcoming = getUpcomingSessions(14)(MOCK_SESSIONS);
+  // Scope-aware: only sessions belonging to cohorts in the user's scope.
+  // Previously this used global MOCK_SESSIONS, which leaked other facilitators'
+  // sessions onto a pure facilitator's dashboard.
+  const upcoming = getUpcomingSessionsInScope(cohortSlugs, 14);
   const activity = getActivityStream(cohortSlugs, 10);
 
 
@@ -304,10 +310,10 @@ export default function AdminDashboard() {
           <SectionHeader title="Upcoming live sessions" subtitle="next 14 days" />
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {upcoming.slice(0, 3).map((s) => {
-              const belt = BELT_COLORS[s.belt];
+              const belt = BELT_COLORS[s.belt] || BELT_COLORS.White;
               return (
                 <div
-                  key={s.order}
+                  key={`${s.cohortSlug}-${s.order}`}
                   className="rounded-2xl bg-surface-card border border-soft p-4 flex items-center gap-3"
                 >
                   <div
@@ -327,8 +333,8 @@ export default function AdminDashboard() {
                     <div className="font-heading text-[13.5px] font-bold text-ink truncate mt-0.5">
                       {formatShortDate(s.date)}
                     </div>
-                    <div className="text-[11px] text-brand-700 font-heading font-semibold mt-0.5">
-                      {timeUntil(s.date)} · {effectiveCohorts.length} {effectiveCohorts.length === 1 ? "cohort" : "cohorts"}
+                    <div className="text-[11px] text-brand-700 font-heading font-semibold mt-0.5 truncate">
+                      {timeUntil(s.date)} · {s.cohortShortName || s.cohortName}
                     </div>
                   </div>
                 </div>

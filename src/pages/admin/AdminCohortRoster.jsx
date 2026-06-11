@@ -7,7 +7,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { getAccessibleCohorts, canEditCohort } from "../../lib/adminRoles";
-import { MOCK_SESSIONS, BELT_COLORS } from "../../lib/mockCohort";
+import { BELT_COLORS } from "../../lib/mockCohort";
 import { getSessionsCountForCohort } from "../../lib/programs";
 import {
   getParticipantsForCohort, getCohortJournalStats,
@@ -38,11 +38,14 @@ export default function AdminCohortRoster() {
 
   // Hooks must run in a stable order — keep them above the scope check.
   const rosterRaw = cohort ? getParticipantsForCohort(slug) : [];
-  // Per-cohort session count — APFW cohorts have 10, AIEW3 has 8, etc.
-  const totalSessions = getSessionsCountForCohort(cohort) || MOCK_SESSIONS.length;
-  const journal = cohort ? getCohortJournalStats(slug) : { totalEntries: 0, totalMinutesSaved: 0 };
   // Schedule summary — derives meeting day/time + start/end from session dates.
   const sessions = cohort ? getSessionsForCohort(slug) : [];
+  // Per-cohort session count — APFW cohorts have 10, AIEW3 has 8, etc. Fall
+  // back to this cohort's session list rather than the global MOCK_SESSIONS
+  // (which is hardcoded to AIEW3 and would mis-count any non-AIEW3 cohort).
+  const totalSessions =
+    getSessionsCountForCohort(cohort) || sessions.length || 0;
+  const journal = cohort ? getCohortJournalStats(slug) : { totalEntries: 0, totalMinutesSaved: 0 };
   const schedule = useMemo(() => buildScheduleSummary(sessions, cohort?.timeZone), [sessions, cohort?.timeZone]);
 
   // Apply sort.
@@ -242,11 +245,13 @@ export default function AdminCohortRoster() {
                 </div>
               </div>
 
-              {/* Belt-progress pips */}
+              {/* Belt-progress pips — use the COHORT's sessions (program-aware)
+                  rather than the global MOCK_SESSIONS list, so a 10-session
+                  program renders 10 pips and an 8-session program renders 8. */}
               <div className="w-full md:w-48 flex items-center justify-start md:justify-center gap-1">
-                {MOCK_SESSIONS.map((s) => {
+                {sessions.map((s) => {
                   const done = p.progress?.includes(s.order);
-                  const belt = BELT_COLORS[s.belt];
+                  const belt = BELT_COLORS[s.belt] || BELT_COLORS.White;
                   return (
                     <div
                       key={s.order}

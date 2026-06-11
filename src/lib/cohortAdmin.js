@@ -375,6 +375,42 @@ export function getFacilitatorScheduleByDay(cohortSlugs, daysAhead = 14, {
   }));
 }
 
+// Returns a flat, date-ascending list of upcoming sessions across the given
+// cohort slugs. Each entry is shaped to drop straight into the dashboard's
+// "Upcoming live sessions" cards: { date, order, belt, cohortSlug, cohortName,
+// shortName }.
+//
+// This replaces the older pattern of feeding the global `MOCK_SESSIONS` list
+// into `getUpcomingSessions(daysAhead)` — that bypasses the user's cohort
+// scope. Pages should always pass their `cohortSlugs` here instead.
+export function getUpcomingSessionsInScope(cohortSlugs, daysAhead = 14) {
+  const slugSet = new Set(cohortSlugs);
+  const allCohorts = getAllCohortsForAdmin();
+  const now = new Date();
+  now.setHours(0, 0, 0, 0);
+  const todayMs = now.getTime();
+  const cutoffMs = todayMs + daysAhead * 86400000;
+
+  const out = [];
+  for (const cohort of allCohorts) {
+    if (!slugSet.has(cohort.slug)) continue;
+    const sessions = getSessionsForCohort(cohort.slug);
+    for (const s of sessions) {
+      if (!s.date) continue;
+      const ts = new Date(s.date).getTime();
+      if (Number.isNaN(ts)) continue;
+      if (ts < todayMs || ts > cutoffMs) continue;
+      out.push({
+        ...s,
+        cohortSlug: cohort.slug,
+        cohortName: cohort.name,
+        cohortShortName: cohort.organization?.shortName || cohort.programCode,
+      });
+    }
+  }
+  return out.sort((a, b) => new Date(a.date) - new Date(b.date));
+}
+
 // Next "Open Cohort N" number — counts existing open cohorts.
 export function getNextOpenCohortNumber() {
   const cohorts = getAllCohortsForAdmin();
