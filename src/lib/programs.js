@@ -1,3 +1,5 @@
+import { useEffect, useState } from "react";
+
 // ---------------------------------------------------------------------------
 // Programs catalog — the source of truth for curriculum + belt taxonomy.
 //
@@ -337,8 +339,6 @@ export function getBeltAtOrder(program, order) {
 // Real persistence is a backend swap — this is intentionally light so we can
 // ship the UI without coupling to data infrastructure.
 // ---------------------------------------------------------------------------
-
-import { useEffect, useState } from "react";
 
 const PROGRAMS_STORAGE_KEY = "brai_program_overlays";
 

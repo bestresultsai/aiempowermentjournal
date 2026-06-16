@@ -232,8 +232,16 @@ export default function App() {
               <Route path="cohorts/:slug/participants/add" element={<AdminCohortAddParticipants />} />
               {/* Per-cohort session customization — overrides notes,
                   materials, homework, and recording without changing the
-                  shared program template. */}
-              <Route path="cohorts/:slug/sessions/:order/edit" element={<AdminCohortSessionEdit />} />
+                  shared program template. Wrapped in ErrorBoundary so a
+                  bad render surfaces a readable message instead of blank. */}
+              <Route
+                path="cohorts/:slug/sessions/:order/edit"
+                element={
+                  <ErrorBoundary title="Couldn't load the session editor">
+                    <AdminCohortSessionEdit />
+                  </ErrorBoundary>
+                }
+              />
               <Route path="journal" element={<AdminJournalDashboard />} />
               <Route path="homework" element={<AdminHomeworkQueue />} />
               <Route path="calendar" element={<AdminCalendar />} />

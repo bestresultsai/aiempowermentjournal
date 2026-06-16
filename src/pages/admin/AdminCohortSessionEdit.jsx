@@ -232,7 +232,10 @@ export default function AdminCohortSessionEdit() {
                   value={
                     <ul className="text-[12.5px] text-ink space-y-0.5 list-disc list-inside">
                       {(programSession?.materials || []).map((m, i) => (
-                        <li key={i}>{m}</li>
+                        // Materials can be plain strings OR objects shaped
+                        // like {label, type, url}. Stringify defensively so
+                        // React doesn't choke on the object case.
+                        <li key={i}>{typeof m === "string" ? m : (m?.label || m?.title || "Material")}</li>
                       ))}
                     </ul>
                   }
