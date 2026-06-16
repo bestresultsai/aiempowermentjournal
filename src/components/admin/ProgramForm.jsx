@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Plus, Trash2, GripVertical, ChevronDown, ChevronUp, Award, RotateCcw } from "lucide-react";
 import { BELT_COLORS } from "../../lib/mockCohort";
 import { DEFAULT_CERTIFICATE } from "../../lib/programs";
+import MaterialsEditor, { normalizeMaterials } from "./MaterialsEditor";
 
 const COMPLETION_CRITERIA_OPTIONS = [
   { value: "all-sessions-completed", label: "All sessions completed" },
@@ -116,7 +117,11 @@ export default function ProgramForm({
           title: s.title.trim() || `Session ${i + 1}`,
           summary: s.summary,
           description: s.summary,
-          materials: s.materials.filter((m) => (m || "").trim()),
+          // Materials are now structured objects. Drop rows that have neither
+          // a title nor a URL/upload so we don't persist empty placeholders.
+          materials: normalizeMaterials(s.materials).filter(
+            (m) => (m.title || "").trim() || (m.url || "").trim(),
+          ),
           homework: s.homework,
         })),
       });
@@ -338,10 +343,11 @@ function SessionRow({
 
   const beltLabel = session.belt || beltSuggestions[index] || "—";
 
-  // Materials are stored as a string array; UI edits one big textarea with
-  // one item per line so it stays simple.
-  const materialsText = useMemo(
-    () => (session.materials || []).join("\n"),
+  // Materials are now structured items: { title, type, url, fileName? }.
+  // MaterialsEditor accepts legacy strings + {label, type, url} shapes too,
+  // so old programs survive the upgrade.
+  const materials = useMemo(
+    () => normalizeMaterials(session.materials || []),
     [session.materials],
   );
 
@@ -421,17 +427,11 @@ function SessionRow({
           </Field>
           <Field
             label="Materials"
-            hint="One per line. Plain text titles for now; URLs come later."
+            hint="Add prompt files, videos, templates. Each item supports either a URL or a direct file upload."
           >
-            <textarea
-              value={materialsText}
-              onChange={(e) =>
-                onChange({
-                  materials: e.target.value.split("\n").map((s) => s.trim()),
-                })
-              }
-              rows={4}
-              className="w-full px-3 py-2 rounded-lg border border-soft bg-surface-card text-ink text-[13px] font-body focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15"
+            <MaterialsEditor
+              value={materials}
+              onChange={(next) => onChange({ materials: next })}
             />
           </Field>
           <Field label="Homework prompt">

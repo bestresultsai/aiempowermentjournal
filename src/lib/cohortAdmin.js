@@ -607,8 +607,25 @@ function applySessionPatch(session, patch = {}) {
     next.customSummary = v || null;
   }
   if ("customMaterials" in patch) {
+    // customMaterials supports two legacy shapes (strings, {label,type,url})
+    // plus the new {title,type,url,fileName?}. Coerce to the new shape so
+    // downstream consumers can render uniformly.
     const arr = Array.isArray(patch.customMaterials)
-      ? patch.customMaterials.map((m) => (m || "").trim()).filter(Boolean)
+      ? patch.customMaterials
+          .map((m) => {
+            if (!m) return null;
+            if (typeof m === "string") {
+              const t = m.trim();
+              return t ? { title: t, type: "link", url: "" } : null;
+            }
+            return {
+              title: (m.title || m.label || "").trim(),
+              type: m.type || "link",
+              url: (m.url || "").trim(),
+              fileName: m.fileName || null,
+            };
+          })
+          .filter((m) => m && (m.title || m.url))
       : [];
     next.customMaterials = arr.length ? arr : null;
   }

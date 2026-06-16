@@ -472,8 +472,8 @@ function OverviewPanel({ session }) {
 }
 
 function MaterialsPanel({ session }) {
-  const programMaterials = session.materials || [];
-  const customMaterials = session.customMaterials || [];
+  const programMaterials = (session.materials || []).map(asMaterial);
+  const customMaterials = (session.customMaterials || []).map(asMaterial);
   if (programMaterials.length === 0 && customMaterials.length === 0) {
     return (
       <div className="text-center py-10">
@@ -487,54 +487,119 @@ function MaterialsPanel({ session }) {
   }
   return (
     <div className="space-y-2.5">
-      {/* Custom materials (cohort-specific, plain-text rows) appear first
-          because they're context the facilitator added on top. */}
+      {/* Cohort-specific materials added by the facilitator surface first
+          with a brand-tinted treatment so it's clear they're context this
+          cohort got on top of the program's defaults. */}
       {customMaterials.length > 0 && (
         <div className="rounded-xl border border-brand-100 bg-brand-50/40 p-3 mb-1">
-          <div className="h-eyebrow text-brand-700 mb-2">
+          <div className="h-eyebrow text-brand-700 mb-2 px-1">
             Added for this cohort
           </div>
-          <ul className="space-y-1.5">
+          <div className="space-y-2">
             {customMaterials.map((m, i) => (
-              <li key={i} className="text-[13.5px] text-ink leading-relaxed flex items-start gap-2">
-                <span className="mt-1.5 shrink-0 w-1.5 h-1.5 rounded-full bg-brand-500" />
-                {m}
-              </li>
+              <MaterialCard key={`c-${i}`} material={m} subtle />
             ))}
-          </ul>
+          </div>
         </div>
       )}
       {programMaterials.map((m, i) => (
-        <a
-          key={i}
-          href={m.url}
-          target="_blank"
-          rel="noreferrer"
-          className="group flex items-center gap-4 p-4 rounded-xl border border-soft bg-surface-paper hover:bg-surface-card hover:border-brand-500 hover:shadow-card transition-all duration-200"
-        >
-          <div
-            className={
-              "w-11 h-11 rounded-xl flex items-center justify-center font-heading font-extrabold text-[12px] shrink-0 " +
-              (m.type === "pdf"
-                ? "bg-rose-50 text-rose-700 border border-rose-100"
-                : m.type === "doc"
-                  ? "bg-brand-50 text-brand-700 border border-brand-100"
-                  : "bg-surface-soft text-ink-muted border border-soft")
-            }
-          >
-            {(m.type || "file").toUpperCase()}
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="text-[14.5px] font-heading font-semibold text-ink truncate">{m.label}</div>
-            <div className="text-[12px] text-ink-muted mt-0.5">
-              {m.type === "pdf" ? "PDF document" : m.type === "doc" ? "Document" : "File"}
-            </div>
-          </div>
-          <ChevronRight className="w-5 h-5 text-ink-subtle group-hover:text-brand-600 group-hover:translate-x-0.5 transition-all duration-200 shrink-0" strokeWidth={2.5} />
-        </a>
+        <MaterialCard key={`p-${i}`} material={m} />
       ))}
     </div>
   );
+}
+
+// Renders a single material item as a brand-aligned card. Handles both URL
+// links (open in new tab) and uploaded files (download with original
+// filename so participants get sensible names instead of "data.bin").
+function MaterialCard({ material, subtle }) {
+  const isUpload = !!material.fileName;
+  return (
+    <a
+      href={material.url || "#"}
+      target={isUpload ? undefined : "_blank"}
+      rel="noreferrer"
+      download={isUpload ? material.fileName : undefined}
+      className={
+        "group flex items-center gap-4 p-4 rounded-xl border transition-all duration-200 " +
+        (subtle
+          ? "border-soft bg-white hover:bg-brand-50/50 hover:border-brand-500"
+          : "border-soft bg-surface-paper hover:bg-surface-card hover:border-brand-500 hover:shadow-card")
+      }
+    >
+      <MaterialTypeBadge type={material.type} />
+      <div className="flex-1 min-w-0">
+        <div className="text-[14.5px] font-heading font-semibold text-ink truncate">
+          {material.title}
+        </div>
+        <div className="text-[12px] text-ink-muted mt-0.5 inline-flex items-center gap-2 flex-wrap">
+          <span>{materialTypeLabel(material.type)}</span>
+          {isUpload && (
+            <span className="inline-flex items-center gap-0.5 px-1.5 py-0 rounded-md bg-emerald-50 text-emerald-700 text-[9.5px] font-heading font-bold uppercase">
+              Upload · {material.fileName}
+            </span>
+          )}
+        </div>
+      </div>
+      <ChevronRight
+        className="w-5 h-5 text-ink-subtle group-hover:text-brand-600 group-hover:translate-x-0.5 transition-all duration-200 shrink-0"
+        strokeWidth={2.5}
+      />
+    </a>
+  );
+}
+
+// Type-aware badge to the left of each material card. Mirrors the icon set
+// in MaterialsEditor so the admin sees the same shape they're publishing.
+function MaterialTypeBadge({ type }) {
+  const tone =
+    type === "pdf"
+      ? "bg-rose-50 text-rose-700 border border-rose-100"
+      : type === "video"
+      ? "bg-amber-50 text-amber-700 border border-amber-100"
+      : type === "template"
+      ? "bg-emerald-50 text-emerald-700 border border-emerald-100"
+      : type === "prompt"
+      ? "bg-violet-50 text-violet-700 border border-violet-100"
+      : type === "doc"
+      ? "bg-brand-50 text-brand-700 border border-brand-100"
+      : "bg-surface-soft text-ink-muted border border-soft";
+  return (
+    <div
+      className={
+        "w-11 h-11 rounded-xl flex items-center justify-center font-heading font-extrabold text-[10.5px] uppercase tracking-wider shrink-0 " +
+        tone
+      }
+    >
+      {(type || "Link").toUpperCase().slice(0, 4)}
+    </div>
+  );
+}
+
+function materialTypeLabel(type) {
+  switch (type) {
+    case "pdf": return "PDF document";
+    case "video": return "Video";
+    case "template": return "Template";
+    case "prompt": return "Prompt file";
+    case "doc": return "Document";
+    case "link":
+    default: return "Link";
+  }
+}
+
+// Backwards-compat coerce: programs from before this round shipped
+// materials as either strings or {label, type, url}. Normalize to the new
+// {title, type, url, fileName?} shape so the renderer above stays simple.
+function asMaterial(m) {
+  if (!m) return { title: "—", type: "link", url: "" };
+  if (typeof m === "string") return { title: m, type: "link", url: "" };
+  return {
+    title: m.title || m.label || "Material",
+    type: m.type || "link",
+    url: m.url || "",
+    fileName: m.fileName || null,
+  };
 }
 
 // ---------------------------------------------------------------------------

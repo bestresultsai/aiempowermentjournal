@@ -15,6 +15,7 @@ import {
 } from "../../lib/cohortAdmin";
 import { getProgramForCohort } from "../../lib/programs";
 import { BELT_COLORS } from "../../lib/mockCohort";
+import MaterialsEditor, { normalizeMaterials } from "../../components/admin/MaterialsEditor";
 
 // ---------------------------------------------------------------------------
 // /admin/cohorts/:slug/sessions/:order/edit
@@ -58,8 +59,10 @@ export default function AdminCohortSessionEdit() {
 
   // Local form state, hydrated from the current session shape.
   const [customSummary, setCustomSummary] = useState(session?.customSummary || "");
-  const [customMaterialsText, setCustomMaterialsText] = useState(
-    (session?.customMaterials || []).join("\n"),
+  // Cohort-level material overrides — structured items (title/type/url/fileName)
+  // appended on top of the program's defaults at render time.
+  const [customMaterials, setCustomMaterials] = useState(() =>
+    normalizeMaterials(session?.customMaterials || []),
   );
   const [facilitatorNotes, setFacilitatorNotes] = useState(session?.facilitatorNotes || "");
   const [customHomework, setCustomHomework] = useState(session?.customHomework || "");
@@ -74,10 +77,9 @@ export default function AdminCohortSessionEdit() {
     setSaving(true);
     setSessionOverride(slug, orderNum, {
       customSummary,
-      customMaterials: customMaterialsText
-        .split("\n")
-        .map((s) => s.trim())
-        .filter(Boolean),
+      customMaterials: normalizeMaterials(customMaterials).filter(
+        (m) => (m.title || "").trim() || (m.url || "").trim(),
+      ),
       facilitatorNotes,
       customHomework,
       videoUrl,
@@ -88,7 +90,7 @@ export default function AdminCohortSessionEdit() {
 
   function clearOverride(field) {
     if (field === "customSummary") setCustomSummary("");
-    else if (field === "customMaterials") setCustomMaterialsText("");
+    else if (field === "customMaterials") setCustomMaterials([]);
     else if (field === "facilitatorNotes") setFacilitatorNotes("");
     else if (field === "customHomework") setCustomHomework("");
     else if (field === "videoUrl") setVideoUrl("");
@@ -148,16 +150,32 @@ export default function AdminCohortSessionEdit() {
             rows={4}
           />
 
-          <OverrideField
-            label="Additional materials"
-            hint="One per line. Appended to the program's materials list — not replacing it."
-            placeholder="e.g. Bonus video — Optional reading"
-            value={customMaterialsText}
-            onChange={setCustomMaterialsText}
-            onReset={() => clearOverride("customMaterials")}
-            multiline
-            rows={5}
-          />
+          <div className="rounded-2xl bg-surface-card border border-soft p-4">
+            <div className="flex items-start justify-between gap-3 mb-2">
+              <div>
+                <div className="text-[12px] font-heading font-bold text-ink">
+                  Additional materials
+                </div>
+                <p className="text-[11.5px] text-ink-muted mt-0.5">
+                  Appended to the program's materials list — not replacing it.
+                  Each item supports either a URL or a direct file upload.
+                </p>
+              </div>
+              {customMaterials.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => clearOverride("customMaterials")}
+                  className="shrink-0 inline-flex items-center gap-1 text-[11.5px] font-heading font-semibold text-ink-muted hover:text-rose-700"
+                >
+                  Clear all
+                </button>
+              )}
+            </div>
+            <MaterialsEditor
+              value={customMaterials}
+              onChange={setCustomMaterials}
+            />
+          </div>
 
           <OverrideField
             label="Facilitator notes for participants"

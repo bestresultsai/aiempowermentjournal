@@ -574,7 +574,30 @@ function normalizeSessions(sessions) {
     summary: s.summary || s.description || "",
     description: s.description || s.summary || "",
     durationMinutes: Number(s.durationMinutes) || null,
-    materials: Array.isArray(s.materials) ? s.materials : [],
+    materials: normalizeMaterialArray(s.materials),
     homework: s.homework || "",
   }));
+}
+
+// Materials may arrive as strings, legacy {label, type, url} objects, or
+// the new {title, type, url, fileName?} shape. Coerce everything into the
+// canonical new shape so downstream consumers can render uniformly.
+function normalizeMaterialArray(arr) {
+  if (!Array.isArray(arr)) return [];
+  return arr
+    .map((m) => {
+      if (m == null) return null;
+      if (typeof m === "string") {
+        const trimmed = m.trim();
+        if (!trimmed) return null;
+        return { title: trimmed, type: "link", url: "" };
+      }
+      return {
+        title: (m.title || m.label || "").trim(),
+        type: m.type || "link",
+        url: (m.url || "").trim(),
+        fileName: m.fileName || null,
+      };
+    })
+    .filter((m) => m && (m.title || m.url));
 }
