@@ -285,16 +285,24 @@ export const PROGRAMS = [
 // rather than reading MOCK_SESSIONS directly.
 // ---------------------------------------------------------------------------
 
+// Returns a program by code, preferring any admin-edited overlay (live UI
+// edits) over the seeded baseline. Falls through to the seed-only PROGRAMS
+// array so non-admin paths that pre-date overlays still resolve.
 export function getProgramByCode(code) {
+  if (!code) return null;
+  const overlayed = getAllProgramsForAdmin().find((p) => p.code === code);
+  if (overlayed) return overlayed;
   return PROGRAMS.find((p) => p.code === code) || null;
 }
 
 // Returns the program assigned to a cohort. Falls back to AIEW3 for legacy
-// cohorts that pre-date the programs catalog.
+// cohorts that pre-date the programs catalog. Admin edits to AIEW3 (or any
+// other code) flow through here automatically because getProgramByCode now
+// reads the overlay-merged catalog.
 export function getProgramForCohort(cohort) {
   if (!cohort) return null;
   const byCode = cohort.programCode ? getProgramByCode(cohort.programCode) : null;
-  return byCode || PROGRAMS[0]; // default to AIEW3
+  return byCode || getProgramByCode("AIEW3") || PROGRAMS[0];
 }
 
 export function getSessionsForProgram(program) {
@@ -316,4 +324,186 @@ export function getBeltAtOrder(program, order) {
   const belts = getBeltsForProgram(program);
   if (!belts.length) return null;
   return belts[order - 1] || null;
+}
+
+// ---------------------------------------------------------------------------
+// Program writes — mock localStorage-backed editing for the /admin/programs UI.
+//
+// Mirrors the cohort overlay pattern (see cohortAdmin.js): a `programOverlays`
+// object keyed by program code holds any admin edits + brand-new programs
+// created through the UI. getAllProgramsForAdmin() merges the seed PROGRAMS
+// array with the overlay so consumers see live edits.
+//
+// Real persistence is a backend swap — this is intentionally light so we can
+// ship the UI without coupling to data infrastructure.
+// ---------------------------------------------------------------------------
+
+import { useEffect, useState } from "react";
+
+const PROGRAMS_STORAGE_KEY = "brai_program_overlays";
+
+function readProgramOverlays() {
+  if (typeof window === "undefined") return {};
+  try {
+    const raw = window.localStorage.getItem(PROGRAMS_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
+function writeProgramOverlays(overlays) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(PROGRAMS_STORAGE_KEY, JSON.stringify(overlays));
+  } catch {
+    /* ignore — quota / private mode */
+  }
+}
+
+// In-memory cache, hydrated on first read; updated synchronously on writes.
+let programOverlays = readProgramOverlays();
+
+// Pubsub so React components re-render after a program write.
+const programListeners = new Set();
+function emitProgramChange() {
+  for (const fn of programListeners) {
+    try { fn(); } catch { /* ignore listener errors */ }
+  }
+}
+export function subscribeProgramChanges(fn) {
+  programListeners.add(fn);
+  return () => programListeners.delete(fn);
+}
+
+// React hook: increments on every program write. Use it inside components
+// that read programs, to force re-render after a save.
+export function useProgramVersion() {
+  const [v, setV] = useState(0);
+  useEffect(() => subscribeProgramChanges(() => setV((x) => x + 1)), []);
+  return v;
+}
+
+// Returns the merged catalog (seed + overlay) the admin UI should read.
+export function getAllProgramsForAdmin() {
+  const baseByCode = Object.fromEntries(PROGRAMS.map((p) => [p.code, p]));
+  const merged = { ...baseByCode };
+  for (const [code, overlay] of Object.entries(programOverlays)) {
+    if (overlay?.archivedAt) {
+      delete merged[code];
+      continue;
+    }
+    const base = merged[code] || {};
+    merged[code] = {
+      ...base,
+      ...overlay,
+      // Derived: sessions array can come from overlay; if so, sessionsCount
+      // follows it. Otherwise fall back to the base getter.
+      sessions: overlay.sessions || base.sessions || [],
+      get sessionsCount() {
+        const s = overlay.sessions || base.sessions || [];
+        return s.length;
+      },
+    };
+  }
+  return Object.values(merged);
+}
+
+export function getProgramForAdminByCode(code) {
+  return getAllProgramsForAdmin().find((p) => p.code === code) || null;
+}
+
+// Counts how many cohorts reference each program. Used by the list page.
+// `cohorts` is passed in to avoid circular imports between programs and
+// cohortAdmin.
+export function countCohortsByProgram(cohorts) {
+  const counts = {};
+  for (const c of cohorts || []) {
+    if (!c?.programCode) continue;
+    counts[c.programCode] = (counts[c.programCode] || 0) + 1;
+  }
+  return counts;
+}
+
+// Create a new program. Throws on duplicate code.
+export function createProgram(payload) {
+  const code = String(payload?.code || "").trim().toUpperCase();
+  if (!code) throw new Error("Program code is required.");
+  // Check both seed PROGRAMS and existing overlays.
+  if (PROGRAMS.some((p) => p.code === code) || programOverlays[code]) {
+    throw new Error(`A program with code "${code}" already exists.`);
+  }
+  const now = new Date().toISOString();
+  const overlay = {
+    code,
+    name: (payload.name || "").trim() || `Program ${code}`,
+    methodName: payload.methodName || "AI Empowerment Method",
+    description: payload.description || "",
+    tagline: payload.tagline || "",
+    sessionDurationMinutes: Number(payload.sessionDurationMinutes) || 75,
+    belts: Array.isArray(payload.belts) ? payload.belts.filter(Boolean) : [],
+    sessions: normalizeSessions(payload.sessions || []),
+    createdAt: now,
+    updatedAt: now,
+    isCustom: true, // marker so UI can tag user-created vs seeded programs
+  };
+  programOverlays = { ...programOverlays, [code]: overlay };
+  writeProgramOverlays(programOverlays);
+  emitProgramChange();
+  return overlay;
+}
+
+// Patch an existing program. Pass only the fields that are changing.
+export function updateProgram(code, patch) {
+  if (!code) throw new Error("Program code is required.");
+  const existing = programOverlays[code] || {};
+  const next = {
+    ...existing,
+    ...patch,
+    sessions: patch.sessions
+      ? normalizeSessions(patch.sessions)
+      : existing.sessions,
+    updatedAt: new Date().toISOString(),
+  };
+  programOverlays = { ...programOverlays, [code]: next };
+  writeProgramOverlays(programOverlays);
+  emitProgramChange();
+  return getProgramForAdminByCode(code);
+}
+
+// Soft-archive: programs with archivedAt are hidden from admin views and
+// no longer offered when creating cohorts.
+export function archiveProgram(code) {
+  const existing = programOverlays[code] || { code };
+  programOverlays = {
+    ...programOverlays,
+    [code]: { ...existing, archivedAt: new Date().toISOString() },
+  };
+  writeProgramOverlays(programOverlays);
+  emitProgramChange();
+}
+
+// Restore an archived program (clears archivedAt).
+export function restoreProgram(code) {
+  const existing = programOverlays[code];
+  if (!existing) return;
+  const { archivedAt: _archived, ...rest } = existing;
+  programOverlays = { ...programOverlays, [code]: rest };
+  writeProgramOverlays(programOverlays);
+  emitProgramChange();
+}
+
+// Normalize a sessions array — ensure order is 1-based + monotonic, and
+// every session has the required fields the UI assumes.
+function normalizeSessions(sessions) {
+  return (sessions || []).map((s, idx) => ({
+    order: idx + 1,
+    belt: s.belt || null,
+    title: s.title || `Session ${idx + 1}`,
+    summary: s.summary || s.description || "",
+    description: s.description || s.summary || "",
+    durationMinutes: Number(s.durationMinutes) || null,
+    materials: Array.isArray(s.materials) ? s.materials : [],
+    homework: s.homework || "",
+  }));
 }

@@ -25,6 +25,9 @@ import AdminFacilitators from "./pages/admin/AdminFacilitators";
 import AdminUsers from "./pages/admin/AdminUsers";
 import AdminUserNew from "./pages/admin/AdminUserNew";
 import AdminPermissions from "./pages/admin/AdminPermissions";
+import AdminPrograms from "./pages/admin/AdminPrograms";
+import AdminProgramNew from "./pages/admin/AdminProgramNew";
+import AdminProgramEdit from "./pages/admin/AdminProgramEdit";
 import Home from "./pages/Home";
 import Login from "./pages/Login";
 import AuthVerify from "./pages/AuthVerify";
@@ -242,6 +245,10 @@ export default function App() {
               <Route path="permissions" element={<AdminPermissions />} />
               <Route path="orgs" element={<AdminOrgs />} />
               <Route path="facilitators" element={<AdminFacilitators />} />
+              {/* Programs — curriculum templates that cohorts inherit. */}
+              <Route path="programs" element={<AdminPrograms />} />
+              <Route path="programs/new" element={<AdminProgramNew />} />
+              <Route path="programs/:code/edit" element={<AdminProgramEdit />} />
             </Route>
 
             {/* Legacy + utility */}

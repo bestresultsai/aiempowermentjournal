@@ -3,7 +3,7 @@ import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-do
 import {
   LayoutDashboard, Users, BookCheck, GraduationCap, ArrowLeft,
   Shield, LogOut, ChevronDown, NotebookPen, Plus, User as UserIcon,
-  Calendar as CalendarIcon, Building2, Lock, Eye, X,
+  Calendar as CalendarIcon, Building2, Lock, Eye, X, Library,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import {
@@ -43,6 +43,9 @@ const NAV = [
   // Platform-level surfaces — super + admin only.
   { to: "/admin/orgs",         label: "Organizations", icon: Building2, requires: "create" },
   { to: "/admin/facilitators", label: "Facilitators",  icon: Users, requires: "create" },
+  // Programs catalog — curriculum templates. Same permission gate as orgs:
+  // creating a program is a platform-level write, not a per-cohort one.
+  { to: "/admin/programs",     label: "Programs",      icon: Library, requires: "create" },
   { to: "/admin/users",        label: "Users",         icon: Shield, requires: "assign" },
   // Permissions surface — Super only.
   { to: "/admin/permissions",  label: "Permissions",   icon: Lock, requires: "super" },
