@@ -29,6 +29,9 @@ import AdminPermissions from "./pages/admin/AdminPermissions";
 import AdminPrograms from "./pages/admin/AdminPrograms";
 import AdminProgramNew from "./pages/admin/AdminProgramNew";
 import AdminProgramEdit from "./pages/admin/AdminProgramEdit";
+import AdminResources from "./pages/admin/AdminResources";
+import AdminResourceNew from "./pages/admin/AdminResourceNew";
+import AdminResourceEdit from "./pages/admin/AdminResourceEdit";
 import Home from "./pages/Home";
 import Login from "./pages/Login";
 import AuthVerify from "./pages/AuthVerify";
@@ -262,6 +265,10 @@ export default function App() {
               <Route path="programs" element={<AdminPrograms />} />
               <Route path="programs/new" element={<AdminProgramNew />} />
               <Route path="programs/:code/edit" element={<AdminProgramEdit />} />
+              {/* Resources library — curated content for participants. */}
+              <Route path="resources" element={<AdminResources />} />
+              <Route path="resources/new" element={<AdminResourceNew />} />
+              <Route path="resources/:id/edit" element={<AdminResourceEdit />} />
             </Route>
 
             {/* Legacy + utility */}

@@ -1,17 +1,70 @@
-import { Link } from "react-router-dom";
-import { Library, FileText, Video, Wrench, Sparkles, ArrowRight } from "lucide-react";
+import { useMemo } from "react";
+import {
+  Library,
+  FileText,
+  Video,
+  Wrench,
+  Sparkles,
+  Book,
+  Link as LinkIcon,
+  ArrowRight,
+  ExternalLink,
+} from "lucide-react";
 import NavBar from "../components/NavBar";
+import {
+  getResourcesForParticipant,
+  useResourceVersion,
+} from "../lib/resources";
+import { useResolvedCohort } from "../lib/cohortResolution";
 
 // ---------------------------------------------------------------------------
-// RESOURCES PAGE — /resources
+// /resources — the participant's curated library.
 //
-// Placeholder until we wire it to Notion. Designed to communicate intent
-// (prompt files, extra videos, templates) without faking content. When the
-// real resource library is ready, swap the empty-state grid for a list
-// pulled from Notion's Resources DB.
+// Pulls from the resources store, filtered to the participant's program
+// (plus globals). Grouped by category for scannability. Each card opens
+// the resource in a new tab.
 // ---------------------------------------------------------------------------
+
+const TYPE_ICONS = {
+  video: Video,
+  pdf: FileText,
+  template: Wrench,
+  prompt: Sparkles,
+  doc: Book,
+  link: LinkIcon,
+};
+
+const TYPE_LABELS = {
+  video: "Video",
+  pdf: "PDF",
+  template: "Template",
+  prompt: "Prompt",
+  doc: "Doc",
+  link: "Link",
+};
 
 export default function Resources() {
+  const version = useResourceVersion();
+  const { cohort } = useResolvedCohort();
+  const programCode = cohort?.programCode || null;
+
+  const resources = useMemo(
+    () => getResourcesForParticipant(programCode),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [programCode, version],
+  );
+
+  // Group by category.
+  const byCategory = useMemo(() => {
+    const groups = new Map();
+    for (const r of resources) {
+      const key = r.category || "Uncategorized";
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(r);
+    }
+    return Array.from(groups.entries());
+  }, [resources]);
+
   return (
     <div className="min-h-screen bg-surface-paper">
       <NavBar />
@@ -27,67 +80,97 @@ export default function Resources() {
             The library.
           </h1>
           <p className="text-[14.5px] text-ink-muted mt-2 max-w-2xl leading-relaxed">
-            Prompt files, extra videos, templates, and valuable content curated by the BestResults.AI team.
-            New material lands here regularly.
+            Prompt files, extra videos, templates, and curated content from
+            the BestResults.AI team.
           </p>
         </header>
 
-        {/* Coming-soon empty state with category previews */}
-        <section className="animate-fade-in-up delay-100">
-          <div className="rounded-3xl bg-surface-card border border-soft p-10 lg:p-14 text-center shadow-card">
-            <div className="inline-flex w-14 h-14 rounded-2xl bg-amber-50 text-amber-600 items-center justify-center mb-5">
-              <Sparkles className="w-7 h-7" strokeWidth={2} />
-            </div>
-            <h2 className="font-heading text-[24px] font-extrabold tracking-tight text-ink mb-3">
-              Coming soon.
-            </h2>
-            <p className="text-[14.5px] text-ink-muted max-w-xl mx-auto leading-relaxed mb-8">
-              We're curating the first batch of resources. In the meantime, your cohort sessions and
-              the AI Journal have plenty to chew on.
-            </p>
-
-            <div className="grid md:grid-cols-3 gap-4 max-w-3xl mx-auto text-left">
-              <CategoryPreview
-                icon={FileText}
-                title="Prompt Files"
-                description="Ready-to-paste prompt templates organized by workflow type."
-              />
-              <CategoryPreview
-                icon={Video}
-                title="Bonus Videos"
-                description="Deep dives, tutorials, and recordings beyond the live workshops."
-              />
-              <CategoryPreview
-                icon={Wrench}
-                title="Templates"
-                description="Project briefs, role matrices, and accelerators in editable formats."
-              />
-            </div>
-
-            <div className="mt-10">
-              <Link
-                to="/journey"
-                className="group inline-flex items-center gap-1.5 text-[14px] font-heading font-semibold text-brand-600 hover:text-brand-700 transition-colors"
-              >
-                Back to your Journey
-                <ArrowRight className="w-4 h-4 transition-transform duration-200 group-hover:translate-x-0.5" strokeWidth={2.5} />
-              </Link>
-            </div>
+        {byCategory.length === 0 ? (
+          <EmptyState />
+        ) : (
+          <div className="space-y-8 animate-fade-in-up delay-100">
+            {byCategory.map(([category, items]) => (
+              <section key={category}>
+                <h2 className="font-heading text-[14px] font-bold uppercase tracking-wider text-ink-muted inline-flex items-center gap-1.5 mb-3">
+                  <Library className="w-3 h-3" strokeWidth={2.5} />
+                  {category}
+                  <span className="text-ink-subtle">· {items.length}</span>
+                </h2>
+                <div className="grid md:grid-cols-2 gap-3">
+                  {items.map((r) => (
+                    <ResourceCard key={r.id} resource={r} />
+                  ))}
+                </div>
+              </section>
+            ))}
           </div>
-        </section>
+        )}
       </main>
     </div>
   );
 }
 
-function CategoryPreview({ icon: Icon, title, description }) {
+function ResourceCard({ resource }) {
+  const Icon = TYPE_ICONS[resource.type] || LinkIcon;
   return (
-    <div className="rounded-2xl bg-surface-paper border border-soft p-5 transition-shadow duration-300 hover:shadow-card">
-      <div className="w-9 h-9 rounded-xl bg-white border border-soft flex items-center justify-center mb-3">
-        <Icon className="w-4 h-4 text-ink-muted" strokeWidth={2} />
+    <a
+      href={resource.url}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="group flex items-start gap-3 p-4 lg:p-5 rounded-2xl border border-soft bg-surface-card hover:border-brand-500 hover:shadow-card transition-all"
+    >
+      <div className="w-11 h-11 rounded-xl bg-brand-50 text-brand-700 flex items-center justify-center shrink-0">
+        <Icon className="w-5 h-5" strokeWidth={2} />
       </div>
-      <h3 className="font-heading text-[15px] font-bold text-ink mb-1.5">{title}</h3>
-      <p className="text-[12.5px] text-ink-muted leading-relaxed">{description}</p>
-    </div>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 flex-wrap mb-1">
+          <span className="inline-flex items-center px-1.5 py-0 rounded-md bg-ink/5 text-ink text-[9.5px] font-heading font-bold uppercase tracking-wider">
+            {TYPE_LABELS[resource.type] || resource.type}
+          </span>
+        </div>
+        <h3 className="font-heading text-[15px] font-extrabold text-ink leading-tight">
+          {resource.title}
+        </h3>
+        {resource.description && (
+          <p className="text-[12.5px] text-ink-muted leading-relaxed mt-1">
+            {resource.description}
+          </p>
+        )}
+      </div>
+      <ExternalLink
+        className="w-4 h-4 text-ink-subtle group-hover:text-brand-600 mt-1 shrink-0"
+        strokeWidth={2.5}
+      />
+    </a>
+  );
+}
+
+function EmptyState() {
+  return (
+    <section className="animate-fade-in-up delay-100">
+      <div className="rounded-3xl bg-surface-card border border-soft p-10 lg:p-14 text-center shadow-card">
+        <div className="inline-flex w-14 h-14 rounded-2xl bg-amber-50 text-amber-600 items-center justify-center mb-5">
+          <Sparkles className="w-7 h-7" strokeWidth={2} />
+        </div>
+        <h2 className="font-heading text-[24px] font-extrabold tracking-tight text-ink mb-3">
+          Library coming soon.
+        </h2>
+        <p className="text-[14.5px] text-ink-muted max-w-xl mx-auto leading-relaxed mb-8">
+          We're curating the first batch of resources for your program. In the
+          meantime, your cohort sessions and the AI Journal have plenty to chew
+          on.
+        </p>
+        <a
+          href="/journey"
+          className="group inline-flex items-center gap-1.5 text-[14px] font-heading font-semibold text-brand-600 hover:text-brand-700 transition-colors"
+        >
+          Back to your Journey
+          <ArrowRight
+            className="w-4 h-4 transition-transform duration-200 group-hover:translate-x-0.5"
+            strokeWidth={2.5}
+          />
+        </a>
+      </div>
+    </section>
   );
 }

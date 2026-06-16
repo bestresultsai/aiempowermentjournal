@@ -46,6 +46,10 @@ const NAV = [
   // Programs catalog — curriculum templates. Same permission gate as orgs:
   // creating a program is a platform-level write, not a per-cohort one.
   { to: "/admin/programs",     label: "Programs",      icon: Library, requires: "create" },
+  // Resources library — curated content (videos, prompts, templates) shown
+  // to participants on /resources. Available to anyone who can manage the
+  // platform; per-cohort facilitators don't need this surface.
+  { to: "/admin/resources",    label: "Resources",     icon: Library, requires: "create" },
   { to: "/admin/users",        label: "Users",         icon: Shield, requires: "assign" },
   // Permissions surface — Super only.
   { to: "/admin/permissions",  label: "Permissions",   icon: Lock, requires: "super" },
