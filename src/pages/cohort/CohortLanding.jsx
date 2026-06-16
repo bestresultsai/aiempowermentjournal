@@ -8,6 +8,7 @@ import NextLiveSessionCard from "../../components/cohort/NextLiveSessionCard";
 import MissingHomeworkCard from "../../components/cohort/MissingHomeworkCard";
 import JournalGameCard from "../../components/cohort/JournalGameCard";
 import NextMilestoneCard from "../../components/cohort/NextMilestoneCard";
+import CohortLeaderboard from "../../components/cohort/CohortLeaderboard";
 import CohortStats from "../../components/cohort/CohortStats";
 import SessionRow from "../../components/cohort/SessionRow";
 import AddToCalendar from "../../components/AddToCalendar";
@@ -154,6 +155,13 @@ export default function CohortLanding() {
                   currentUserEmail={user?.email}
                   badges={getBadgesForCohort(cohort)}
                 />
+                <div className="mt-6">
+                  <CohortLeaderboard
+                    entries={cohortEntries}
+                    badges={getBadgesForCohort(cohort)}
+                    highlightEmail={user?.email}
+                  />
+                </div>
               </>
             )}
 

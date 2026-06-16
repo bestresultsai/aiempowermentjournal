@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { Link, Navigate } from "react-router-dom";
 import {
   Crown, Sparkles, Users, BookCheck, GraduationCap,
-  Calendar, ExternalLink, Trophy, AlertTriangle, Zap, BarChart3,
+  Calendar, ExternalLink, AlertTriangle, Zap, BarChart3,
   NotebookPen, ChevronRight, Paperclip, MessageSquare,
 } from "lucide-react";
 import NavBar from "../../components/NavBar";
@@ -26,8 +26,10 @@ import {
   timeSavedFor,
 } from "../../lib/adminMockData";
 import { MOCK_SESSIONS, BELT_COLORS } from "../../lib/mockCohort";
-import { getSessionsCountForCohort } from "../../lib/programs";
+import { getSessionsCountForCohort, getBadgesForCohort } from "../../lib/programs";
 import { leveragePerWeek } from "../../lib/journalConstants";
+import GamificationStrip from "../../components/cohort/GamificationStrip";
+import CohortLeaderboard from "../../components/cohort/CohortLeaderboard";
 
 // ---------------------------------------------------------------------------
 // /leader/cohort — Cohort Leader Dashboard.
@@ -126,6 +128,19 @@ export default function CohortLeaderDashboard() {
     }
   }
 
+  // --- Flattened entries (with email + name) for gamification components ----
+  // GamificationStrip + CohortLeaderboard group by participantEmail, so we
+  // stamp it on every entry here. Cheap pass — at most ~50 entries / cohort.
+  const cohortEntriesFlat = roster.flatMap((p) =>
+    (p.journalEntries || []).map((e) => ({
+      ...e,
+      participantId: p.id,
+      participantName: p.name,
+      participantEmail: p.email,
+    })),
+  );
+  const programBadges = getBadgesForCohort(cohort);
+
   // --- Upcoming sessions -----------------------------------------------------
   const now = Date.now();
   const upcoming = MOCK_SESSIONS.filter((s) => new Date(s.date).getTime() > now).slice(0, 3);
@@ -197,6 +212,14 @@ export default function CohortLeaderDashboard() {
           />
         </section>
 
+        {/* Gamification pulse — same component the participant Journal page
+            uses. Surfaces active streaks, top tier, badge count, and tier
+            distribution across the cohort. */}
+        <GamificationStrip
+          entries={cohortEntriesFlat}
+          badges={programBadges}
+        />
+
         {/* Maturity ladder — where this cohort sits on the AI maturity ladder */}
         {productionTotal > 0 && (
           <MaturityLadderCard
@@ -205,6 +228,14 @@ export default function CohortLeaderDashboard() {
             topTier={topTierSlice}
           />
         )}
+
+        {/* Leaderboard — three columns of top-3 (hours saved, badges, streak). */}
+        <CohortLeaderboard
+          entries={cohortEntriesFlat}
+          badges={programBadges}
+          highlightEmail={participant?.email}
+          title={`${cohort.name} — top performers`}
+        />
 
         {/* Roster + Upcoming sessions */}
         <section className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -232,15 +263,10 @@ export default function CohortLeaderDashboard() {
             </div>
           </div>
 
-          {/* Sidebar — Upcoming + Top contributor */}
+          {/* Sidebar — Upcoming sessions. Top contributor moved into the
+              leaderboard above so we don't surface it twice. */}
           <div className="space-y-6">
             <UpcomingSessions sessions={upcoming} cohortName={cohort.name} zoomLink={cohort.zoomLink || cohort.trainer?.defaultZoomLink} />
-            {stats?.topContributor && (
-              <TopContributorCard
-                participant={stats.topContributor}
-                minutes={stats.topContributorMinutes}
-              />
-            )}
           </div>
         </section>
       </main>
@@ -642,32 +668,8 @@ function UpcomingSessions({ sessions, cohortName, zoomLink }) {
   );
 }
 
-// ---------------------------------------------------------------------------
-// TopContributorCard — celebratory tile showing who's saved the most time.
-// Surfaces the participant's NAME + total minutes only — never entry content.
-// ---------------------------------------------------------------------------
-function TopContributorCard({ participant, minutes }) {
-  const initials = participant.name.split(" ").slice(0, 2).map((w) => w[0]).join("").toUpperCase();
-  return (
-    <div className="rounded-2xl bg-gradient-to-br from-emerald-50 to-brand-50/40 border border-emerald-200 p-5">
-      <div className="inline-flex items-center gap-1.5 text-[10.5px] font-heading font-bold uppercase tracking-wider text-emerald-700 mb-2">
-        <Trophy className="w-3 h-3" strokeWidth={3} />
-        Top contributor
-      </div>
-      <div className="flex items-center gap-3">
-        <div className="w-10 h-10 rounded-full bg-white shadow-sm flex items-center justify-center text-[12px] font-heading font-bold text-brand-700">
-          {initials}
-        </div>
-        <div className="min-w-0">
-          <div className="text-[14px] font-heading font-bold text-ink truncate">{participant.name}</div>
-          <div className="text-[12px] text-emerald-700 font-heading font-semibold">
-            {formatMinutes(minutes)} saved
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
+// TopContributorCard removed — CohortLeaderboard's "Hours saved" column
+// supersedes it (and shows top 3 instead of just one).
 
 // ---------------------------------------------------------------------------
 // Date helpers — minimal local formatting (matches admin date style).

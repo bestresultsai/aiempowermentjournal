@@ -238,3 +238,52 @@ export function cohortBadgesEarned(entries, badges) {
   }
   return total;
 }
+
+// ---------------------------------------------------------------------------
+// Leaderboards — per-participant rollups grouped by the metric the
+// CohortLeaderboard component renders. Each helper returns an array of
+// { email, name, value, ...details } sorted descending, capped at `limit`.
+//
+// Participants with a zero score are dropped, so an empty leaderboard
+// signals "no signal yet" rather than padding with goose eggs.
+// ---------------------------------------------------------------------------
+
+function participantNameFrom(list) {
+  // Use the most recent entry's name field — they're usually identical
+  // but we don't trust the seed data 100%.
+  const withName = list.find((e) => e?.participantName);
+  return withName?.participantName || withName?.participantEmail || "Unknown";
+}
+
+export function cohortTopByHoursSaved(entries, limit = 3) {
+  const groups = groupEntriesByParticipant(entries);
+  const out = [];
+  for (const [email, list] of groups.entries()) {
+    const minutes = totalMinutesSaved(list);
+    if (minutes <= 0) continue;
+    out.push({ email, name: participantNameFrom(list), minutes, entries: list.length });
+  }
+  return out.sort((a, b) => b.minutes - a.minutes).slice(0, limit);
+}
+
+export function cohortTopByBadgesEarned(entries, badges, limit = 3) {
+  const groups = groupEntriesByParticipant(entries);
+  const out = [];
+  for (const [email, list] of groups.entries()) {
+    const count = earnedBadges(list.length, badges).length;
+    if (count <= 0) continue;
+    out.push({ email, name: participantNameFrom(list), badges: count, entries: list.length });
+  }
+  return out.sort((a, b) => b.badges - a.badges || b.entries - a.entries).slice(0, limit);
+}
+
+export function cohortTopByStreak(entries, limit = 3) {
+  const groups = groupEntriesByParticipant(entries);
+  const out = [];
+  for (const [email, list] of groups.entries()) {
+    const streak = calculateStreakWeeks(list);
+    if (streak <= 0) continue;
+    out.push({ email, name: participantNameFrom(list), streak, entries: list.length });
+  }
+  return out.sort((a, b) => b.streak - a.streak || b.entries - a.entries).slice(0, limit);
+}

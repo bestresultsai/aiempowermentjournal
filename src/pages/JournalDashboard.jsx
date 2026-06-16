@@ -4,6 +4,7 @@ import { Plus, ArrowRight, NotebookPen } from "lucide-react";
 import NavBar from "../components/NavBar";
 import JournalGameCard from "../components/cohort/JournalGameCard";
 import NextMilestoneCard from "../components/cohort/NextMilestoneCard";
+import CohortLeaderboard from "../components/cohort/CohortLeaderboard";
 import CohortStats from "../components/cohort/CohortStats";
 import { useAuth } from "../context/AuthContext";
 import { useResolvedCohort, useCohortEntries } from "../lib/cohortResolution";
@@ -86,6 +87,15 @@ export default function JournalDashboard() {
               currentUserEmail={user?.email}
               badges={getBadgesForCohort(cohort)}
             />
+
+            {/* ==================== LEADERBOARD ==================== */}
+            <div className="mt-6">
+              <CohortLeaderboard
+                entries={cohortEntries}
+                badges={getBadgesForCohort(cohort)}
+                highlightEmail={user?.email}
+              />
+            </div>
 
             {/* ==================== COHORT IMPACT ==================== */}
             <CohortStats
