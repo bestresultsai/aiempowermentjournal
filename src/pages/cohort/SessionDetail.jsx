@@ -346,23 +346,30 @@ function UpcomingPlaceholder({ session, cohort, belt }) {
     ? sessionDate.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })
     : "TBD";
   const timeLine = cohort?.meetingTime || (sessionDate ? sessionDate.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) : "");
+  const liveInLabel =
+    daysAway === 0 ? "today" : daysAway === 1 ? "in 1 day" : `in ${daysAway} days`;
 
   return (
-    <div className="rounded-3xl bg-ink text-white relative overflow-hidden aspect-[16/9] flex flex-col items-center justify-center text-center p-8">
-      <div className="absolute inset-0 grain opacity-40 pointer-events-none" />
+    <div className="rounded-3xl bg-gradient-to-br from-brand-50 to-surface-card border border-brand-100 relative overflow-hidden aspect-[16/9] flex flex-col items-center justify-center text-center p-8">
       <div className="relative">
+        {/* Calendar icon (instead of Play) so the card doesn't read as a
+            broken video player. The session hasn't happened yet, so there's
+            no recording to play — make that obvious. */}
         <div
           className="inline-flex w-14 h-14 rounded-2xl items-center justify-center mb-5"
-          style={{ background: belt?.gradient || "rgba(255,255,255,0.15)", border: "1px solid rgba(255,255,255,0.20)" }}
+          style={{
+            background: belt?.gradient || "rgba(37,99,235,0.10)",
+            border: belt?.needsBorder ? "1px solid #D1D5DB" : "none",
+          }}
         >
-          <Play className="w-6 h-6 text-white" strokeWidth={2} fill="currentColor" />
+          <Calendar className="w-6 h-6" strokeWidth={2.25} style={{ color: belt?.contrast || "#1D4ED8" }} />
         </div>
-        <div className="h-eyebrow !text-white/70 mb-2">Recording posts after the live session</div>
-        <h3 className="font-heading text-[20px] lg:text-[24px] font-extrabold mb-2">
-          Live in {daysAway === 0 ? "today" : daysAway === 1 ? "1 day" : `${daysAway} days`}
+        <div className="h-eyebrow text-brand-700 mb-2">No recording yet</div>
+        <h3 className="font-heading text-[20px] lg:text-[24px] font-extrabold text-ink mb-2">
+          The session recording will be posted here after the session
         </h3>
-        <p className="text-[13.5px] text-white/75 leading-relaxed max-w-md mx-auto">
-          {dateLine} · {timeLine}. Materials below are already available for prep.
+        <p className="text-[13.5px] text-ink-muted leading-relaxed max-w-md mx-auto">
+          Live {liveInLabel} · {dateLine} · {timeLine}. Materials below are already available for prep.
         </p>
       </div>
     </div>
