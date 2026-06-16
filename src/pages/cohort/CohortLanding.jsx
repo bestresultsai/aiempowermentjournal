@@ -16,7 +16,7 @@ import { calculateStreakWeeks } from "../../lib/gamification";
 import { useResolvedCohort, useCohortEntries } from "../../lib/cohortResolution";
 import { useViewAs } from "../../lib/viewAs";
 import { MOCK_COHORT } from "../../lib/mockCohort";
-import { getProgramForCohort } from "../../lib/programs";
+import { getProgramForCohort, getSessionsCountForCohort } from "../../lib/programs";
 
 // ---------------------------------------------------------------------------
 // HOME page (the comprehensive overview). Mounted at:
@@ -200,7 +200,14 @@ export default function CohortLanding() {
 
 function ProgressBand({ cohort, currentBelt }) {
   const completed = cohort.progress?.completed ?? 0;
-  const total = cohort.progress?.total ?? cohort.sessions?.length ?? 8;
+  // Total session count is program-driven (AIEW3 = 8, APFW = 10). Fall back
+  // through progress.total → sessions.length → program lookup so legacy
+  // cohorts without sessions[] still get the right denominator.
+  const total =
+    cohort.progress?.total ??
+    cohort.sessions?.length ??
+    getSessionsCountForCohort(cohort) ??
+    0;
   const pct = total > 0 ? Math.round((completed / total) * 100) : 0;
   const isDone = completed === total;
   const headline =
@@ -235,7 +242,15 @@ function ProgressBand({ cohort, currentBelt }) {
             style={{ width: `${pct}%` }}
           />
         </div>
-        <div className="grid grid-cols-8 gap-1 mt-2">
+        {/* Session pip grid — columns scale with the program's session count
+            (APFW = 10, AIEW3 = 8). Using inline gridTemplateColumns so a
+            future 12-session program drops in without a tailwind variant. */}
+        <div
+          className="grid gap-1 mt-2"
+          style={{
+            gridTemplateColumns: `repeat(${Math.max((cohort.sessions || []).length || total, 1)}, minmax(0, 1fr))`,
+          }}
+        >
           {(cohort.sessions || []).map((s) => {
             const isCompleted = s.completed;
             const isNext = s.order === upNextOrder;

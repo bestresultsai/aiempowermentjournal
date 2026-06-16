@@ -2,7 +2,7 @@ import { Link } from "react-router-dom";
 import { useMemo } from "react";
 import {
   Flame, NotebookPen, Trophy, ArrowRight,
-  Sprout, Repeat, Rocket, Crown, Target,
+  Sprout, Repeat, Rocket, Crown, Target, Sparkles,
 } from "lucide-react";
 import {
   calculateStreakWeeks,
@@ -11,10 +11,13 @@ import {
   progressToNext,
 } from "../../lib/gamification";
 
-// Map gamification icon names → Lucide components.
+// Map gamification icon names → Lucide components. Sparkles is the fallback
+// for any badge whose icon name doesn't match the map — keeps the card from
+// crashing if a future badge ships before this map is updated.
 const BADGE_ICONS = {
-  Sprout, Repeat, Flame, Rocket, Trophy, Crown,
+  Sprout, Repeat, Flame, Rocket, Trophy, Crown, Target, Sparkles,
 };
+const FALLBACK_ICON = Sparkles;
 
 export default function JournalGameCard({ entries = [], currentUserEmail }) {
   const myEntries = useMemo(
@@ -33,8 +36,10 @@ export default function JournalGameCard({ entries = [], currentUserEmail }) {
   const progress = progressToNext(total);
   const earned = earnedBadges(total);
   const latestBadge = earned[earned.length - 1] || null;
-  const NextBadgeIcon = next ? BADGE_ICONS[next.icon] : null;
-  const LatestBadgeIcon = latestBadge ? BADGE_ICONS[latestBadge.icon] : null;
+  const NextBadgeIcon = next ? (BADGE_ICONS[next.icon] || FALLBACK_ICON) : null;
+  const LatestBadgeIcon = latestBadge
+    ? (BADGE_ICONS[latestBadge.icon] || FALLBACK_ICON)
+    : null;
 
   return (
     <div className="rounded-3xl bg-surface-card border border-soft p-7 shadow-card flex flex-col animate-fade-in-up delay-400 transition-shadow duration-300 hover:shadow-lift">
