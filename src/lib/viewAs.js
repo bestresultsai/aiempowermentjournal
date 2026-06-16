@@ -25,6 +25,7 @@ import { userCapabilities, ROLES } from "./adminRoles";
 // ---------------------------------------------------------------------------
 
 const STORAGE_KEY = "brai_view_as";
+const USER_STORAGE_KEY = "brai_view_as_user";
 const CHANGE_EVENT = "brai-view-as-changed";
 
 // The roles a user can preview, in display order. Keep in sync with the
@@ -55,6 +56,9 @@ export function setViewAsMode(mode) {
   try {
     if (!mode) {
       window.localStorage.removeItem(STORAGE_KEY);
+      // Clearing role-level view-as also clears any user-level pin —
+      // otherwise the banner would show a stale user.
+      window.localStorage.removeItem(USER_STORAGE_KEY);
     } else if (VIEW_AS_ROLES.includes(mode)) {
       window.localStorage.setItem(STORAGE_KEY, mode);
     } else {
@@ -64,6 +68,52 @@ export function setViewAsMode(mode) {
     window.dispatchEvent(new CustomEvent(CHANGE_EVENT));
   } catch {
     /* ignore — quota / private mode */
+  }
+}
+
+// ---------------------------------------------------------------------------
+// User-level view-as — demo-only enrichment on top of the role-level mode.
+//
+// When set, the banner shows a specific user's name + role instead of just
+// the role label. Production builds will swap localStorage for a real
+// audit-logged impersonation token, but this is enough for QA + demos.
+//
+// Shape: { id, name, role, email }
+// ---------------------------------------------------------------------------
+
+export function getViewAsUser() {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(USER_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object" || !parsed.id) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+export function setViewAsUser(userRef) {
+  if (typeof window === "undefined") return;
+  try {
+    if (!userRef) {
+      window.localStorage.removeItem(USER_STORAGE_KEY);
+    } else {
+      // Persist the minimum we need to render the banner. We DON'T overlay
+      // auth — pages keep reading the real auth user. The role-level mode
+      // (set elsewhere in this hook) is what drives scope routing.
+      const minimal = {
+        id: userRef.id,
+        name: userRef.name || "",
+        email: userRef.email || "",
+        role: userRef.role || null,
+      };
+      window.localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(minimal));
+    }
+    window.dispatchEvent(new CustomEvent(CHANGE_EVENT));
+  } catch {
+    /* ignore */
   }
 }
 
@@ -129,10 +179,12 @@ export function availableViewAsRoles(user) {
 // ---------------------------------------------------------------------------
 export function useViewAs(user) {
   const [mode, setMode] = useState(getViewAsMode);
+  const [viewUser, setViewUser] = useState(getViewAsUser);
 
   useEffect(() => {
     function onChange() {
       setMode(getViewAsMode());
+      setViewUser(getViewAsUser());
     }
     window.addEventListener(CHANGE_EVENT, onChange);
     // Cross-tab.
@@ -158,17 +210,40 @@ export function useViewAs(user) {
 
   function set(next) {
     setViewAsMode(next || null);
+    // Setting a role-only view-as clears any user-level pin.
+    setViewAsUser(null);
   }
 
   function clear() {
     setViewAsMode(null);
+    setViewAsUser(null);
+  }
+
+  // Pick a specific user — sets role from their record AND stores the user
+  // reference for the banner.
+  function setUser(userRef) {
+    if (!userRef) {
+      setViewAsUser(null);
+      setViewAsMode(null);
+      return;
+    }
+    if (userRef.role) setViewAsMode(userRef.role);
+    setViewAsUser(userRef);
   }
 
   // The role we should treat the user as for routing / UI decisions.
   // When mode is set, that wins; otherwise their highest real role.
   const effectiveRole = mode || primaryEffectiveRole(user);
 
-  return { mode, set, clear, availableRoles, effectiveRole };
+  return {
+    mode,
+    set,
+    clear,
+    setUser,
+    viewAsUser: viewUser,
+    availableRoles,
+    effectiveRole,
+  };
 }
 
 // ---------------------------------------------------------------------------

@@ -13,7 +13,7 @@ import { useViewAs, VIEW_AS_LABELS, primaryEffectiveRole } from "../lib/viewAs";
 
 export default function ViewAsBanner() {
   const { user } = useAuth();
-  const { mode, clear, availableRoles } = useViewAs(user);
+  const { mode, clear, availableRoles, viewAsUser } = useViewAs(user);
 
   if (!mode) return null;
   if (!availableRoles.includes(mode)) return null;
@@ -27,8 +27,19 @@ export default function ViewAsBanner() {
       <div className="max-w-screen-2xl mx-auto px-4 lg:px-6 py-2 flex items-center gap-3 text-[12.5px] font-heading font-semibold">
         <Eye className="w-3.5 h-3.5 shrink-0" strokeWidth={2.5} />
         <span className="flex-1 min-w-0 truncate">
-          Viewing as <strong className="font-extrabold">{viewingLabel}</strong>.
-          You're really a <span className="opacity-80">{realLabel}</span>.
+          {viewAsUser ? (
+            <>
+              Viewing as{" "}
+              <strong className="font-extrabold">{viewAsUser.name}</strong>
+              <span className="opacity-80"> · {viewingLabel}</span>.
+              You're really a <span className="opacity-80">{realLabel}</span>.
+            </>
+          ) : (
+            <>
+              Viewing as <strong className="font-extrabold">{viewingLabel}</strong>.
+              You're really a <span className="opacity-80">{realLabel}</span>.
+            </>
+          )}
         </span>
         <button
           type="button"

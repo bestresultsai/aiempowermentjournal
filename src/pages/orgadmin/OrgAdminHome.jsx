@@ -1,10 +1,11 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, Navigate } from "react-router-dom";
 import {
   Building2, GraduationCap, AlertTriangle, Users, Zap, Sparkles,
   ChevronRight, NotebookPen, Crown, ArrowRight,
 } from "lucide-react";
 import NavBar from "../../components/NavBar";
+import Select from "../../components/Select";
 import { useAuth } from "../../context/AuthContext";
 import {
   getAccessibleCohorts, getAccessibleOrgs,
@@ -18,6 +19,10 @@ import {
 } from "../../lib/adminMockData";
 import { getSessionsCountForCohort } from "../../lib/programs";
 import { primaryEffectiveRole, useViewAs } from "../../lib/viewAs";
+
+// Persists the Org Admin's preferred org filter across visits so multi-org
+// admins don't have to re-pick on every page load.
+const ORG_FILTER_KEY = "brai_org_admin_org_filter";
 
 // ---------------------------------------------------------------------------
 // /org/home — the Org Admin's morning view.
@@ -39,9 +44,54 @@ export default function OrgAdminHome() {
   const { mode: viewAsMode } = useViewAs(user);
 
   const allCohorts = useMemo(() => getAllCohortsForAdmin(), [version]);
-  const cohorts = useMemo(() => getAccessibleCohorts(user, allCohorts), [user, allCohorts]);
+  const allAccessibleCohorts = useMemo(
+    () => getAccessibleCohorts(user, allCohorts),
+    [user, allCohorts],
+  );
   const orgs = useMemo(() => getAccessibleOrgs(user, allCohorts), [user, allCohorts]);
+
+  // Org switcher — multi-org admins can pin their view to one org at a time.
+  // Stored in localStorage so a refresh keeps the choice. If the persisted
+  // value points to an org the user no longer has access to (e.g. they were
+  // re-assigned), we silently clear it on hydrate.
+  const [orgFilter, setOrgFilter] = useState(null);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const saved = window.localStorage.getItem(ORG_FILTER_KEY);
+      if (saved && orgs.some((o) => o.id === saved)) {
+        setOrgFilter(saved);
+      } else if (saved) {
+        // Stale — clean up.
+        window.localStorage.removeItem(ORG_FILTER_KEY);
+      }
+    } catch {
+      /* ignore */
+    }
+  }, [orgs]);
+  function changeOrgFilter(next) {
+    setOrgFilter(next);
+    try {
+      if (next) window.localStorage.setItem(ORG_FILTER_KEY, next);
+      else window.localStorage.removeItem(ORG_FILTER_KEY);
+    } catch {
+      /* ignore */
+    }
+  }
+
+  // Cohorts in the active scope. If no org filter, use everything they can
+  // see; otherwise narrow to the picked org. Every downstream stat reads
+  // from `cohorts` so the whole page reflects the filter.
+  const cohorts = useMemo(() => {
+    if (!orgFilter) return allAccessibleCohorts;
+    return allAccessibleCohorts.filter(
+      (c) => c.organization?.id === orgFilter,
+    );
+  }, [allAccessibleCohorts, orgFilter]);
   const cohortSlugs = useMemo(() => cohorts.map((c) => c.slug), [cohorts]);
+  const activeOrg = orgFilter
+    ? orgs.find((o) => o.id === orgFilter) || null
+    : null;
 
   const participants = useMemo(
     () => ADMIN_MOCK_PARTICIPANTS.filter((p) => cohortSlugs.includes(p.cohortSlug)),
@@ -91,20 +141,53 @@ export default function OrgAdminHome() {
   }
 
   const firstName = (user?.name || "").trim().split(/\s+/)[0] || "there";
-  const orgLabel = orgs.length === 1 ? orgs[0].name : `${orgs.length} orgs`;
+  // The header subhead reflects what the user is actually looking at right
+  // now: a single org when filtered, "all of your orgs" when not.
+  const orgLabel = activeOrg
+    ? activeOrg.name
+    : orgs.length === 1
+    ? orgs[0].name
+    : `your ${orgs.length} orgs`;
 
   return (
     <>
       <NavBar />
       <main className="max-w-screen-2xl mx-auto px-4 lg:px-8 py-8 lg:py-12 space-y-8">
-        <header className="space-y-1.5 animate-fade-in-up">
-          <div className="h-eyebrow text-brand-700">Organization · Home</div>
-          <h1 className="font-heading text-[32px] lg:text-[40px] font-extrabold text-ink leading-tight">
-            Hey {firstName}.
-          </h1>
-          <p className="text-[14px] text-ink-muted max-w-xl">
-            Engagement + ROI across <strong className="font-bold text-ink">{orgLabel}</strong>'s cohorts. The shape of how AI is paying off for your team.
-          </p>
+        <header className="space-y-3 animate-fade-in-up">
+          <div className="flex items-start justify-between gap-4 flex-wrap">
+            <div>
+              <div className="h-eyebrow text-brand-700">Organization · Home</div>
+              <h1 className="font-heading text-[32px] lg:text-[40px] font-extrabold text-ink leading-tight">
+                Hey {firstName}.
+              </h1>
+              <p className="text-[14px] text-ink-muted max-w-xl mt-1.5">
+                Engagement + ROI across <strong className="font-bold text-ink">{orgLabel}</strong>'s cohorts. The shape of how AI is paying off for your team.
+              </p>
+            </div>
+            {/* Multi-org switcher — only renders when the user can see more
+                than one org. Stays in the top-right of the header so it
+                reads as a global scope control, like a cohort switcher. */}
+            {orgs.length > 1 && (
+              <div className="flex items-center gap-2 shrink-0">
+                <span className="text-[11.5px] font-heading font-bold uppercase tracking-wider text-ink-muted">
+                  Viewing
+                </span>
+                <Select
+                  value={orgFilter}
+                  onChange={(v) => changeOrgFilter(v)}
+                  icon={Building2}
+                  ariaLabel="Filter by organization"
+                  options={[
+                    { value: null, label: `All orgs (${orgs.length})` },
+                    ...orgs.map((o) => ({
+                      value: o.id,
+                      label: o.shortName || o.name,
+                    })),
+                  ]}
+                />
+              </div>
+            )}
+          </div>
         </header>
 
         {/* KPI tiles */}

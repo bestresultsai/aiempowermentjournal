@@ -10,6 +10,7 @@ import { canAccessAdmin } from "../lib/adminRoles";
 import { useCohortLeader } from "../hooks/useCohortLeader";
 import { useViewAs, homePathForRole, VIEW_AS_LABELS } from "../lib/viewAs";
 import Logo from "./Logo";
+import ViewAsUserPicker from "./ViewAsUserPicker";
 
 export default function NavBar() {
   const { user, logout } = useAuth();
@@ -176,11 +177,18 @@ function NavLink({ to, active, icon: Icon, children }) {
 
 function UserMenu({ user, onLogout, withDivider = true }) {
   const [open, setOpen] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
   const ref = useRef(null);
   const navigate = useNavigate();
   const { isLeader } = useCohortLeader();
   // View-as switcher. Available options depend on the user's real role.
-  const { mode: viewAsMode, set: setViewAs, clear: clearViewAs, availableRoles: viewAsRoles } = useViewAs(user);
+  const {
+    mode: viewAsMode,
+    set: setViewAs,
+    clear: clearViewAs,
+    availableRoles: viewAsRoles,
+    viewAsUser: viewAsUserRef,
+  } = useViewAs(user);
 
   useEffect(() => {
     function onDocClick(e) {
@@ -284,6 +292,19 @@ function UserMenu({ user, onLogout, withDivider = true }) {
                   )}
                 </button>
               ))}
+              {/* Pick a specific user — opens the ViewAsUserPicker modal.
+                  Useful when role-level preview isn't enough and the demo
+                  needs to feel like a real account. */}
+              <button
+                onClick={() => {
+                  setOpen(false);
+                  setPickerOpen(true);
+                }}
+                className="w-full px-4 py-2.5 text-left text-[13.5px] font-heading font-medium hover:bg-surface-soft transition-colors inline-flex items-center gap-2.5 text-ink"
+              >
+                <UserIcon className="w-4 h-4 text-ink-muted" strokeWidth={2} />
+                {viewAsUserRef ? `Pinned: ${viewAsUserRef.name}` : "Pick a specific user…"}
+              </button>
               {viewAsMode && (
                 <button
                   onClick={() => {
@@ -309,6 +330,10 @@ function UserMenu({ user, onLogout, withDivider = true }) {
           </button>
         </div>
       )}
+      {/* Picker modal lives outside the dropdown menu so closing the menu
+          doesn't unmount it. It self-portals to document.body, so position
+          here doesn't matter. */}
+      <ViewAsUserPicker open={pickerOpen} onClose={() => setPickerOpen(false)} />
     </div>
   );
 }

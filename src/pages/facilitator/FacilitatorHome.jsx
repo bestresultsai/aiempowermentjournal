@@ -100,6 +100,33 @@ export default function FacilitatorHome() {
           </p>
         </header>
 
+        {/* Stale-homework banner — appears whenever the oldest pending
+            submission is 3+ days old. Complementary to the per-card 7-day
+            red escalation: this catches the warning window earlier so a
+            queue doesn't quietly build up. */}
+        {homeworkPending.length > 0 && oldestPendingDays >= 3 && (
+          <Link
+            to="/admin/homework"
+            className="rounded-2xl border-2 border-amber-400 bg-amber-50 p-4 flex items-start gap-3 hover:bg-amber-100/60 transition-colors animate-fade-in-up"
+          >
+            <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-900 flex items-center justify-center shrink-0">
+              <AlertTriangle className="w-5 h-5" strokeWidth={2.25} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="font-heading font-bold text-[14px] text-amber-900">
+                Homework is piling up
+              </div>
+              <div className="text-[12.5px] text-amber-900/80 mt-0.5">
+                {homeworkPending.length} submission
+                {homeworkPending.length === 1 ? " has" : "s have"} been waiting{" "}
+                {oldestPendingDays} day{oldestPendingDays === 1 ? "" : "s"}.
+                Knock them out before they stale out further.
+              </div>
+            </div>
+            <ArrowRight className="w-4 h-4 text-amber-900 shrink-0 mt-1" strokeWidth={2.5} />
+          </Link>
+        )}
+
         {/* Calendar nudge */}
         {!gcal.connected && (
           <Link
