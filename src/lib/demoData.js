@@ -267,6 +267,44 @@ export const DEMO_COHORTS = [
       shortName: "UCLA",
     },
   },
+  // Jordan Park's cohorts — used by ?demo=facilitator-pure. Seeded so Jordan
+  // is the facilitator-of-record on his own cohorts (otherwise the cohort
+  // filter would show OTHER facilitators' names, which is confusing when
+  // Jordan is the only facilitator looking at his own scope).
+  {
+    facilitator: {
+      id: "fac-jordan",
+      name: "Jordan Park",
+      email: "jordan.park@bestresults.ai",
+      defaultZoomLink: "https://us02web.zoom.us/j/5550001111",
+    },
+    slug: "summit-aiew3-2026q3",
+    name: "AIEW3 — Summit Health",
+    methodName: "AI Empowerment Method",
+    programCode: "AIEW3",
+    organization: {
+      id: "org-summit",
+      name: "Summit Health",
+      shortName: "Summit",
+    },
+  },
+  {
+    facilitator: {
+      id: "fac-jordan",
+      name: "Jordan Park",
+      email: "jordan.park@bestresults.ai",
+      defaultZoomLink: "https://us02web.zoom.us/j/5550001111",
+    },
+    slug: "phs-apfw-2026q2",
+    name: "APFW — Pacific Health System",
+    methodName: "AI Empowerment Method",
+    programCode: "APFW",
+    organization: {
+      id: "org-phs",
+      name: "Pacific Health System",
+      shortName: "PHS",
+    },
+  },
 ];
 
 // ---------------------------------------------------------------------------
@@ -411,8 +449,9 @@ export const DEMO_USER_OVERRIDES = {
   // Pure facilitator — no admin capability layered on. Use ?demo=facilitator-pure
   // to QA the experience for a facilitator who can ONLY do facilitator things
   // (no Admin panel link, no cross-org views, no permissions menu). Assigned
-  // to TWO cohorts so the cohort filter on /admin/* pages has something to
-  // show.
+  // to TWO cohorts where HE is the facilitator-of-record, so the cohort
+  // filter has multiple options AND the facilitator filter auto-hides (since
+  // Jordan is the only facilitator across his scope).
   "facilitator-pure": {
     name: "Jordan Park",
     email: "jordan.park@bestresults.ai",
@@ -421,7 +460,7 @@ export const DEMO_USER_OVERRIDES = {
     role: "facilitator",
     capabilities: ["facilitator"],
     assignedOrgs: [],
-    assignedCohorts: ["iahe-aiew3-2026q1", "ucla-apfw-2026q1"],
+    assignedCohorts: ["summit-aiew3-2026q3", "phs-apfw-2026q2"],
     defaultTimeZone: "America/New_York",
     defaultZoomLink: "https://us02web.zoom.us/j/5550001111",
   },
