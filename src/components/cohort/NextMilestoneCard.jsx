@@ -26,7 +26,7 @@ const BADGE_ICONS = { Sprout, Repeat, Flame, Rocket, Trophy, Crown };
 // Achievement palette — warm amber → gold. NOT a belt color.
 const ACHIEVEMENT_GRADIENT = "linear-gradient(135deg, #B45309 0%, #F59E0B 100%)";
 
-export default function NextMilestoneCard({ entries = [], currentUserEmail }) {
+export default function NextMilestoneCard({ entries = [], currentUserEmail, badges }) {
   const myEntries = useMemo(
     () =>
       currentUserEmail
@@ -37,9 +37,16 @@ export default function NextMilestoneCard({ entries = [], currentUserEmail }) {
     [entries, currentUserEmail]
   );
 
+  // Optional program-supplied ladder. If absent / empty, gamification helpers
+  // fall through to BADGES inside `nextBadge` / `progressToNext`.
+  const ladder = useMemo(() => {
+    if (!Array.isArray(badges) || !badges.length) return undefined;
+    return [...badges].sort((a, b) => (a.count || 0) - (b.count || 0));
+  }, [badges]);
+
   const total = myEntries.length;
-  const next = nextBadge(total);
-  const progress = progressToNext(total);
+  const next = nextBadge(total, ladder);
+  const progress = progressToNext(total, ladder);
   const NextIcon = next ? BADGE_ICONS[next.icon] || Trophy : Crown;
 
   // No more badges to unlock — show a celebration variant.

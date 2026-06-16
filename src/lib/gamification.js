@@ -2,9 +2,12 @@
 // Computes streaks, totals, and the next badge milestone from a participant's
 // entries. Pure functions — no React, no side effects.
 
-// Badge tiers — count-based for now. Adjust thresholds as the program grows.
-// `icon` is the Lucide icon NAME (matched in JournalGameCard) so we keep this
-// module free of React/JSX imports.
+import { PRODUCTION_METHODS } from "./journalConstants";
+
+// Default badge ladder. Programs can OVERRIDE this — every consumer should
+// accept an optional `badges` argument and fall back to BADGES if nothing
+// program-specific is in scope. Kept here (rather than in programs.js) so
+// gamification math stays a pure function free of program-config imports.
 export const BADGES = [
   { count: 1,   icon: "Sprout",   name: "First Step",     blurb: "You logged your first AI win." },
   { count: 5,   icon: "Repeat",   name: "Habit Forming",  blurb: "Five entries — the practice is sticking." },
@@ -13,6 +16,12 @@ export const BADGES = [
   { count: 50,  icon: "Trophy",   name: "Half-Century",   blurb: "Fifty wins. Cohort leader territory." },
   { count: 100, icon: "Crown",    name: "Centurion",      blurb: "One hundred wins. AI-native." },
 ];
+
+// Pulls a usable badge ladder out of an optional override. Falls back to
+// the default BADGES array if `override` is null / empty.
+function resolveBadges(override) {
+  return Array.isArray(override) && override.length ? override : BADGES;
+}
 
 // Returns the Monday of the week containing the given Date.
 function startOfISOWeek(d) {
@@ -60,19 +69,22 @@ export function calculateStreakWeeks(entries) {
   return count;
 }
 
-export function nextBadge(totalEntries) {
-  return BADGES.find((b) => b.count > totalEntries) || null;
+export function nextBadge(totalEntries, badges) {
+  const ladder = resolveBadges(badges);
+  return ladder.find((b) => b.count > totalEntries) || null;
 }
 
-export function earnedBadges(totalEntries) {
-  return BADGES.filter((b) => b.count <= totalEntries);
+export function earnedBadges(totalEntries, badges) {
+  const ladder = resolveBadges(badges);
+  return ladder.filter((b) => b.count <= totalEntries);
 }
 
-export function progressToNext(totalEntries) {
-  const next = nextBadge(totalEntries);
+export function progressToNext(totalEntries, badges) {
+  const ladder = resolveBadges(badges);
+  const next = nextBadge(totalEntries, ladder);
   if (!next) return { pct: 100, current: totalEntries, target: totalEntries, next: null };
   // Previous badge threshold (or 0) defines the bottom of this segment.
-  const prev = [...BADGES].reverse().find((b) => b.count <= totalEntries);
+  const prev = [...ladder].reverse().find((b) => b.count <= totalEntries);
   const start = prev?.count ?? 0;
   const span = next.count - start || 1;
   const pct = Math.min(100, Math.max(0, Math.round(((totalEntries - start) / span) * 100)));
@@ -114,13 +126,16 @@ export function formatHoursSaved(minutes) {
 // separate from the cumulative count badges.
 // ---------------------------------------------------------------------------
 
-export const PRODUCTION_TIERS = [
-  { key: "single-shot", tier: 1, label: "Single-shot",  blurb: "One-off prompts." },
-  { key: "chained",     tier: 2, label: "Chained",      blurb: "Multi-step workflows." },
-  { key: "repeatable",  tier: 3, label: "Repeatable",   blurb: "Workflows you can hand off." },
-  { key: "assistant",   tier: 4, label: "Assistant",    blurb: "A persistent helper you built." },
-  { key: "agent",       tier: 5, label: "Agent",        blurb: "Runs without you." },
-];
+// Mirrors PRODUCTION_METHODS from journalConstants.js — keeping the keys
+// in lockstep so journal entries can be tier-checked without a separate
+// mapping. Sourced from PRODUCTION_METHODS (imported at top) rather than
+// duplicated here so adding a new method (or renaming one) flows through.
+export const PRODUCTION_TIERS = PRODUCTION_METHODS.map((m) => ({
+  key: m.key,
+  tier: m.rank,
+  label: m.label,
+  blurb: m.description,
+}));
 
 const PRODUCTION_TIER_BY_KEY = Object.fromEntries(
   PRODUCTION_TIERS.map((t) => [t.key, t]),
@@ -161,4 +176,65 @@ export function unlockedTiers(entries) {
 export function innovationsCount(entries) {
   if (!entries?.length) return 0;
   return entries.filter((e) => (e?.innovationTitle || "").trim()).length;
+}
+
+// ---------------------------------------------------------------------------
+// Cohort-level rollups — used by CohortStats to surface gamification signal
+// across the whole cohort, not just one participant. Each helper groups the
+// raw entries by participantEmail first, then aggregates.
+// ---------------------------------------------------------------------------
+
+function groupEntriesByParticipant(entries) {
+  const map = new Map();
+  for (const e of entries || []) {
+    const key = (e?.participantEmail || "").toLowerCase();
+    if (!key) continue;
+    if (!map.has(key)) map.set(key, []);
+    map.get(key).push(e);
+  }
+  return map;
+}
+
+// Returns { activeCount, totalParticipants, maxStreak }.
+//   activeCount       — participants with streak >= 1 (logged this/last week)
+//   totalParticipants — distinct emails with any entry at all
+//   maxStreak         — longest streak in the cohort
+export function cohortStreakSummary(entries) {
+  const groups = groupEntriesByParticipant(entries);
+  let activeCount = 0;
+  let maxStreak = 0;
+  for (const list of groups.values()) {
+    const s = calculateStreakWeeks(list);
+    if (s >= 1) activeCount++;
+    if (s > maxStreak) maxStreak = s;
+  }
+  return { activeCount, totalParticipants: groups.size, maxStreak };
+}
+
+// Returns the count of distinct participants who've ever reached each tier.
+// Shape: { byTier: { [tierKey]: count }, topTier: tierObj | null,
+//          topTierCount: number }
+export function cohortTierBreakdown(entries) {
+  const groups = groupEntriesByParticipant(entries);
+  const byTier = Object.fromEntries(PRODUCTION_TIERS.map((t) => [t.key, 0]));
+  let topTier = null;
+  for (const list of groups.values()) {
+    const top = highestProductionTier(list);
+    if (!top) continue;
+    byTier[top.key] = (byTier[top.key] || 0) + 1;
+    if (!topTier || top.tier > topTier.tier) topTier = top;
+  }
+  const topTierCount = topTier ? byTier[topTier.key] : 0;
+  return { byTier, topTier, topTierCount };
+}
+
+// Sum of badges earned across the whole cohort, against a given ladder.
+// Useful as a single "cohort celebration counter" chip.
+export function cohortBadgesEarned(entries, badges) {
+  const groups = groupEntriesByParticipant(entries);
+  let total = 0;
+  for (const list of groups.values()) {
+    total += earnedBadges(list.length, badges).length;
+  }
+  return total;
 }

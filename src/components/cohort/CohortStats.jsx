@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import {
   FileText, Timer, TrendingUp, DollarSign, Sparkles,
+  Flame, Rocket, Trophy,
 } from "lucide-react";
 import EntriesTable from "../EntriesTable";
 import {
@@ -9,6 +10,13 @@ import {
   formatHours,
   formatPercent,
 } from "../../lib/calculations";
+import {
+  cohortStreakSummary,
+  cohortTierBreakdown,
+  cohortBadgesEarned,
+  PRODUCTION_TIERS,
+} from "../../lib/gamification";
+import { getBadgesForCohort } from "../../lib/programs";
 
 export default function CohortStats({ cohort, entries = [], currentUserEmail, loading, error }) {
   const [tab, setTab] = useState("summary"); // summary | details
@@ -27,6 +35,18 @@ export default function CohortStats({ cohort, entries = [], currentUserEmail, lo
   const innovations = useMemo(
     () => entries.filter((e) => e.innovationTitle).slice(0, 3),
     [entries]
+  );
+
+  // Cohort-level gamification rollups — surfaced in a strip between the
+  // headline metric tiles and the Quality / Participant grids. Uses the
+  // cohort's program-specific badge ladder so APFW gets APFW's milestones
+  // and AIEW3 gets the platform default.
+  const programBadges = useMemo(() => getBadgesForCohort(cohort), [cohort]);
+  const streakSummary = useMemo(() => cohortStreakSummary(entries), [entries]);
+  const tierBreakdown = useMemo(() => cohortTierBreakdown(entries), [entries]);
+  const badgesEarned = useMemo(
+    () => cohortBadgesEarned(entries, programBadges),
+    [entries, programBadges],
   );
 
   const myEntryCount = useMemo(() => {
@@ -74,7 +94,16 @@ export default function CohortStats({ cohort, entries = [], currentUserEmail, lo
 
       {!loading && !error && entries.length > 0 && (
         tab === "summary"
-          ? <SummaryView metrics={metrics} participantCounts={participantCounts} innovations={innovations} />
+          ? (
+            <SummaryView
+              metrics={metrics}
+              participantCounts={participantCounts}
+              innovations={innovations}
+              streakSummary={streakSummary}
+              tierBreakdown={tierBreakdown}
+              badgesEarned={badgesEarned}
+            />
+          )
           : <DetailsView entries={entries} />
       )}
     </section>
@@ -110,7 +139,14 @@ function SummaryDetailsTabs({ current, onChange }) {
 
 // ---- Summary view (the original layout) ----
 
-function SummaryView({ metrics, participantCounts, innovations }) {
+function SummaryView({
+  metrics,
+  participantCounts,
+  innovations,
+  streakSummary,
+  tierBreakdown,
+  badgesEarned,
+}) {
   return (
     <>
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
@@ -120,6 +156,15 @@ function SummaryView({ metrics, participantCounts, innovations }) {
         <MetricTile icon={DollarSign} label="Annual Value"   value={formatCurrency(metrics.totalAnnualValue)} accent="bg-emerald-50 text-emerald-600" />
         <MetricTile icon={Sparkles}   label="Innovations"    value={metrics.totalInnovations} accent="bg-amber-50 text-amber-600" />
       </div>
+
+      {/* Gamification pulse — cohort-level rollups of the per-participant
+          journal gamification model. Lives between the headline numbers
+          and the qualitative breakdowns. */}
+      <GamificationStrip
+        streakSummary={streakSummary}
+        tierBreakdown={tierBreakdown}
+        badgesEarned={badgesEarned}
+      />
 
       <div className="grid lg:grid-cols-2 gap-4">
         <div className="rounded-2xl bg-surface-card border border-soft p-6 shadow-card transition-shadow duration-300 hover:shadow-lift">
@@ -261,6 +306,133 @@ const AVATAR_COLORS = [
   "from-rose-300 to-rose-500",
   "from-cyan-300 to-cyan-500",
 ];
+
+// ---------------------------------------------------------------------------
+// GamificationStrip — the cohort's gamification pulse.
+//
+// Three chips:
+//   1. Active streaks       — how many participants logged this/last week
+//   2. Top production tier  — highest tier any participant has reached
+//   3. Badges earned        — total badge unlocks across the cohort
+//
+// Followed by a slim tier ladder bar showing distribution across all 5 tiers.
+// ---------------------------------------------------------------------------
+function GamificationStrip({ streakSummary, tierBreakdown, badgesEarned }) {
+  const { activeCount, totalParticipants, maxStreak } = streakSummary;
+  const { byTier, topTier, topTierCount } = tierBreakdown;
+
+  // Don't render if there's literally no gamification signal yet — the
+  // empty state belongs to the metric tiles row above.
+  const hasAnySignal =
+    activeCount > 0 || maxStreak > 0 || !!topTier || badgesEarned > 0;
+  if (!hasAnySignal) return null;
+
+  return (
+    <div className="rounded-2xl border border-soft bg-gradient-to-br from-surface-card to-surface-soft/30 p-5 mb-4">
+      <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
+        <div className="flex items-center gap-2">
+          <div className="w-7 h-7 rounded-lg bg-amber-50 text-amber-700 flex items-center justify-center">
+            <Trophy className="w-3.5 h-3.5" strokeWidth={2.5} />
+          </div>
+          <h3 className="font-heading text-[14px] font-bold text-ink">Cohort gamification pulse</h3>
+        </div>
+        <span className="text-[11px] text-ink-muted">{totalParticipants} participants logging</span>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mb-4">
+        <GamChip
+          icon={Flame}
+          label="Active streaks"
+          primary={`${activeCount}`}
+          detail={
+            maxStreak > 0
+              ? `${maxStreak}-week peak streak`
+              : "no active streaks yet"
+          }
+          tone="amber"
+        />
+        <GamChip
+          icon={Rocket}
+          label="Top tier reached"
+          primary={topTier ? topTier.label : "—"}
+          detail={
+            topTier
+              ? `${topTierCount} participant${topTierCount === 1 ? "" : "s"}`
+              : "no tier unlocks yet"
+          }
+          tone="brand"
+        />
+        <GamChip
+          icon={Trophy}
+          label="Badges earned"
+          primary={`${badgesEarned}`}
+          detail="across the cohort"
+          tone="violet"
+        />
+      </div>
+
+      {/* Tier ladder distribution — slim 5-cell bar showing how many
+          participants are at each tier as their highest. */}
+      <TierLadderBar byTier={byTier} totalParticipants={totalParticipants} />
+    </div>
+  );
+}
+
+const GAM_TONE = {
+  amber:  "bg-amber-50 text-amber-700 border-amber-200",
+  brand:  "bg-brand-50 text-brand-700 border-brand-100",
+  violet: "bg-violet-50 text-violet-700 border-violet-200",
+};
+
+function GamChip({ icon: Icon, label, primary, detail, tone = "brand" }) {
+  return (
+    <div className={"rounded-xl border px-3 py-2.5 flex items-center gap-3 " + GAM_TONE[tone]}>
+      <Icon className="w-5 h-5 shrink-0" strokeWidth={2} />
+      <div className="min-w-0 flex-1">
+        <div className="text-[10.5px] font-heading font-bold uppercase tracking-wider opacity-80">
+          {label}
+        </div>
+        <div className="font-heading font-extrabold text-[15px] leading-tight truncate">
+          {primary}
+        </div>
+        <div className="text-[11px] opacity-80 truncate">{detail}</div>
+      </div>
+    </div>
+  );
+}
+
+function TierLadderBar({ byTier, totalParticipants }) {
+  return (
+    <div>
+      <div className="text-[10.5px] font-heading font-bold uppercase tracking-wider text-ink-muted mb-1.5">
+        Production tier distribution
+      </div>
+      <div className="flex items-stretch gap-1">
+        {PRODUCTION_TIERS.map((t) => {
+          const count = byTier[t.key] || 0;
+          const pct = totalParticipants > 0
+            ? Math.round((count / totalParticipants) * 100)
+            : 0;
+          return (
+            <div
+              key={t.key}
+              className="flex-1 rounded-lg border border-soft bg-white px-2 py-1.5 text-center"
+              title={`${count} participant${count === 1 ? "" : "s"} at ${t.label}`}
+            >
+              <div className="text-[10px] font-heading font-bold uppercase tracking-wider text-ink-subtle truncate">
+                {t.label}
+              </div>
+              <div className="font-heading text-[14px] font-extrabold text-ink leading-none mt-0.5">
+                {count}
+              </div>
+              <div className="text-[9.5px] text-ink-muted mt-0.5">{pct}%</div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 function ParticipantRow({ name, count, colorIdx }) {
   const initials = name.split(" ").filter(Boolean).slice(0, 2).map((w) => w[0]).join("").toUpperCase();

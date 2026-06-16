@@ -7,6 +7,7 @@ import NextMilestoneCard from "../components/cohort/NextMilestoneCard";
 import CohortStats from "../components/cohort/CohortStats";
 import { useAuth } from "../context/AuthContext";
 import { useResolvedCohort, useCohortEntries } from "../lib/cohortResolution";
+import { getBadgesForCohort } from "../lib/programs";
 
 // ---------------------------------------------------------------------------
 // JOURNAL page. Mounted at /journal.
@@ -75,8 +76,16 @@ export default function JournalDashboard() {
         {cohort && (
           <>
             {/* ==================== JOURNAL CTA + NEXT BADGE ==================== */}
-            <JournalGameCard entries={cohortEntries} currentUserEmail={user?.email} />
-            <NextMilestoneCard entries={cohortEntries} currentUserEmail={user?.email} />
+            <JournalGameCard
+              entries={cohortEntries}
+              currentUserEmail={user?.email}
+              badges={getBadgesForCohort(cohort)}
+            />
+            <NextMilestoneCard
+              entries={cohortEntries}
+              currentUserEmail={user?.email}
+              badges={getBadgesForCohort(cohort)}
+            />
 
             {/* ==================== COHORT IMPACT ==================== */}
             <CohortStats

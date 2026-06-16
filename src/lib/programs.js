@@ -252,6 +252,25 @@ const APFW_SESSIONS = [
 // PROGRAMS catalog — every program the platform knows about.
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// DEFAULT_BADGES — the journal gamification ladder every program inherits
+// unless it overrides. `icon` is the Lucide icon NAME (matched in
+// JournalGameCard) so this stays JSX-free.
+//
+// Programs can replace this entirely (different thresholds, names, blurbs)
+// via the badges editor on ProgramForm. A typical 10-week program might want
+// a "Week 5" milestone, etc. Keep the schema stable: count + icon + name +
+// blurb.
+// ---------------------------------------------------------------------------
+export const DEFAULT_BADGES = [
+  { count: 1,   icon: "Sprout",   name: "First Step",     blurb: "You logged your first AI win." },
+  { count: 5,   icon: "Repeat",   name: "Habit Forming",  blurb: "Five entries — the practice is sticking." },
+  { count: 10,  icon: "Flame",    name: "Decade",         blurb: "Ten wins. Real momentum." },
+  { count: 25,  icon: "Rocket",   name: "Compounder",     blurb: "Twenty-five wins. You're a power user." },
+  { count: 50,  icon: "Trophy",   name: "Half-Century",   blurb: "Fifty wins. Cohort leader territory." },
+  { count: 100, icon: "Crown",    name: "Centurion",      blurb: "One hundred wins. AI-native." },
+];
+
 // Default certificate config every program inherits unless it overrides.
 // Three signatories: the cohort's facilitator (dynamic), Mike Burkesmith
 // (CEO), Lee Mosby (Co-founder). Slots tagged "facilitator" pull the
@@ -287,6 +306,7 @@ export const PROGRAMS = [
     sessions: AIEW3_SESSIONS,
     get sessionsCount() { return AIEW3_SESSIONS.length; },
     certificate: DEFAULT_CERTIFICATE,
+    badges: DEFAULT_BADGES,
   },
   {
     code: "APFW",
@@ -299,6 +319,16 @@ export const PROGRAMS = [
     sessions: APFW_SESSIONS,
     get sessionsCount() { return APFW_SESSIONS.length; },
     certificate: DEFAULT_CERTIFICATE,
+    // APFW is shorter — fewer entries to clear. Tweak the ladder for a
+    // 10-week program so the milestones feel reachable but not trivial.
+    badges: [
+      { count: 1,   icon: "Sprout",  name: "First Step",     blurb: "You logged your first AI win." },
+      { count: 3,   icon: "Repeat",  name: "Habit Forming",  blurb: "Three entries — the practice is sticking." },
+      { count: 7,   icon: "Flame",   name: "On a Roll",      blurb: "Seven wins. Real momentum." },
+      { count: 15,  icon: "Rocket",  name: "Compounder",     blurb: "Fifteen wins. You're a power user." },
+      { count: 30,  icon: "Trophy",  name: "Top of Class",   blurb: "Thirty wins. Cohort leader territory." },
+      { count: 60,  icon: "Crown",   name: "AI-native",      blurb: "Sixty wins. Full integration." },
+    ],
   },
 ];
 
@@ -347,6 +377,26 @@ export function getBeltAtOrder(program, order) {
   const belts = getBeltsForProgram(program);
   if (!belts.length) return null;
   return belts[order - 1] || null;
+}
+
+// ---------------------------------------------------------------------------
+// Badges — journal gamification ladder. Always returns a stable, sorted
+// array of badge objects: { count, icon, name, blurb }. Falls back to
+// DEFAULT_BADGES so legacy programs / nulls still produce a usable ladder.
+// ---------------------------------------------------------------------------
+export function getBadgesForProgram(program) {
+  const badges = Array.isArray(program?.badges) && program.badges.length
+    ? program.badges
+    : DEFAULT_BADGES;
+  // Make sure the ladder is monotonic — sort by count ascending. (Editors
+  // can drop badges out of order; this keeps gamification math sane.)
+  return [...badges].sort((a, b) => (a.count || 0) - (b.count || 0));
+}
+
+// Same accessor, but resolves the cohort's program first. Convenient for
+// callers that have a cohort handy but not the program.
+export function getBadgesForCohort(cohort) {
+  return getBadgesForProgram(getProgramForCohort(cohort));
 }
 
 // ---------------------------------------------------------------------------
@@ -514,6 +564,9 @@ export function createProgram(payload) {
     // Certificate config — every program ships with three signatories +
     // the "all-sessions-completed" criterion unless the form sends overrides.
     certificate: payload.certificate || DEFAULT_CERTIFICATE,
+    // Journal gamification ladder — defaults to the platform-wide ladder if
+    // the form didn't customize it.
+    badges: normalizeBadges(payload.badges) || DEFAULT_BADGES,
     createdAt: now,
     updatedAt: now,
     isCustom: true, // marker so UI can tag user-created vs seeded programs
@@ -534,6 +587,9 @@ export function updateProgram(code, patch) {
     sessions: patch.sessions
       ? normalizeSessions(patch.sessions)
       : existing.sessions,
+    badges: patch.badges
+      ? (normalizeBadges(patch.badges) || existing.badges || DEFAULT_BADGES)
+      : existing.badges,
     updatedAt: new Date().toISOString(),
   };
   programOverlays = { ...programOverlays, [code]: next };
@@ -577,6 +633,30 @@ function normalizeSessions(sessions) {
     materials: normalizeMaterialArray(s.materials),
     homework: s.homework || "",
   }));
+}
+
+// Badges may arrive incomplete (form rows with no name yet, count as
+// strings, etc). Drop empties, coerce count to a positive integer, ensure
+// every badge has an icon name + display name. Returns null if there's
+// nothing valid (callers fall back to DEFAULT_BADGES).
+function normalizeBadges(arr) {
+  if (!Array.isArray(arr)) return null;
+  const cleaned = arr
+    .map((b) => {
+      if (!b) return null;
+      const count = Math.max(1, Math.floor(Number(b.count) || 0));
+      const name = String(b.name || "").trim();
+      if (!count || !name) return null;
+      return {
+        count,
+        icon: String(b.icon || "Trophy").trim() || "Trophy",
+        name,
+        blurb: String(b.blurb || "").trim(),
+      };
+    })
+    .filter(Boolean)
+    .sort((a, b) => a.count - b.count);
+  return cleaned.length ? cleaned : null;
 }
 
 // Materials may arrive as strings, legacy {label, type, url} objects, or

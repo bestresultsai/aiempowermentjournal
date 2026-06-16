@@ -16,7 +16,7 @@ import { calculateStreakWeeks } from "../../lib/gamification";
 import { useResolvedCohort, useCohortEntries } from "../../lib/cohortResolution";
 import { useViewAs } from "../../lib/viewAs";
 import { MOCK_COHORT } from "../../lib/mockCohort";
-import { getProgramForCohort, getSessionsCountForCohort } from "../../lib/programs";
+import { getProgramForCohort, getSessionsCountForCohort, getBadgesForCohort } from "../../lib/programs";
 
 // ---------------------------------------------------------------------------
 // HOME page (the comprehensive overview). Mounted at:
@@ -143,9 +143,17 @@ export default function CohortLanding() {
             {showParticipantUI && (
               <>
                 <div className="mt-6">
-                  <JournalGameCard entries={cohortEntries} currentUserEmail={user?.email} />
+                  <JournalGameCard
+                    entries={cohortEntries}
+                    currentUserEmail={user?.email}
+                    badges={getBadgesForCohort(cohort)}
+                  />
                 </div>
-                <NextMilestoneCard entries={cohortEntries} currentUserEmail={user?.email} />
+                <NextMilestoneCard
+                  entries={cohortEntries}
+                  currentUserEmail={user?.email}
+                  badges={getBadgesForCohort(cohort)}
+                />
               </>
             )}
 

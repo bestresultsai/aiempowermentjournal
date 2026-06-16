@@ -1,8 +1,19 @@
 import { useEffect, useMemo, useState } from "react";
-import { Plus, Trash2, GripVertical, ChevronDown, ChevronUp, Award, RotateCcw } from "lucide-react";
+import {
+  Plus, Trash2, GripVertical, ChevronDown, ChevronUp, Award, RotateCcw,
+  Trophy,
+} from "lucide-react";
 import { BELT_COLORS } from "../../lib/mockCohort";
-import { DEFAULT_CERTIFICATE } from "../../lib/programs";
+import { DEFAULT_CERTIFICATE, DEFAULT_BADGES } from "../../lib/programs";
 import MaterialsEditor, { normalizeMaterials } from "./MaterialsEditor";
+
+// Lucide icon names available for badges. Keep in sync with the BADGE_ICONS
+// map in JournalGameCard / NextMilestoneCard so anything the editor picks
+// renders correctly downstream.
+const BADGE_ICON_OPTIONS = [
+  "Sprout", "Repeat", "Flame", "Rocket", "Trophy", "Crown",
+  "Target", "Sparkles", "Award", "Star",
+];
 
 const COMPLETION_CRITERIA_OPTIONS = [
   { value: "all-sessions-completed", label: "All sessions completed" },
@@ -64,6 +75,11 @@ export default function ProgramForm({
   const [certificate, setCertificate] = useState(() =>
     initial?.certificate || DEFAULT_CERTIFICATE,
   );
+  const [badges, setBadges] = useState(() =>
+    Array.isArray(initial?.badges) && initial.badges.length
+      ? initial.badges.map((b) => ({ ...b }))
+      : DEFAULT_BADGES.map((b) => ({ ...b })),
+  );
   const [error, setError] = useState("");
 
   // If the parent re-seeds (e.g. async load), sync.
@@ -85,6 +101,11 @@ export default function ProgramForm({
       })),
     );
     setCertificate(initial.certificate || DEFAULT_CERTIFICATE);
+    setBadges(
+      Array.isArray(initial.badges) && initial.badges.length
+        ? initial.badges.map((b) => ({ ...b }))
+        : DEFAULT_BADGES.map((b) => ({ ...b })),
+    );
   }, [initial]);
 
   function handleSubmit(e) {
@@ -111,6 +132,14 @@ export default function ProgramForm({
             (s) => s?.slot === "facilitator" || (s?.name || "").trim(),
           ),
         },
+        badges: (badges || [])
+          .filter((b) => b && (b.name || "").trim() && Number(b.count) > 0)
+          .map((b) => ({
+            count: Math.max(1, Math.floor(Number(b.count) || 1)),
+            icon: b.icon || "Trophy",
+            name: (b.name || "").trim(),
+            blurb: (b.blurb || "").trim(),
+          })),
         sessions: sessions.map((s, i) => ({
           order: i + 1,
           belt: s.belt || (belts[i] || null),
@@ -292,6 +321,9 @@ export default function ProgramForm({
           Add session
         </button>
       </section>
+
+      {/* ---------- Badges ---------- */}
+      <BadgesSection badges={badges} onChange={setBadges} />
 
       {/* ---------- Certificate ---------- */}
       <CertificateSection
@@ -655,6 +687,144 @@ function CertificateSection({ certificate, onChange }) {
           </button>
         )}
       </div>
+    </section>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// BadgesSection — editor for the journal gamification ladder.
+//
+// Each row: count (entries needed), Lucide icon name, display name, blurb.
+// Reset to defaults wipes any custom ladder back to DEFAULT_BADGES. Programs
+// inheriting the default get the standard 1/5/10/25/50/100 progression.
+// ---------------------------------------------------------------------------
+function BadgesSection({ badges, onChange }) {
+  const rows = badges || [];
+
+  function updateRow(idx, patch) {
+    onChange(rows.map((r, i) => (i === idx ? { ...r, ...patch } : r)));
+  }
+  function removeRow(idx) {
+    onChange(rows.filter((_, i) => i !== idx));
+  }
+  function addRow() {
+    const lastCount = rows[rows.length - 1]?.count || 0;
+    onChange([
+      ...rows,
+      {
+        count: lastCount + 1,
+        icon: "Trophy",
+        name: "",
+        blurb: "",
+      },
+    ]);
+  }
+  function reset() {
+    onChange(DEFAULT_BADGES.map((b) => ({ ...b })));
+  }
+
+  return (
+    <section className="rounded-2xl bg-surface-card border border-soft p-5 lg:p-6 space-y-4">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <div className="text-[10.5px] font-heading font-bold uppercase tracking-wider text-ink-muted inline-flex items-center gap-1.5">
+            <Trophy className="w-3 h-3" strokeWidth={2.5} />
+            Journal badges
+          </div>
+          <h2 className="font-heading text-[15px] font-bold text-ink mt-0.5">
+            Gamification ladder for this program's AI Journal.
+          </h2>
+          <p className="text-[12px] text-ink-muted mt-0.5 max-w-xl">
+            Each badge unlocks at a count of journal entries. Tweak thresholds
+            to match the program's cadence — shorter programs benefit from
+            earlier milestones.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={reset}
+          className="shrink-0 inline-flex items-center gap-1 text-[11.5px] font-heading font-semibold text-ink-muted hover:text-ink"
+        >
+          <RotateCcw className="w-3 h-3" strokeWidth={2.5} />
+          Reset to defaults
+        </button>
+      </div>
+
+      <ul className="space-y-2">
+        {rows.map((b, idx) => (
+          <li
+            key={idx}
+            className="rounded-xl border border-soft bg-surface-soft/40 p-3 grid grid-cols-[80px_120px_1fr_auto] gap-2 items-start"
+          >
+            <div>
+              <label className="block text-[10.5px] font-heading font-bold uppercase tracking-wider text-ink-muted mb-1">
+                Count
+              </label>
+              <input
+                type="number"
+                min={1}
+                value={b.count}
+                onChange={(e) => updateRow(idx, { count: e.target.value })}
+                className="w-full px-2.5 py-2 rounded-lg border border-soft bg-white text-ink text-[13px] font-mono tabular-nums focus:outline-none focus:border-brand-500"
+              />
+            </div>
+            <div>
+              <label className="block text-[10.5px] font-heading font-bold uppercase tracking-wider text-ink-muted mb-1">
+                Icon
+              </label>
+              <select
+                value={b.icon || "Trophy"}
+                onChange={(e) => updateRow(idx, { icon: e.target.value })}
+                className="w-full px-2.5 py-2 rounded-lg border border-soft bg-white text-ink text-[13px] font-body focus:outline-none focus:border-brand-500"
+              >
+                {BADGE_ICON_OPTIONS.map((name) => (
+                  <option key={name} value={name}>
+                    {name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-[10.5px] font-heading font-bold uppercase tracking-wider text-ink-muted mb-1">
+                Name & blurb
+              </label>
+              <input
+                type="text"
+                value={b.name}
+                onChange={(e) => updateRow(idx, { name: e.target.value })}
+                placeholder="e.g. Habit Forming"
+                className="w-full px-3 py-2 rounded-lg border border-soft bg-white text-ink text-[13px] font-body focus:outline-none focus:border-brand-500 mb-1.5"
+              />
+              <input
+                type="text"
+                value={b.blurb}
+                onChange={(e) => updateRow(idx, { blurb: e.target.value })}
+                placeholder="One-sentence celebration"
+                className="w-full px-3 py-2 rounded-lg border border-soft bg-white text-ink text-[12.5px] font-body focus:outline-none focus:border-brand-500"
+              />
+            </div>
+            <div className="flex items-start pt-5">
+              <button
+                type="button"
+                onClick={() => removeRow(idx)}
+                className="p-2 rounded-lg text-ink-muted hover:text-rose-700 hover:bg-rose-50"
+                title="Remove badge"
+              >
+                <Trash2 className="w-3.5 h-3.5" strokeWidth={2.5} />
+              </button>
+            </div>
+          </li>
+        ))}
+      </ul>
+
+      <button
+        type="button"
+        onClick={addRow}
+        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-surface-soft text-ink text-[12.5px] font-heading font-semibold hover:bg-ink/5"
+      >
+        <Plus className="w-3.5 h-3.5" strokeWidth={2.5} />
+        Add badge
+      </button>
     </section>
   );
 }

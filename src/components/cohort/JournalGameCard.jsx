@@ -25,7 +25,7 @@ const BADGE_ICONS = {
 };
 const FALLBACK_ICON = Sparkles;
 
-export default function JournalGameCard({ entries = [], currentUserEmail }) {
+export default function JournalGameCard({ entries = [], currentUserEmail, badges }) {
   const myEntries = useMemo(
     () =>
       currentUserEmail
@@ -36,20 +36,27 @@ export default function JournalGameCard({ entries = [], currentUserEmail }) {
     [entries, currentUserEmail]
   );
 
+  // Use the program-supplied ladder if present; otherwise fall back to the
+  // platform-wide default. Sorted just in case caller forgot.
+  const ladder = useMemo(() => {
+    const arr = Array.isArray(badges) && badges.length ? badges : BADGES;
+    return [...arr].sort((a, b) => (a.count || 0) - (b.count || 0));
+  }, [badges]);
+
   const total = myEntries.length;
   const streak = calculateStreakWeeks(myEntries);
   const minutesSaved = totalMinutesSaved(myEntries);
   const innovations = innovationsCount(myEntries);
   const highestTier = highestProductionTier(myEntries);
   const tiersUnlocked = unlockedTiers(myEntries);
-  const next = nextBadge(total);
-  const progress = progressToNext(total);
-  const earned = earnedBadges(total);
+  const next = nextBadge(total, ladder);
+  const progress = progressToNext(total, ladder);
+  const earned = earnedBadges(total, ladder);
   const latestBadge = earned[earned.length - 1] || null;
 
   // First badge (Sprout) — used for the empty-state preview so a brand-new
   // participant sees what they're a single entry away from unlocking.
-  const firstBadge = BADGES[0];
+  const firstBadge = ladder[0];
   const FirstBadgeIcon = BADGE_ICONS[firstBadge?.icon] || FALLBACK_ICON;
   const NextBadgeIcon = next ? (BADGE_ICONS[next.icon] || FALLBACK_ICON) : null;
   const LatestBadgeIcon = latestBadge
