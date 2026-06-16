@@ -260,7 +260,7 @@ export const DEFAULT_CERTIFICATE = {
   signatories: [
     { slot: "facilitator", title: "Facilitator" },
     { slot: "static", name: "Mike Burkesmith", title: "CEO, BestResults.AI" },
-    { slot: "static", name: "Lee Mosby", title: "Co-founder, BestResults.AI" },
+    { slot: "static", name: "Lee Truax", title: "Co-founder, BestResults.AI" },
   ],
   // "all-sessions-completed" — participant marked every session done
   // "homework-required"      — every session has a submitted homework

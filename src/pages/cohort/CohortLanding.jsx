@@ -394,11 +394,11 @@ function CertificateCallout({ cohort, user }) {
 
   async function handleDownload() {
     const { downloadCertificate } = await import("../../lib/certificateGen");
-    downloadCertificate({ program, cohort, participant });
+    await downloadCertificate({ program, cohort, participant });
   }
   async function handlePreview() {
     const { buildCertificatePreviewUrl } = await import("../../lib/certificateGen");
-    const url = buildCertificatePreviewUrl({
+    const url = await buildCertificatePreviewUrl({
       program,
       cohort,
       participant: { ...participant, name: participant.name || "Sample Participant" },

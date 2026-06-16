@@ -4,23 +4,39 @@ import { getCertificateConfig, resolveSignatories } from "./programs";
 // ---------------------------------------------------------------------------
 // Certificate PDF generator.
 //
-// Builds a landscape-A4 certificate of completion from a program + cohort +
-// participant. Uses jsPDF text + shape primitives (no html2canvas needed)
-// so files stay small and font rendering is crisp.
+// Builds a landscape-A4 certificate of completion that matches the rest of
+// the platform's design system:
 //
-// Public API:
+//   - Surface-paper cream background  (#FAFAF7)
+//   - Brand-700 navy double border    (matches the cohort hero treatment)
+//   - Sans-serif typography           (helvetica — closest Inter fallback
+//                                      built into jsPDF)
+//   - Brand-500 blue accents
+//   - Real BestResults.AI horizontal-color logo at the top
+//
+// The logo is fetched as SVG, rasterized to a PNG via canvas, and embedded
+// as an image. The async fetch makes the public API async; callers must
+// await the build/download functions.
+//
+// Public API (all async):
 //   buildCertificatePdf({ program, cohort, participant, completionDate? })
-//     → jsPDF instance (caller can preview() or save())
-//   downloadCertificate({ ... })           → triggers a save
-//   certificateFilename({ participant, program }) → "AIEW3-Josue-Acuna.pdf"
+//     → Promise<jsPDF>
+//   downloadCertificate({ ... }) → Promise<void>
+//   buildCertificatePreviewUrl({ ... }) → Promise<string>
 // ---------------------------------------------------------------------------
 
 const BRAND = {
-  ink: "#0F172A",
-  inkMuted: "#475569",
+  // Matches tailwind.config.js
+  ink: "#0A0A0A",
+  inkMuted: "#5B5B5B",
+  inkSubtle: "#8E8E8E",
+  brand500: "#2563EB",
+  brand600: "#1D4ED8",
+  brand700: "#1E3A8A",
+  surfacePaper: "#FAFAF7",
+  surfaceSoft: "#F1EFE9",
+  borderSoft: "#ECEAE2",
   emerald: "#059669",
-  brand: "#2563EB",
-  paper: "#FAFAF7",
 };
 
 const PAGE = {
@@ -29,7 +45,15 @@ const PAGE = {
   margin: 16,
 };
 
-export function buildCertificatePdf({
+// Public path to the brand logo. Uses the horizontal-color (no tagline)
+// variant — cleaner for the certificate header than the tagline version.
+const LOGO_URL = "/brand/horizontal-color-no-tagline.svg";
+
+// Logo native aspect — derived from the SVG viewBox. Used to compute the
+// printed width given a target height.
+const LOGO_ASPECT = 4.0; // ~width / height; close enough for layout
+
+export async function buildCertificatePdf({
   program,
   cohort,
   participant,
@@ -49,106 +73,154 @@ export function buildCertificatePdf({
   const dateLabel = formatDate(completionDate || new Date());
   const participantName = (participant.name || "").trim() || "Participant";
 
-  // Background tint.
-  doc.setFillColor(BRAND.paper);
+  // ---- Background ----
+  doc.setFillColor(BRAND.surfacePaper);
   doc.rect(0, 0, PAGE.width, PAGE.height, "F");
 
-  // Double border — outer hairline, inner accent.
-  doc.setDrawColor(BRAND.ink);
-  doc.setLineWidth(0.8);
+  // ---- Brand-navy double border ----
+  doc.setDrawColor(BRAND.brand700);
+  doc.setLineWidth(1.0);
   doc.rect(8, 8, PAGE.width - 16, PAGE.height - 16);
-  doc.setLineWidth(0.3);
+  doc.setLineWidth(0.25);
   doc.rect(11, 11, PAGE.width - 22, PAGE.height - 22);
 
-  // Top eyebrow — brand mark + program code.
-  doc.setFont("helvetica", "bold");
-  doc.setTextColor(BRAND.emerald);
-  doc.setFontSize(10);
-  doc.text("BESTRESULTS.AI", PAGE.width / 2, 28, { align: "center" });
+  // ---- Logo ----
+  try {
+    const logoPng = await loadLogoAsPng();
+    if (logoPng) {
+      const logoHeight = 14;
+      const logoWidth = logoHeight * LOGO_ASPECT;
+      doc.addImage(
+        logoPng,
+        "PNG",
+        PAGE.width / 2 - logoWidth / 2,
+        20,
+        logoWidth,
+        logoHeight,
+      );
+    } else {
+      drawLogoFallback(doc, 27);
+    }
+  } catch {
+    drawLogoFallback(doc, 27);
+  }
 
-  doc.setTextColor(BRAND.inkMuted);
+  // ---- Program code eyebrow ----
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(9);
+  doc.setTextColor(BRAND.inkSubtle);
+  doc.setFontSize(8);
   doc.text(
-    `${program.code} · ${program.name}`,
+    `${program.code} · ${program.name}`.toUpperCase(),
     PAGE.width / 2,
-    34,
+    44,
     { align: "center" },
   );
 
-  // Title.
-  doc.setFont("times", "bold");
-  doc.setTextColor(BRAND.ink);
-  doc.setFontSize(36);
-  doc.text("Certificate of Completion", PAGE.width / 2, 56, { align: "center" });
-
-  // Award script.
-  doc.setFont("helvetica", "normal");
-  doc.setTextColor(BRAND.inkMuted);
-  doc.setFontSize(13);
-  doc.text("This certificate is proudly presented to", PAGE.width / 2, 73, {
-    align: "center",
-  });
-
-  // Participant name (big calligraphic feel via times-italic).
-  doc.setFont("times", "italic");
-  doc.setTextColor(BRAND.brand);
-  doc.setFontSize(42);
-  doc.text(participantName, PAGE.width / 2, 95, { align: "center" });
-
-  // Underline under the name — visual flourish.
-  const nameWidth = doc.getTextWidth(participantName);
-  const underlineY = 99;
-  doc.setDrawColor(BRAND.brand);
-  doc.setLineWidth(0.4);
+  // Subtle divider under the eyebrow.
+  doc.setDrawColor(BRAND.borderSoft);
+  doc.setLineWidth(0.3);
+  const divW = 30;
   doc.line(
-    PAGE.width / 2 - nameWidth / 2,
-    underlineY,
-    PAGE.width / 2 + nameWidth / 2,
-    underlineY,
+    PAGE.width / 2 - divW / 2,
+    47.5,
+    PAGE.width / 2 + divW / 2,
+    47.5,
   );
 
-  // Body copy from the program cert config.
+  // ---- Title ----
+  doc.setFont("helvetica", "bold");
+  doc.setTextColor(BRAND.ink);
+  doc.setFontSize(32);
+  doc.text("Certificate of Completion", PAGE.width / 2, 65, { align: "center" });
+
+  // ---- Award script ----
+  doc.setFont("helvetica", "normal");
+  doc.setTextColor(BRAND.inkMuted);
+  doc.setFontSize(12);
+  doc.text(
+    "This certificate is proudly presented to",
+    PAGE.width / 2,
+    81,
+    { align: "center" },
+  );
+
+  // ---- Participant name ----
+  // Use bold sans for the name so it reads as a confident statement.
+  doc.setFont("helvetica", "bold");
+  doc.setTextColor(BRAND.brand600);
+  doc.setFontSize(38);
+  doc.text(participantName, PAGE.width / 2, 102, { align: "center" });
+
+  // Decorative underline — brand-500 hairline matched to the name width.
+  const nameWidth = doc.getTextWidth(participantName);
+  doc.setDrawColor(BRAND.brand500);
+  doc.setLineWidth(0.5);
+  doc.line(
+    PAGE.width / 2 - nameWidth / 2,
+    106,
+    PAGE.width / 2 + nameWidth / 2,
+    106,
+  );
+
+  // ---- Body copy ----
   const body =
     cfg.bodyCopy ||
     "has successfully completed the program and demonstrated mastery of the AI Empowerment Method.";
   doc.setFont("helvetica", "normal");
   doc.setTextColor(BRAND.ink);
-  doc.setFontSize(13);
-  wrappedText(doc, body, PAGE.width / 2, 113, PAGE.width - 80, {
+  doc.setFontSize(12);
+  wrappedText(doc, body, PAGE.width / 2, 120, PAGE.width - 80, {
     align: "center",
     lineGap: 6,
   });
 
-  // Date row.
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(10);
-  doc.setTextColor(BRAND.inkMuted);
-  doc.text("Awarded on", PAGE.width / 2, 144, { align: "center" });
-  doc.setFont("times", "bold");
-  doc.setFontSize(14);
-  doc.setTextColor(BRAND.ink);
-  doc.text(dateLabel, PAGE.width / 2, 152, { align: "center" });
+  // ---- Cohort + date row ----
+  // Tucked just under the body copy so context is clear: which cohort,
+  // when. Cohort is optional (preview mode might pass null).
+  if (cohort?.name) {
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(BRAND.inkMuted);
+    doc.setFontSize(10);
+    doc.text(cohort.name, PAGE.width / 2, 141, { align: "center" });
+  }
 
-  // Signatories along the bottom.
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(9);
+  doc.setTextColor(BRAND.inkSubtle);
+  doc.text("Awarded on", PAGE.width / 2, 150, { align: "center" });
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(13);
+  doc.setTextColor(BRAND.ink);
+  doc.text(dateLabel, PAGE.width / 2, 156, { align: "center" });
+
+  // ---- Signatories ----
   drawSignatories(doc, signatories);
 
   return doc;
 }
 
-export function downloadCertificate({ program, cohort, participant, completionDate }) {
-  const doc = buildCertificatePdf({ program, cohort, participant, completionDate });
-  doc.save(certificateFilename({ participant, program }));
-}
-
-// Returns a Blob URL the caller can drop into an <iframe> for preview.
-export function buildCertificatePreviewUrl({
+export async function downloadCertificate({
   program,
   cohort,
   participant,
   completionDate,
 }) {
-  const doc = buildCertificatePdf({
+  const doc = await buildCertificatePdf({
+    program,
+    cohort,
+    participant,
+    completionDate,
+  });
+  doc.save(certificateFilename({ participant, program }));
+}
+
+export async function buildCertificatePreviewUrl({
+  program,
+  cohort,
+  participant,
+  completionDate,
+}) {
+  const doc = await buildCertificatePdf({
     program,
     cohort,
     participant,
@@ -163,6 +235,62 @@ export function certificateFilename({ participant, program }) {
     .replace(/^-+|-+$/g, "");
   const code = program?.code || "Program";
   return `${code}-${name}-Certificate.pdf`;
+}
+
+// ---------------------------------------------------------------------------
+// Logo loader — fetches the brand SVG, rasterizes via a canvas at retina
+// scale, returns a PNG data URL ready for jsPDF.addImage. Cached so multiple
+// generations within a session don't refetch.
+// ---------------------------------------------------------------------------
+let logoPromise = null;
+
+async function loadLogoAsPng() {
+  if (typeof window === "undefined") return null;
+  if (logoPromise) return logoPromise;
+  logoPromise = (async () => {
+    const res = await fetch(LOGO_URL);
+    if (!res.ok) return null;
+    const svgText = await res.text();
+    // Render the SVG into an image and onto a canvas at 4x scale for crisp
+    // print output.
+    const blob = new Blob([svgText], { type: "image/svg+xml" });
+    const url = URL.createObjectURL(blob);
+    try {
+      const img = await loadImage(url);
+      const scale = 4;
+      const w = (img.naturalWidth || 800) * scale;
+      const h = (img.naturalHeight || 200) * scale;
+      const canvas = document.createElement("canvas");
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(img, 0, 0, w, h);
+      return canvas.toDataURL("image/png");
+    } finally {
+      URL.revokeObjectURL(url);
+    }
+  })().catch(() => null);
+  return logoPromise;
+}
+
+function loadImage(src) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error("Failed to load logo"));
+    img.crossOrigin = "anonymous";
+    img.src = src;
+  });
+}
+
+// Fallback wordmark used if the logo fetch fails (offline, blocked, etc.).
+function drawLogoFallback(doc, y) {
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(16);
+  doc.setTextColor(BRAND.brand700);
+  doc.text("BestResults", PAGE.width / 2 - 2, y, { align: "right" });
+  doc.setTextColor(BRAND.brand500);
+  doc.text(".AI", PAGE.width / 2 + 2, y, { align: "left" });
 }
 
 // ---------------------------------------------------------------------------
@@ -183,15 +311,15 @@ function drawSignatories(doc, signatories) {
     doc.setLineWidth(0.4);
     doc.line(cx - 30, startY, cx + 30, startY);
     // Name.
-    doc.setFont("times", "bold");
-    doc.setFontSize(12);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(11);
     doc.setTextColor(BRAND.ink);
-    doc.text(sig.name || "—", cx, startY + 6, { align: "center" });
+    doc.text(sig.name || "—", cx, startY + 5, { align: "center" });
     // Title.
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(9);
+    doc.setFontSize(8.5);
     doc.setTextColor(BRAND.inkMuted);
-    doc.text(sig.title || "", cx, startY + 11, { align: "center" });
+    doc.text(sig.title || "", cx, startY + 10, { align: "center" });
   }
 }
 
