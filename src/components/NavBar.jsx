@@ -302,7 +302,7 @@ function UserMenu({ user, onLogout, withDivider = true }) {
                 }}
                 className="w-full px-4 py-2.5 text-left text-[13.5px] font-heading font-medium hover:bg-surface-soft transition-colors inline-flex items-center gap-2.5 text-ink"
               >
-                <UserIcon className="w-4 h-4 text-ink-muted" strokeWidth={2} />
+                <User className="w-4 h-4 text-ink-muted" strokeWidth={2} />
                 {viewAsUserRef ? `Pinned: ${viewAsUserRef.name}` : "Pick a specific user…"}
               </button>
               {viewAsMode && (
