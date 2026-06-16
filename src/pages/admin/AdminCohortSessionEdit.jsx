@@ -173,7 +173,14 @@ export default function AdminCohortSessionEdit() {
           <OverrideField
             label="Homework prompt"
             hint="Replaces the program's default homework prompt."
-            placeholder={programSession?.homework || ""}
+            placeholder={
+              // The program's homework field may be a string OR an object
+              // shaped like { prompt, dueDate, submissionType }. Coerce to
+              // the prompt string for the placeholder.
+              typeof programSession?.homework === "string"
+                ? programSession.homework
+                : programSession?.homework?.prompt || ""
+            }
             value={customHomework}
             onChange={setCustomHomework}
             onReset={() => clearOverride("customHomework")}
@@ -241,7 +248,14 @@ export default function AdminCohortSessionEdit() {
                   }
                 />
               )}
-              <DefaultBlock label="Homework" value={programSession?.homework} />
+              <DefaultBlock
+                label="Homework"
+                value={
+                  typeof programSession?.homework === "string"
+                    ? programSession.homework
+                    : programSession?.homework?.prompt
+                }
+              />
             </div>
           </div>
           <div className="rounded-2xl border border-dashed border-soft p-4">
