@@ -1,6 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
-import { Plus, Trash2, GripVertical, ChevronDown, ChevronUp } from "lucide-react";
+import { Plus, Trash2, GripVertical, ChevronDown, ChevronUp, Award, RotateCcw } from "lucide-react";
 import { BELT_COLORS } from "../../lib/mockCohort";
+import { DEFAULT_CERTIFICATE } from "../../lib/programs";
+
+const COMPLETION_CRITERIA_OPTIONS = [
+  { value: "all-sessions-completed", label: "All sessions completed" },
+  { value: "homework-required", label: "All sessions + homework submitted" },
+  { value: "manual", label: "Facilitator awards manually" },
+];
 
 // ---------------------------------------------------------------------------
 // ProgramForm — shared editor for /admin/programs/new + /:code/edit.
@@ -53,6 +60,9 @@ export default function ProgramForm({
       homework: s.homework || "",
     })),
   );
+  const [certificate, setCertificate] = useState(() =>
+    initial?.certificate || DEFAULT_CERTIFICATE,
+  );
   const [error, setError] = useState("");
 
   // If the parent re-seeds (e.g. async load), sync.
@@ -73,6 +83,7 @@ export default function ProgramForm({
         homework: s.homework || "",
       })),
     );
+    setCertificate(initial.certificate || DEFAULT_CERTIFICATE);
   }, [initial]);
 
   function handleSubmit(e) {
@@ -91,6 +102,14 @@ export default function ProgramForm({
         tagline: tagline.trim(),
         sessionDurationMinutes: Number(sessionDurationMinutes) || 75,
         belts: belts.filter(Boolean),
+        // Drop empty signatories before persisting so the cert generator
+        // doesn't render half-filled rows.
+        certificate: {
+          ...certificate,
+          signatories: (certificate.signatories || []).filter(
+            (s) => s?.slot === "facilitator" || (s?.name || "").trim(),
+          ),
+        },
         sessions: sessions.map((s, i) => ({
           order: i + 1,
           belt: s.belt || (belts[i] || null),
@@ -268,6 +287,12 @@ export default function ProgramForm({
           Add session
         </button>
       </section>
+
+      {/* ---------- Certificate ---------- */}
+      <CertificateSection
+        certificate={certificate}
+        onChange={setCertificate}
+      />
 
       {/* ---------- Submit ---------- */}
       {error && (
@@ -469,5 +494,167 @@ function Field({ label, hint, children }) {
       {children}
       {hint && <p className="text-[11px] text-ink-muted mt-1">{hint}</p>}
     </label>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// CertificateSection — completion criteria + signatories editor.
+//
+// Signatories list has two row types:
+//   slot: "facilitator" — name is dynamic per cohort, only the title is
+//                          editable here (and the row is always pinned at top).
+//   slot: "static"      — fixed name + title set on the program (e.g. Mike
+//                          Burkesmith, Lee Mosby).
+// ---------------------------------------------------------------------------
+function CertificateSection({ certificate, onChange }) {
+  const sigs = certificate.signatories || [];
+
+  function updateSig(idx, patch) {
+    const next = sigs.map((s, i) => (i === idx ? { ...s, ...patch } : s));
+    onChange({ ...certificate, signatories: next });
+  }
+  function removeSig(idx) {
+    onChange({
+      ...certificate,
+      signatories: sigs.filter((_, i) => i !== idx),
+    });
+  }
+  function addSig() {
+    onChange({
+      ...certificate,
+      signatories: [...sigs, { slot: "static", name: "", title: "" }],
+    });
+  }
+  function reset() {
+    onChange(DEFAULT_CERTIFICATE);
+  }
+
+  return (
+    <section className="rounded-2xl bg-surface-card border border-soft p-5 lg:p-6 space-y-4">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <div className="text-[10.5px] font-heading font-bold uppercase tracking-wider text-ink-muted inline-flex items-center gap-1.5">
+            <Award className="w-3 h-3" strokeWidth={2.5} />
+            Certificate
+          </div>
+          <h2 className="font-heading text-[15px] font-bold text-ink mt-0.5">
+            What earns a certificate, who signs it.
+          </h2>
+          <p className="text-[12px] text-ink-muted mt-0.5 max-w-xl">
+            Generated as a downloadable PDF on the participant's cohort page
+            once they meet the criteria.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={reset}
+          className="shrink-0 inline-flex items-center gap-1 text-[11.5px] font-heading font-semibold text-ink-muted hover:text-ink"
+        >
+          <RotateCcw className="w-3 h-3" strokeWidth={2.5} />
+          Reset to defaults
+        </button>
+      </div>
+
+      {/* Completion criteria */}
+      <Field
+        label="Completion criteria"
+        hint="When the platform considers a participant 'done' and unlocks the certificate."
+      >
+        <select
+          value={certificate.completionCriteria || "all-sessions-completed"}
+          onChange={(e) =>
+            onChange({ ...certificate, completionCriteria: e.target.value })
+          }
+          className="w-full px-3.5 py-2.5 rounded-xl border border-soft bg-surface-card text-ink text-[13.5px] font-body focus:outline-none focus:border-brand-500"
+        >
+          {COMPLETION_CRITERIA_OPTIONS.map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
+            </option>
+          ))}
+        </select>
+      </Field>
+
+      {/* Body copy */}
+      <Field
+        label="Body copy"
+        hint="Sentence printed above the participant name on the certificate."
+      >
+        <textarea
+          value={certificate.bodyCopy || ""}
+          onChange={(e) => onChange({ ...certificate, bodyCopy: e.target.value })}
+          rows={2}
+          className="w-full px-3.5 py-2.5 rounded-xl border border-soft bg-surface-card text-ink text-[13.5px] font-body leading-relaxed focus:outline-none focus:border-brand-500"
+        />
+      </Field>
+
+      {/* Signatories */}
+      <div>
+        <div className="text-[12px] font-heading font-bold text-ink mb-2">
+          Signatories
+        </div>
+        <ul className="space-y-2">
+          {sigs.map((s, idx) => (
+            <li
+              key={idx}
+              className="rounded-xl border border-soft bg-surface-soft/40 p-3 grid grid-cols-1 md:grid-cols-[1fr_1fr_auto] gap-2 items-start"
+            >
+              <div>
+                <label className="block text-[10.5px] font-heading font-bold uppercase tracking-wider text-ink-muted mb-1">
+                  Name
+                </label>
+                {s.slot === "facilitator" ? (
+                  <div className="px-3 py-2 rounded-lg bg-white/60 border border-dashed border-soft text-[12.5px] text-ink-muted">
+                    Pulled from each cohort's facilitator
+                  </div>
+                ) : (
+                  <input
+                    type="text"
+                    value={s.name || ""}
+                    onChange={(e) => updateSig(idx, { name: e.target.value })}
+                    placeholder="e.g. Mike Burkesmith"
+                    className="w-full px-3 py-2 rounded-lg border border-soft bg-white text-ink text-[13px] font-body focus:outline-none focus:border-brand-500"
+                  />
+                )}
+              </div>
+              <div>
+                <label className="block text-[10.5px] font-heading font-bold uppercase tracking-wider text-ink-muted mb-1">
+                  Title
+                </label>
+                <input
+                  type="text"
+                  value={s.title || ""}
+                  onChange={(e) => updateSig(idx, { title: e.target.value })}
+                  placeholder="e.g. CEO, BestResults.AI"
+                  className="w-full px-3 py-2 rounded-lg border border-soft bg-white text-ink text-[13px] font-body focus:outline-none focus:border-brand-500"
+                />
+              </div>
+              <div className="flex items-end h-full">
+                {s.slot !== "facilitator" && (
+                  <button
+                    type="button"
+                    onClick={() => removeSig(idx)}
+                    className="p-2 rounded-lg text-ink-muted hover:text-rose-700 hover:bg-rose-50"
+                    title="Remove signatory"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" strokeWidth={2.5} />
+                  </button>
+                )}
+              </div>
+            </li>
+          ))}
+        </ul>
+        {sigs.length < 6 && (
+          <button
+            type="button"
+            onClick={addSig}
+            className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-surface-soft text-ink text-[12.5px] font-heading font-semibold hover:bg-ink/5"
+          >
+            <Plus className="w-3.5 h-3.5" strokeWidth={2.5} />
+            Add signatory
+          </button>
+        )}
+      </div>
+    </section>
   );
 }

@@ -16,6 +16,7 @@ import { calculateStreakWeeks } from "../../lib/gamification";
 import { useResolvedCohort, useCohortEntries } from "../../lib/cohortResolution";
 import { useViewAs } from "../../lib/viewAs";
 import { MOCK_COHORT } from "../../lib/mockCohort";
+import { getProgramForCohort } from "../../lib/programs";
 
 // ---------------------------------------------------------------------------
 // HOME page (the comprehensive overview). Mounted at:
@@ -135,6 +136,8 @@ export default function CohortLanding() {
             <div className="animate-fade-in-up delay-300">
               <ProgressBand cohort={cohort} currentBelt={currentBelt} />
             </div>
+            <CertificateCallout cohort={cohort} user={user} />
+
 
             {/* ==================== AI EMPOWERMENT JOURNAL ==================== */}
             {showParticipantUI && (
@@ -361,3 +364,88 @@ function DemoParticipantNotice() {
     </div>
   );
 }
+
+// ---------------------------------------------------------------------------
+// CertificateCallout — surfaces a download/preview affordance.
+//
+// Two modes:
+//   - earned   → green "Download your certificate" button, fully unlocked
+//   - preview  → muted "Preview certificate" link, shown only when the
+//                program has a cert configured (always available so anyone
+//                can sanity-check the cert template without finishing)
+// ---------------------------------------------------------------------------
+function CertificateCallout({ cohort, user }) {
+  if (!cohort) return null;
+  const program = getProgramForCohort(cohort);
+  if (!program?.certificate) return null;
+
+  const completed = cohort.progress?.completed ?? 0;
+  const total = cohort.progress?.total ?? cohort.sessions?.length ?? 0;
+  const earned = total > 0 && completed >= total;
+
+  // Synthesize the participant record the cert needs. In the real app this
+  // would be the looked-up roster entry; here we use the auth user, plus the
+  // cohort's progress count so the cert generator treats it as complete.
+  const participant = {
+    name: user?.name || "Participant",
+    email: user?.email,
+    progress: Array.from({ length: completed }, (_, i) => i + 1),
+  };
+
+  async function handleDownload() {
+    const { downloadCertificate } = await import("../../lib/certificateGen");
+    downloadCertificate({ program, cohort, participant });
+  }
+  async function handlePreview() {
+    const { buildCertificatePreviewUrl } = await import("../../lib/certificateGen");
+    const url = buildCertificatePreviewUrl({
+      program,
+      cohort,
+      participant: { ...participant, name: participant.name || "Sample Participant" },
+    });
+    window.open(url, "_blank", "noopener,noreferrer");
+  }
+
+  if (earned) {
+    return (
+      <section className="mt-6 rounded-2xl bg-gradient-to-br from-emerald-50 to-surface-card border-2 border-emerald-200 p-5 lg:p-6 flex flex-col md:flex-row items-start md:items-center gap-4 animate-fade-in-up">
+        <div className="w-12 h-12 rounded-2xl bg-emerald-600 text-white flex items-center justify-center shrink-0">
+          <span className="font-heading font-extrabold text-[18px]">★</span>
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="text-[10.5px] font-heading font-bold uppercase tracking-wider text-emerald-700 mb-0.5">
+            Program complete
+          </div>
+          <h3 className="font-heading text-[18px] font-extrabold text-ink leading-tight">
+            Your certificate is ready.
+          </h3>
+          <p className="text-[12.5px] text-ink-muted mt-1 max-w-md">
+            Download a PDF of your {program.code} completion certificate to
+            share, frame, or post.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={handleDownload}
+          className="px-5 py-2.5 rounded-xl bg-ink text-white text-[13.5px] font-heading font-bold hover:bg-ink/90 shrink-0"
+        >
+          Download certificate
+        </button>
+      </section>
+    );
+  }
+
+  // Not yet earned — small unobtrusive preview entry so it's still testable.
+  return (
+    <section className="mt-3 text-right">
+      <button
+        type="button"
+        onClick={handlePreview}
+        className="text-[11.5px] font-heading font-semibold text-ink-muted hover:text-ink underline-offset-2 hover:underline"
+      >
+        Preview your future certificate
+      </button>
+    </section>
+  );
+}
+

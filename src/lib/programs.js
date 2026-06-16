@@ -251,6 +251,25 @@ const APFW_SESSIONS = [
 // ---------------------------------------------------------------------------
 // PROGRAMS catalog — every program the platform knows about.
 // ---------------------------------------------------------------------------
+
+// Default certificate config every program inherits unless it overrides.
+// Three signatories: the cohort's facilitator (dynamic), Mike Burkesmith
+// (CEO), Lee Mosby (Co-founder). Slots tagged "facilitator" pull the
+// cohort's actual facilitator at generation time.
+export const DEFAULT_CERTIFICATE = {
+  signatories: [
+    { slot: "facilitator", title: "Facilitator" },
+    { slot: "static", name: "Mike Burkesmith", title: "CEO, BestResults.AI" },
+    { slot: "static", name: "Lee Mosby", title: "Co-founder, BestResults.AI" },
+  ],
+  // "all-sessions-completed" — participant marked every session done
+  // "homework-required"      — every session has a submitted homework
+  // "manual"                 — facilitator awards manually (no auto unlock)
+  completionCriteria: "all-sessions-completed",
+  bodyCopy:
+    "has successfully completed the program and demonstrated mastery of every belt in the AI Empowerment Method.",
+};
+
 export const PROGRAMS = [
   {
     code: "AIEW3",
@@ -267,6 +286,7 @@ export const PROGRAMS = [
     belts: AIEW3_BELTS,
     sessions: AIEW3_SESSIONS,
     get sessionsCount() { return AIEW3_SESSIONS.length; },
+    certificate: DEFAULT_CERTIFICATE,
   },
   {
     code: "APFW",
@@ -278,6 +298,7 @@ export const PROGRAMS = [
     belts: APFW_BELTS,
     sessions: APFW_SESSIONS,
     get sessionsCount() { return APFW_SESSIONS.length; },
+    certificate: DEFAULT_CERTIFICATE,
   },
 ];
 
@@ -326,6 +347,53 @@ export function getBeltAtOrder(program, order) {
   const belts = getBeltsForProgram(program);
   if (!belts.length) return null;
   return belts[order - 1] || null;
+}
+
+// ---------------------------------------------------------------------------
+// Certificate config + resolution
+// ---------------------------------------------------------------------------
+
+// Returns the certificate config for a program. Falls back to DEFAULT_CERTIFICATE
+// when the program doesn't have a cert section yet (e.g. legacy data).
+export function getCertificateConfig(program) {
+  return program?.certificate || DEFAULT_CERTIFICATE;
+}
+
+// Resolves the signatory list against a cohort, filling in the dynamic
+// "facilitator" slot with the cohort's facilitator. Returns an array of
+// { name, title } ready to render.
+export function resolveSignatories(program, cohort) {
+  const cfg = getCertificateConfig(program);
+  const facilitator = cohort?.facilitator || cohort?.trainer || {};
+  return (cfg.signatories || []).map((s) => {
+    if (s.slot === "facilitator") {
+      return {
+        name: facilitator.name || "Your facilitator",
+        title: s.title || "Facilitator",
+      };
+    }
+    return { name: s.name || "", title: s.title || "" };
+  });
+}
+
+// Has this participant met the program's completion criteria for the
+// certificate? Pass the participant record + their cohort's sessions.
+export function isParticipantCertified(program, participant, sessions = []) {
+  if (!participant) return false;
+  const cfg = getCertificateConfig(program);
+  const total = sessions.length || program?.sessionsCount || 0;
+  const completed = (participant.progress || []).length;
+  if (cfg.completionCriteria === "homework-required") {
+    // Every session must be completed AND have a homework submission.
+    if (completed < total) return false;
+    const submissions = participant.submissions || {};
+    return sessions.every((s) => submissions[s.order]?.submittedAt);
+  }
+  if (cfg.completionCriteria === "manual") {
+    return !!participant.certificateAwardedAt;
+  }
+  // Default: all sessions completed.
+  return total > 0 && completed >= total;
 }
 
 // ---------------------------------------------------------------------------
@@ -443,6 +511,9 @@ export function createProgram(payload) {
     sessionDurationMinutes: Number(payload.sessionDurationMinutes) || 75,
     belts: Array.isArray(payload.belts) ? payload.belts.filter(Boolean) : [],
     sessions: normalizeSessions(payload.sessions || []),
+    // Certificate config — every program ships with three signatories +
+    // the "all-sessions-completed" criterion unless the form sends overrides.
+    certificate: payload.certificate || DEFAULT_CERTIFICATE,
     createdAt: now,
     updatedAt: now,
     isCustom: true, // marker so UI can tag user-created vs seeded programs
