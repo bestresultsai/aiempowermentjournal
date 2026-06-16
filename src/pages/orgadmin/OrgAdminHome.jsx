@@ -6,6 +6,8 @@ import {
 } from "lucide-react";
 import NavBar from "../../components/NavBar";
 import Select from "../../components/Select";
+import GamificationStrip from "../../components/cohort/GamificationStrip";
+import CohortLeaderboard from "../../components/cohort/CohortLeaderboard";
 import { useAuth } from "../../context/AuthContext";
 import {
   getAccessibleCohorts, getAccessibleOrgs,
@@ -113,6 +115,26 @@ export default function OrgAdminHome() {
     () => participants.filter((p) => isAtRisk(p)).slice(0, 5),
     [participants],
   );
+  // Flattened journal entries across the active scope. Stamped with
+  // participantEmail + participantName so GamificationStrip + leaderboard
+  // can group + rank participants. Cohorts may span multiple programs, so
+  // the strip uses the platform default badge ladder rather than any one
+  // program's.
+  const orgCohortEntries = useMemo(() => {
+    const out = [];
+    for (const p of participants) {
+      for (const e of p.journalEntries || []) {
+        out.push({
+          ...e,
+          participantId: p.id,
+          participantName: p.name,
+          participantEmail: p.email,
+        });
+      }
+    }
+    return out;
+  }, [participants]);
+
   const recentLeaderActivity = useMemo(() => {
     const out = [];
     for (const p of participants) {
@@ -219,6 +241,22 @@ export default function OrgAdminHome() {
             label="At risk"
             value={atRisk.length}
             sub="need a check-in"
+          />
+        </section>
+
+        {/* Gamification pulse — engagement signal across the org's
+            cohorts. Mirrors what each participant sees on /journal, so the
+            org admin reads the same story leadership decks tell. */}
+        <section className="animate-fade-in-up">
+          <GamificationStrip entries={orgCohortEntries} />
+        </section>
+
+        {/* Top performers across the org — three columns of top-3.
+            Doubles as a "who to spotlight in the all-hands" prompt. */}
+        <section className="animate-fade-in-up">
+          <CohortLeaderboard
+            entries={orgCohortEntries}
+            title={activeOrg ? `${activeOrg.name} — top performers` : "Top performers"}
           />
         </section>
 

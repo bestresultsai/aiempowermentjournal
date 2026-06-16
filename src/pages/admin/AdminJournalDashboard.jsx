@@ -34,6 +34,8 @@ import WeeklyTrendChart from "../../components/admin/WeeklyTrendChart";
 import EngagementDonut from "../../components/admin/EngagementDonut";
 import SegmentedControl from "../../components/admin/SegmentedControl";
 import ScopeFilterBar from "../../components/admin/ScopeFilterBar";
+import GamificationStrip from "../../components/cohort/GamificationStrip";
+import CohortLeaderboard from "../../components/cohort/CohortLeaderboard";
 
 // ---------------------------------------------------------------------------
 // /admin/journal — the AI Journal dashboard.
@@ -117,6 +119,22 @@ export default function AdminJournalDashboard() {
   const totalParticipants = cohortRows.reduce((s, r) => s + r.participants, 0);
 
   const topContributor = topContributors[0] || null;
+
+  // Flattened entries with participantEmail stamped — feeds the gamification
+  // strip + leaderboard. The platform-wide view spans cohorts on different
+  // programs, so we don't pass a specific badge ladder (defaults to platform
+  // BADGES). Respects the same time range as everything else.
+  const scopeEntriesFlat = ADMIN_MOCK_PARTICIPANTS
+    .filter((p) => cohortSlugs.includes(p.cohortSlug))
+    .flatMap((p) =>
+      filterEntriesByRange(p.journalEntries || [], sinceMs).map((e) => ({
+        ...e,
+        participantId: p.id,
+        participantName: p.name,
+        participantEmail: p.email,
+        cohortSlug: p.cohortSlug,
+      })),
+    );
 
   return (
     <div className="space-y-8 animate-fade-in-up">
@@ -205,6 +223,19 @@ export default function AdminJournalDashboard() {
           isText
         />
       </div>
+
+      {/* Gamification pulse — cohort-style rollups but for the admin's
+          scope (org, cohort, facilitator filters apply). Surfaces active
+          streaks, top tier, cohort badges, and tier distribution. */}
+      <GamificationStrip entries={scopeEntriesFlat} />
+
+      {/* Cross-scope leaderboard — top 3 by hours saved, badges earned, and
+          longest streak. Complements the "Top contributor" KPI card with
+          two extra dimensions. */}
+      <CohortLeaderboard
+        entries={scopeEntriesFlat}
+        title="Top performers in scope"
+      />
 
       {/* Biggest wins — top 3 time-saving entries, called out as featured cards */}
       {biggestWins.length > 0 && (

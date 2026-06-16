@@ -5,6 +5,7 @@ import {
   ArrowRight, Zap, Video, Clock, ExternalLink, ChevronRight,
 } from "lucide-react";
 import NavBar from "../../components/NavBar";
+import GamificationStrip from "../../components/cohort/GamificationStrip";
 import { useAuth } from "../../context/AuthContext";
 import { getAccessibleCohorts } from "../../lib/adminRoles";
 import { getAllCohortsForAdmin, useCohortVersion } from "../../lib/cohortAdmin";
@@ -65,6 +66,28 @@ export default function FacilitatorHome() {
       .filter((p) => cohortSlugs.includes(p.cohortSlug))
       .filter((p) => isAtRisk(p))
       .slice(0, 4);
+  }, [cohortSlugs, version]);
+
+  // Flattened journal entries across every cohort the facilitator can see,
+  // stamped with participantEmail + participantName so the gamification
+  // helpers can group them. Cohorts may belong to different programs, so
+  // GamificationStrip uses the platform default badge ladder here — the
+  // strip is meant to be a quick cross-cohort pulse, not a per-program score.
+  const facilitatorCohortEntries = useMemo(() => {
+    const slugSet = new Set(cohortSlugs);
+    const out = [];
+    for (const p of ADMIN_MOCK_PARTICIPANTS) {
+      if (!slugSet.has(p.cohortSlug)) continue;
+      for (const e of p.journalEntries || []) {
+        out.push({
+          ...e,
+          participantId: p.id,
+          participantName: p.name,
+          participantEmail: p.email,
+        });
+      }
+    }
+    return out;
   }, [cohortSlugs, version]);
 
   const role = primaryEffectiveRole(user);
@@ -156,6 +179,14 @@ export default function FacilitatorHome() {
         <section className="grid md:grid-cols-2 gap-4 animate-fade-in-up">
           <HomeworkCard count={homeworkPending.length} oldestDays={oldestPendingDays} />
           <AtRiskCard atRisk={atRisk} cohorts={cohorts} />
+        </section>
+
+        {/* Gamification pulse — aggregate journal signal across the
+            facilitator's cohorts. Mirrors what each participant sees on
+            their /journal page, so coaching conversations stay on common
+            ground. */}
+        <section className="animate-fade-in-up">
+          <GamificationStrip entries={facilitatorCohortEntries} />
         </section>
 
         {/* My cohorts grid */}
