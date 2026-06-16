@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Calendar, ChevronLeft, ChevronRight, Clock, X } from "lucide-react";
 
 // ---------------------------------------------------------------------------
@@ -51,6 +52,43 @@ function formatDisplay(value) {
 export default function DateTimeField({ value, onChange, required, timeZone }) {
   const [open, setOpen] = useState(false);
   const wrapperRef = useRef(null);
+  const triggerRef = useRef(null);
+  const popoverRef = useRef(null);
+  // Position the portal-rendered popover under the trigger using fixed
+  // coordinates. We render the popover at document.body so it isn't clipped
+  // by overflow-hidden ancestors and won't slide behind sibling cards on the
+  // session schedule.
+  const [pos, setPos] = useState({ top: 0, left: 0, width: 320 });
+
+  useLayoutEffect(() => {
+    if (!open) return;
+    function updatePos() {
+      const trigger = triggerRef.current;
+      if (!trigger) return;
+      const rect = trigger.getBoundingClientRect();
+      const popoverWidth = 320;
+      const popoverHeight = popoverRef.current?.offsetHeight || 380;
+      // Default: open below the trigger.
+      let top = rect.bottom + 8;
+      // If we'd run off the bottom of the viewport, flip above.
+      if (top + popoverHeight > window.innerHeight - 8) {
+        top = Math.max(8, rect.top - popoverHeight - 8);
+      }
+      let left = rect.left;
+      // Keep the popover on screen horizontally.
+      if (left + popoverWidth > window.innerWidth - 8) {
+        left = Math.max(8, window.innerWidth - popoverWidth - 8);
+      }
+      setPos({ top, left, width: popoverWidth });
+    }
+    updatePos();
+    window.addEventListener("resize", updatePos);
+    window.addEventListener("scroll", updatePos, true);
+    return () => {
+      window.removeEventListener("resize", updatePos);
+      window.removeEventListener("scroll", updatePos, true);
+    };
+  }, [open]);
 
   // Local working state — committed on Apply.
   const [draft, setDraft] = useState(() => parseValue(value));
@@ -68,13 +106,17 @@ export default function DateTimeField({ value, onChange, required, timeZone }) {
     }
   }, [open, value]);
 
-  // Click outside closes.
+  // Click outside closes. The popover now lives at document.body (portal),
+  // so we need to allow clicks inside it too — check both the wrapper and
+  // the popover.
   useEffect(() => {
     if (!open) return;
     function handler(e) {
-      if (wrapperRef.current && !wrapperRef.current.contains(e.target)) {
-        setOpen(false);
-      }
+      const w = wrapperRef.current;
+      const p = popoverRef.current;
+      if (w?.contains(e.target)) return;
+      if (p?.contains(e.target)) return;
+      setOpen(false);
     }
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
@@ -122,6 +164,7 @@ export default function DateTimeField({ value, onChange, required, timeZone }) {
     <div ref={wrapperRef} className="relative">
       {/* Trigger button */}
       <button
+        ref={triggerRef}
         type="button"
         onClick={() => setOpen((o) => !o)}
         className="w-full inline-flex items-center justify-between gap-2 px-3.5 py-2.5 rounded-xl border border-soft bg-surface-card text-ink text-[14px] font-body hover:border-brand-500 focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 transition-all"
@@ -155,9 +198,15 @@ export default function DateTimeField({ value, onChange, required, timeZone }) {
         aria-hidden="true"
       />
 
-      {/* Popover */}
-      {open && (
-        <div className="absolute z-30 top-full left-0 mt-2 w-[320px] rounded-2xl bg-surface-card border border-soft shadow-lift overflow-hidden animate-fade-in-up">
+      {/* Popover — portal-rendered to document.body with fixed positioning
+          so it escapes any overflow:hidden ancestor and floats above sibling
+          cards in the session schedule. */}
+      {open && createPortal(
+        <div
+          ref={popoverRef}
+          style={{ position: "fixed", top: pos.top, left: pos.left, width: pos.width }}
+          className="z-[1000] rounded-2xl bg-surface-card border border-soft shadow-lift overflow-hidden animate-fade-in-up"
+        >
           {/* Calendar header */}
           <div className="flex items-center justify-between px-4 py-3 border-b border-soft bg-surface-soft">
             <button
@@ -287,7 +336,8 @@ export default function DateTimeField({ value, onChange, required, timeZone }) {
               Apply
             </button>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );

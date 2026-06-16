@@ -410,7 +410,9 @@ export const DEMO_USER_OVERRIDES = {
   },
   // Pure facilitator — no admin capability layered on. Use ?demo=facilitator-pure
   // to QA the experience for a facilitator who can ONLY do facilitator things
-  // (no Admin panel link, no cross-org views, no permissions menu).
+  // (no Admin panel link, no cross-org views, no permissions menu). Assigned
+  // to TWO cohorts so the cohort filter on /admin/* pages has something to
+  // show.
   "facilitator-pure": {
     name: "Jordan Park",
     email: "jordan.park@bestresults.ai",
@@ -419,7 +421,7 @@ export const DEMO_USER_OVERRIDES = {
     role: "facilitator",
     capabilities: ["facilitator"],
     assignedOrgs: [],
-    assignedCohorts: ["iahe-aiew3-2026q1"],
+    assignedCohorts: ["iahe-aiew3-2026q1", "ucla-apfw-2026q1"],
     defaultTimeZone: "America/New_York",
     defaultZoomLink: "https://us02web.zoom.us/j/5550001111",
   },

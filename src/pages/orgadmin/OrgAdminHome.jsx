@@ -17,7 +17,7 @@ import {
   formatMinutes,
 } from "../../lib/adminMockData";
 import { getSessionsCountForCohort } from "../../lib/programs";
-import { primaryEffectiveRole } from "../../lib/viewAs";
+import { primaryEffectiveRole, useViewAs } from "../../lib/viewAs";
 
 // ---------------------------------------------------------------------------
 // /org/home — the Org Admin's morning view.
@@ -34,6 +34,9 @@ export default function OrgAdminHome() {
   // decide if we redirect.
   const { user } = useAuth();
   const version = useCohortVersion();
+  // Honor view-as so elevated users previewing-as-org don't get ping-ponged
+  // back to /home (which would then send them right back here).
+  const { mode: viewAsMode } = useViewAs(user);
 
   const allCohorts = useMemo(() => getAllCohortsForAdmin(), [version]);
   const cohorts = useMemo(() => getAccessibleCohorts(user, allCohorts), [user, allCohorts]);
@@ -74,13 +77,16 @@ export default function OrgAdminHome() {
   }, [participants]);
 
   const role = primaryEffectiveRole(user);
-  // Reachable by users with the `org` capability (or above) only.
-  if (
-    role !== "org" &&
-    !user?.capabilities?.includes?.("org") &&
-    !user?.capabilities?.includes?.("admin") &&
-    !user?.capabilities?.includes?.("super")
-  ) {
+  // Reachable by users with the `org` capability (or above), or anyone in
+  // view-as-org preview mode. Without the view-as escape hatch, an admin
+  // previewing-as-org pings between this page and /home forever.
+  const allowed =
+    role === "org" ||
+    !!user?.capabilities?.includes?.("org") ||
+    !!user?.capabilities?.includes?.("admin") ||
+    !!user?.capabilities?.includes?.("super") ||
+    viewAsMode === "org";
+  if (!allowed) {
     return <Navigate to="/home" replace />;
   }
 

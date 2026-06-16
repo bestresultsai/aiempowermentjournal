@@ -16,7 +16,7 @@ import {
 import { getSessionsCountForCohort } from "../../lib/programs";
 import { getSessionState, SESSION_STATES } from "../../lib/sessionState";
 import { useGoogleCalendarConnection } from "../../lib/googleCalendar";
-import { primaryEffectiveRole } from "../../lib/viewAs";
+import { primaryEffectiveRole, useViewAs } from "../../lib/viewAs";
 
 // ---------------------------------------------------------------------------
 // /facilitator/home — the facilitator's morning view.
@@ -36,6 +36,10 @@ export default function FacilitatorHome() {
   const { user } = useAuth();
   const version = useCohortVersion();
   const gcal = useGoogleCalendarConnection(user);
+  // Honor view-as: an admin previewing-as-facilitator should NOT be bounced
+  // away by the role guard below (otherwise /home re-routes them back here
+  // and we ping-pong forever).
+  const { mode: viewAsMode } = useViewAs(user);
 
   const cohorts = useMemo(
     () => getAccessibleCohorts(user, getAllCohortsForAdmin()),
@@ -64,10 +68,18 @@ export default function FacilitatorHome() {
   }, [cohortSlugs, version]);
 
   const role = primaryEffectiveRole(user);
-  // Only users with the facilitator capability get this home. Anyone else
-  // bounces back to their own home. The redirect happens AFTER all hooks
-  // above have run, so React sees a consistent hook count.
-  if (role !== "facilitator" && !user?.capabilities?.includes?.("facilitator")) {
+  // Three ways to be "allowed here":
+  //   1. Your primary role is facilitator
+  //   2. Your capabilities list includes facilitator
+  //   3. You're an elevated user previewing-as-facilitator (view-as mode)
+  // Without #3, an admin in view-as mode lands here, gets bounced to /home,
+  // /home sees their effective role is "facilitator" and bounces back —
+  // ping-pong forever.
+  const allowed =
+    role === "facilitator" ||
+    !!user?.capabilities?.includes?.("facilitator") ||
+    viewAsMode === "facilitator";
+  if (!allowed) {
     return <Navigate to="/home" replace />;
   }
 
