@@ -78,3 +78,87 @@ export function progressToNext(totalEntries) {
   const pct = Math.min(100, Math.max(0, Math.round(((totalEntries - start) / span) * 100)));
   return { pct, current: totalEntries, target: next.count, next };
 }
+
+// ---------------------------------------------------------------------------
+// Hours saved — the brand promise. Surfaced as a top-level stat on
+// JournalGameCard so participants always see the time they've reclaimed,
+// not just an abstract entry count.
+// ---------------------------------------------------------------------------
+
+// Minutes saved on a single entry. Mirror of adminMockData.timeSavedFor so
+// the participant-facing card doesn't need to import the admin module.
+function minutesSavedForEntry(e) {
+  return Math.max(0, (e?.timeBeforeAI || 0) - (e?.timeWithAI || 0));
+}
+
+export function totalMinutesSaved(entries) {
+  if (!entries?.length) return 0;
+  return entries.reduce((sum, e) => sum + minutesSavedForEntry(e), 0);
+}
+
+export function formatHoursSaved(minutes) {
+  if (!minutes || minutes <= 0) return "0";
+  const hours = minutes / 60;
+  if (hours < 1) return `${Math.round(minutes)}m`;
+  if (hours < 10) return `${hours.toFixed(1)}h`;
+  return `${Math.round(hours)}h`;
+}
+
+// ---------------------------------------------------------------------------
+// Production-method tier — the AI Empowerment ladder.
+//
+// The journal entry form lets participants tag their work with the production
+// method they used. That's literally the curriculum's progression model: each
+// tier demonstrates a higher level of leverage. Gamification rewards the
+// FIRST entry that crosses into each tier — a "tier unlocked" moment that's
+// separate from the cumulative count badges.
+// ---------------------------------------------------------------------------
+
+export const PRODUCTION_TIERS = [
+  { key: "single-shot", tier: 1, label: "Single-shot",  blurb: "One-off prompts." },
+  { key: "chained",     tier: 2, label: "Chained",      blurb: "Multi-step workflows." },
+  { key: "repeatable",  tier: 3, label: "Repeatable",   blurb: "Workflows you can hand off." },
+  { key: "assistant",   tier: 4, label: "Assistant",    blurb: "A persistent helper you built." },
+  { key: "agent",       tier: 5, label: "Agent",        blurb: "Runs without you." },
+];
+
+const PRODUCTION_TIER_BY_KEY = Object.fromEntries(
+  PRODUCTION_TIERS.map((t) => [t.key, t]),
+);
+
+export function productionTierFor(method) {
+  return PRODUCTION_TIER_BY_KEY[method] || null;
+}
+
+// Returns the highest tier the participant has reached (an object), or null.
+export function highestProductionTier(entries) {
+  if (!entries?.length) return null;
+  let best = null;
+  for (const e of entries) {
+    const t = productionTierFor(e?.productionMethod);
+    if (!t) continue;
+    if (!best || t.tier > best.tier) best = t;
+  }
+  return best;
+}
+
+// Returns the set of tiers (objects) that have at least one entry. Used to
+// drive a "X of 5 tiers unlocked" microbar.
+export function unlockedTiers(entries) {
+  const set = new Set();
+  for (const e of entries || []) {
+    const t = productionTierFor(e?.productionMethod);
+    if (t) set.add(t.key);
+  }
+  return PRODUCTION_TIERS.filter((t) => set.has(t.key));
+}
+
+// ---------------------------------------------------------------------------
+// Innovations — the highest-stakes wins. Surfaced as their own counter so
+// rare, meaningful entries get distinct recognition.
+// ---------------------------------------------------------------------------
+
+export function innovationsCount(entries) {
+  if (!entries?.length) return 0;
+  return entries.filter((e) => (e?.innovationTitle || "").trim()).length;
+}
