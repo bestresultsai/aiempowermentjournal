@@ -563,23 +563,31 @@ export function archiveCohort(slug) {
 }
 
 // ---------------------------------------------------------------------------
-// Set the recording URL for a specific session on a specific cohort.
+// Per-session overlay write API for a specific cohort.
 //
-// We write the URL into the cohort's session overlay (cohortOverlays[slug])
-// so that getSessionsForCohort returns the recorded URL alongside the
-// program curriculum. Once persisted, the session's state flips from
-// "awaiting-recording" to "completed" automatically via getSessionState.
+// setSessionOverride(slug, order, patch) — general-purpose. Accepts any
+// override fields the cohort might want to apply on top of the program
+// template:
+//   - customSummary      — replaces the program's session summary in the UI
+//   - customMaterials    — array of strings; ADDITIONAL items appended to
+//                          the program's materials list
+//   - facilitatorNotes   — paragraph shown to participants on /session/:order
+//                          (separate from facilitatorNotes-private which is
+//                          internal-only and lives on the participant record)
+//   - customHomework     — replaces the program's homework prompt
+//   - videoUrl           — recording URL once a session is done
 //
-// Pass empty/null url to CLEAR the recording.
+// We write into the cohort's session overlay (cohortOverlays[slug]) so
+// getSessionsForCohort returns the merged shape. Fields are nullable; pass
+// null/empty to clear that one override.
 // ---------------------------------------------------------------------------
-export function setSessionRecording(slug, sessionOrder, videoUrl) {
+export function setSessionOverride(slug, sessionOrder, patch) {
   const overlay = cohortOverlays[slug] || {};
-  // Start from the merged current sessions so we don't lose anything
-  // (program defaults + any prior overlay).
   const baseSessions = getSessionsForCohort(slug);
-  const overlaySessions = baseSessions.map((s) =>
-    s.order === Number(sessionOrder) ? { ...s, videoUrl: (videoUrl || "").trim() || null } : s,
-  );
+  const overlaySessions = baseSessions.map((s) => {
+    if (s.order !== Number(sessionOrder)) return s;
+    return applySessionPatch(s, patch);
+  });
   cohortOverlays[slug] = {
     ...overlay,
     sessions: overlaySessions,
@@ -588,6 +596,48 @@ export function setSessionRecording(slug, sessionOrder, videoUrl) {
   safePersist(COHORTS_KEY, cohortOverlays);
   emit();
   return overlaySessions.find((s) => s.order === Number(sessionOrder));
+}
+
+// Coerces patch values into the canonical session shape — trims strings,
+// nulls empty fields, normalizes the materials array.
+function applySessionPatch(session, patch = {}) {
+  const next = { ...session };
+  if ("customSummary" in patch) {
+    const v = (patch.customSummary || "").trim();
+    next.customSummary = v || null;
+  }
+  if ("customMaterials" in patch) {
+    const arr = Array.isArray(patch.customMaterials)
+      ? patch.customMaterials.map((m) => (m || "").trim()).filter(Boolean)
+      : [];
+    next.customMaterials = arr.length ? arr : null;
+  }
+  if ("facilitatorNotes" in patch) {
+    const v = (patch.facilitatorNotes || "").trim();
+    next.facilitatorNotes = v || null;
+  }
+  if ("customHomework" in patch) {
+    const v = (patch.customHomework || "").trim();
+    next.customHomework = v || null;
+  }
+  if ("videoUrl" in patch) {
+    const v = (patch.videoUrl || "").trim();
+    next.videoUrl = v || null;
+  }
+  return next;
+}
+
+// Backwards-compatible wrapper for the recording upload UI (Round 3E). New
+// callers should use setSessionOverride directly.
+export function setSessionRecording(slug, sessionOrder, videoUrl) {
+  return setSessionOverride(slug, sessionOrder, { videoUrl });
+}
+
+// Read a single session from the cohort's overlay-merged session list.
+// Returns null if the order doesn't exist.
+export function getSessionForCohort(slug, sessionOrder) {
+  const sessions = getSessionsForCohort(slug);
+  return sessions.find((s) => s.order === Number(sessionOrder)) || null;
 }
 
 // Debug-style reset used during demos.

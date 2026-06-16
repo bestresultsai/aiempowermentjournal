@@ -21,7 +21,11 @@ import {
 // ---------------------------------------------------------------------------
 
 export default function HomeworkSubmission({ session, onSubmit, pending, facilitator }) {
-  const hw = session?.homework;
+  // Per-cohort homework override (session.customHomework) wins over the
+  // program's default homework prompt.
+  const hw = session?.customHomework
+    ? { ...(session?.homework || {}), prompt: session.customHomework }
+    : session?.homework;
   const existing = session?.homeworkSubmission;
   const reviewed = !!existing?.reviewedAt;
 

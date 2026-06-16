@@ -377,7 +377,7 @@ function Tabs({ current, onChange, session, belt }) {
   const tabs = [
     { id: "overview",  label: "Overview",  icon: Sparkles },
     { id: "materials", label: "Materials", icon: FileText, badge: session?.materials?.length || 0 },
-    { id: "homework",  label: "Homework",  icon: NotebookPen, status: session?.homeworkSubmitted ? "done" : session?.homework?.prompt ? "due" : null },
+    { id: "homework",  label: "Homework",  icon: NotebookPen, status: session?.homeworkSubmitted ? "done" : (session?.customHomework || session?.homework?.prompt) ? "due" : null },
   ];
 
   return (
@@ -423,12 +423,30 @@ function Tabs({ current, onChange, session, belt }) {
 // ---------------------------------------------------------------------------
 
 function OverviewPanel({ session }) {
+  // customSummary (per-cohort override) wins over the program's default
+  // summary; if no override, fall back to the program copy.
+  const summary = session.customSummary || session.summary;
   return (
     <>
       <div className="h-eyebrow mb-2">What this session covers</div>
       <p className="text-[15px] text-ink leading-relaxed mb-7">
-        {session.summary}
+        {summary}
       </p>
+
+      {/* facilitatorNotes is a per-cohort note shown to participants. Renders
+          as a soft brand-tinted callout so it reads as "your facilitator
+          wrote this" rather than core curriculum. */}
+      {session.facilitatorNotes && (
+        <div className="rounded-2xl bg-brand-50/60 border border-brand-100 p-4 mb-7">
+          <div className="h-eyebrow text-brand-700 mb-1.5">
+            From your facilitator
+          </div>
+          <p className="text-[14px] text-ink leading-relaxed whitespace-pre-line">
+            {session.facilitatorNotes}
+          </p>
+        </div>
+      )}
+
       {session.objectives?.length > 0 && (
         <>
           <div className="h-eyebrow mb-3">By the end, you'll</div>
@@ -447,7 +465,9 @@ function OverviewPanel({ session }) {
 }
 
 function MaterialsPanel({ session }) {
-  if (!session.materials?.length) {
+  const programMaterials = session.materials || [];
+  const customMaterials = session.customMaterials || [];
+  if (programMaterials.length === 0 && customMaterials.length === 0) {
     return (
       <div className="text-center py-10">
         <div className="inline-flex w-12 h-12 rounded-2xl bg-surface-soft items-center justify-center mb-3">
@@ -460,7 +480,24 @@ function MaterialsPanel({ session }) {
   }
   return (
     <div className="space-y-2.5">
-      {session.materials.map((m, i) => (
+      {/* Custom materials (cohort-specific, plain-text rows) appear first
+          because they're context the facilitator added on top. */}
+      {customMaterials.length > 0 && (
+        <div className="rounded-xl border border-brand-100 bg-brand-50/40 p-3 mb-1">
+          <div className="h-eyebrow text-brand-700 mb-2">
+            Added for this cohort
+          </div>
+          <ul className="space-y-1.5">
+            {customMaterials.map((m, i) => (
+              <li key={i} className="text-[13.5px] text-ink leading-relaxed flex items-start gap-2">
+                <span className="mt-1.5 shrink-0 w-1.5 h-1.5 rounded-full bg-brand-500" />
+                {m}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {programMaterials.map((m, i) => (
         <a
           key={i}
           href={m.url}

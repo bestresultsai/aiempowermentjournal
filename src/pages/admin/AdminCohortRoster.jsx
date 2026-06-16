@@ -173,6 +173,11 @@ export default function AdminCohortRoster() {
       {/* Sessions awaiting recording — a to-do list for the facilitator. */}
       <AwaitingRecordingSection cohortSlug={slug} sessions={sessions} />
 
+      {/* Per-cohort session customization — surfaces every session with a
+          quick edit link so a facilitator can override notes, materials,
+          homework, or the recording for this cohort specifically. */}
+      <SessionsCustomizationCard cohortSlug={slug} sessions={sessions} />
+
       {/* Cohort-level Journal summary */}
       {journal.totalEntries > 0 && (
         <section className="rounded-2xl bg-emerald-50/40 border border-emerald-100 p-5">
@@ -721,4 +726,77 @@ function timeAgoShort(iso) {
   if (days <= 0) return "today";
   if (days === 1) return "yesterday";
   return `${days}d ago`;
+}
+
+// ---------------------------------------------------------------------------
+// SessionsCustomizationCard — compact list of every session in the cohort
+// with a quick edit link. Surfaces which sessions have overrides so the
+// facilitator can spot what's been customized at a glance.
+// ---------------------------------------------------------------------------
+function SessionsCustomizationCard({ cohortSlug, sessions }) {
+  if (!sessions || sessions.length === 0) return null;
+  return (
+    <section className="rounded-2xl bg-surface-card border border-soft p-5">
+      <div className="flex items-end justify-between gap-3 mb-3 flex-wrap">
+        <div>
+          <div className="text-[10.5px] font-heading font-bold uppercase tracking-wider text-ink-muted">
+            Sessions · customize for this cohort
+          </div>
+          <h2 className="font-heading text-[15px] font-bold text-ink">
+            Override notes, materials, homework, or recording per session.
+          </h2>
+        </div>
+        <span className="text-[11px] text-ink-muted">
+          Edits apply only to this cohort.
+        </span>
+      </div>
+      <ul className="divide-y divide-soft">
+        {sessions.map((s) => {
+          const belt = BELT_COLORS[s.belt] || BELT_COLORS.White;
+          const hasOverride =
+            !!s.customSummary ||
+            (s.customMaterials && s.customMaterials.length > 0) ||
+            !!s.facilitatorNotes ||
+            !!s.customHomework ||
+            !!s.videoUrl;
+          return (
+            <li key={s.order}>
+              <Link
+                to={`/admin/cohorts/${cohortSlug}/sessions/${s.order}/edit`}
+                className="flex items-center gap-3 py-2.5 px-1 hover:bg-surface-soft rounded-lg transition-colors group"
+              >
+                <div
+                  style={{
+                    background: belt.gradient,
+                    color: belt.contrast,
+                    border: belt.needsBorder ? "1px solid #D1D5DB" : "none",
+                  }}
+                  className="w-9 h-9 rounded-lg flex items-center justify-center font-heading font-extrabold text-[12px] shrink-0"
+                >
+                  {s.order}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="font-heading text-[13.5px] font-bold text-ink truncate">
+                    {s.title}
+                  </div>
+                  <div className="text-[11px] text-ink-muted mt-0.5 inline-flex items-center gap-2 flex-wrap">
+                    <span>{s.belt || "—"} belt</span>
+                    {hasOverride && (
+                      <span className="inline-flex items-center gap-1 px-1.5 py-0 rounded-md bg-emerald-50 text-emerald-700 text-[9.5px] font-heading font-bold uppercase">
+                        Customized
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <span className="inline-flex items-center gap-1 text-[11.5px] font-heading font-bold text-brand-700 group-hover:text-brand-800 shrink-0">
+                  <Pencil className="w-3 h-3" strokeWidth={2.5} />
+                  Edit
+                </span>
+              </Link>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+  );
 }
