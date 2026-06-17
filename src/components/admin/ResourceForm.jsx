@@ -3,6 +3,7 @@ import { Save, Trash2, Upload, X, Link as LinkIcon } from "lucide-react";
 import { RESOURCE_TYPES } from "../../lib/resources";
 import { getAllProgramsForAdmin } from "../../lib/programs";
 import { getAllCohortsForAdmin } from "../../lib/cohortAdmin";
+import Select from "../Select";
 
 // ---------------------------------------------------------------------------
 // ResourceForm — shared editor for /admin/resources/new + /admin/resources/:id/edit.
@@ -157,15 +158,12 @@ export default function ResourceForm({
 
         <div className="grid md:grid-cols-2 gap-4">
           <Field label="Type">
-            <select
+            <Select
               value={type}
-              onChange={(e) => setType(e.target.value)}
-              className="w-full px-3.5 py-2.5 rounded-xl border border-soft bg-surface-card text-ink text-[14px] font-body focus:outline-none focus:border-brand-500"
-            >
-              {RESOURCE_TYPES.map((t) => (
-                <option key={t.value} value={t.value}>{t.label}</option>
-              ))}
-            </select>
+              onChange={setType}
+              options={RESOURCE_TYPES.map((t) => ({ value: t.value, label: t.label }))}
+              ariaLabel="Resource type"
+            />
           </Field>
           <Field
             label="Category"
@@ -245,18 +243,18 @@ export default function ResourceForm({
             label="Program scope"
             hint="Leave 'All programs' for a global resource that every participant sees."
           >
-            <select
+            <Select
               value={programCode}
-              onChange={(e) => setProgramCode(e.target.value)}
-              className="w-full px-3.5 py-2.5 rounded-xl border border-soft bg-surface-card text-ink text-[14px] font-body focus:outline-none focus:border-brand-500"
-            >
-              <option value="">All programs (global)</option>
-              {programs.map((p) => (
-                <option key={p.code} value={p.code}>
-                  {p.code} · {p.name}
-                </option>
-              ))}
-            </select>
+              onChange={setProgramCode}
+              ariaLabel="Program scope"
+              options={[
+                { value: "", label: "All programs (global)" },
+                ...programs.map((p) => ({
+                  value: p.code,
+                  label: `${p.code} · ${p.name}`,
+                })),
+              ]}
+            />
           </Field>
           <Field
             label="Cohort scope"
@@ -266,19 +264,16 @@ export default function ResourceForm({
                 : "Pick a program above first to scope to a cohort."
             }
           >
-            <select
+            <Select
               value={cohortSlug}
-              onChange={(e) => setCohortSlug(e.target.value)}
+              onChange={setCohortSlug}
               disabled={!programCode || availableCohorts.length === 0}
-              className="w-full px-3.5 py-2.5 rounded-xl border border-soft bg-surface-card text-ink text-[14px] font-body focus:outline-none focus:border-brand-500 disabled:bg-surface-soft disabled:text-ink-muted"
-            >
-              <option value="">All cohorts in program</option>
-              {availableCohorts.map((c) => (
-                <option key={c.slug} value={c.slug}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
+              ariaLabel="Cohort scope"
+              options={[
+                { value: "", label: "All cohorts in program" },
+                ...availableCohorts.map((c) => ({ value: c.slug, label: c.name })),
+              ]}
+            />
           </Field>
         </div>
       </section>

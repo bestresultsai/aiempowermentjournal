@@ -7,6 +7,7 @@ import { BELT_COLORS } from "../../lib/mockCohort";
 import { DEFAULT_CERTIFICATE, DEFAULT_BADGES } from "../../lib/programs";
 import MaterialsEditor, { normalizeMaterials } from "./MaterialsEditor";
 import JournalGameCard from "../cohort/JournalGameCard";
+import Select from "../Select";
 
 // Lucide icon names available for badges. Keep in sync with the BADGE_ICONS
 // map in JournalGameCard / NextMilestoneCard so anything the editor picks
@@ -487,18 +488,16 @@ function SessionRow({
 // ---------------------------------------------------------------------------
 function BeltSelect({ value, onChange }) {
   return (
-    <select
+    <Select
       value={value || ""}
-      onChange={(e) => onChange(e.target.value)}
-      className="px-2.5 py-1.5 rounded-md border border-soft bg-white text-ink text-[12.5px] font-heading font-semibold focus:outline-none focus:border-brand-500"
-    >
-      <option value="">— belt —</option>
-      {BELT_OPTIONS.map((b) => (
-        <option key={b} value={b}>
-          {b}
-        </option>
-      ))}
-    </select>
+      onChange={onChange}
+      ariaLabel="Belt"
+      placeholder="— belt —"
+      options={[
+        { value: "", label: "— belt —" },
+        ...BELT_OPTIONS.map((b) => ({ value: b, label: b })),
+      ]}
+    />
   );
 }
 
@@ -593,19 +592,15 @@ function CertificateSection({ certificate, onChange }) {
         label="Completion criteria"
         hint="When the platform considers a participant 'done' and unlocks the certificate."
       >
-        <select
+        <Select
           value={certificate.completionCriteria || "all-sessions-completed"}
-          onChange={(e) =>
-            onChange({ ...certificate, completionCriteria: e.target.value })
-          }
-          className="w-full px-3.5 py-2.5 rounded-xl border border-soft bg-surface-card text-ink text-[13.5px] font-body focus:outline-none focus:border-brand-500"
-        >
-          {COMPLETION_CRITERIA_OPTIONS.map((o) => (
-            <option key={o.value} value={o.value}>
-              {o.label}
-            </option>
-          ))}
-        </select>
+          onChange={(v) => onChange({ ...certificate, completionCriteria: v })}
+          ariaLabel="Completion criteria"
+          options={COMPLETION_CRITERIA_OPTIONS.map((o) => ({
+            value: o.value,
+            label: o.label,
+          }))}
+        />
       </Field>
 
       {/* Body copy */}
@@ -773,17 +768,12 @@ function BadgesSection({ badges, onChange }) {
               <label className="block text-[10.5px] font-heading font-bold uppercase tracking-wider text-ink-muted mb-1">
                 Icon
               </label>
-              <select
+              <Select
                 value={b.icon || "Trophy"}
-                onChange={(e) => updateRow(idx, { icon: e.target.value })}
-                className="w-full px-2.5 py-2 rounded-lg border border-soft bg-white text-ink text-[13px] font-body focus:outline-none focus:border-brand-500"
-              >
-                {BADGE_ICON_OPTIONS.map((name) => (
-                  <option key={name} value={name}>
-                    {name}
-                  </option>
-                ))}
-              </select>
+                onChange={(v) => updateRow(idx, { icon: v })}
+                ariaLabel="Badge icon"
+                options={BADGE_ICON_OPTIONS.map((name) => ({ value: name, label: name }))}
+              />
             </div>
             <div>
               <label className="block text-[10.5px] font-heading font-bold uppercase tracking-wider text-ink-muted mb-1">

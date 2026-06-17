@@ -16,7 +16,7 @@ import { useAuth } from "../context/AuthContext";
 // un-onboarded user can still sign in or land on the marketing page.
 // ---------------------------------------------------------------------------
 
-const PUBLIC_PATHS = ["/", "/login", "/auth/verify"];
+const PUBLIC_PATHS = ["/", "/login", "/auth/verify", "/privacy", "/terms"];
 
 export default function OnboardingGate({ children }) {
   const { user, loading, needsOnboarding } = useAuth();

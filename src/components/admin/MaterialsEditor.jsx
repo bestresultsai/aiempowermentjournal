@@ -12,6 +12,7 @@ import {
   ChevronUp,
   ChevronDown,
 } from "lucide-react";
+import Select from "../Select";
 
 // ---------------------------------------------------------------------------
 // MaterialsEditor — reusable editor for an array of material items.
@@ -214,17 +215,12 @@ function MaterialRow({
 
       <div className="grid md:grid-cols-[120px_1fr_auto] gap-2 items-center">
         {/* Type select */}
-        <select
+        <Select
           value={material.type || "link"}
-          onChange={(e) => onChange({ type: e.target.value })}
-          className="px-2.5 py-1.5 rounded-md border border-soft bg-white text-ink text-[12.5px] font-heading font-semibold focus:outline-none focus:border-brand-500"
-        >
-          {MATERIAL_TYPES.map((t) => (
-            <option key={t.value} value={t.value}>
-              {t.label}
-            </option>
-          ))}
-        </select>
+          onChange={(v) => onChange({ type: v })}
+          ariaLabel="Material type"
+          options={MATERIAL_TYPES.map((t) => ({ value: t.value, label: t.label }))}
+        />
         {/* URL or uploaded filename */}
         {isUploaded ? (
           <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-md bg-emerald-50 border border-emerald-100 text-[12px] text-emerald-900 truncate">

@@ -37,6 +37,8 @@ import AdminResourceEdit from "./pages/admin/AdminResourceEdit";
 import Home from "./pages/Home";
 import Login from "./pages/Login";
 import AuthVerify from "./pages/AuthVerify";
+import PrivacyPolicy from "./pages/PrivacyPolicy";
+import TermsOfService from "./pages/TermsOfService";
 import Journal from "./pages/Journal";
 import JournalResult from "./pages/JournalResult";
 import JournalDashboard from "./pages/JournalDashboard";
@@ -121,6 +123,8 @@ export default function App() {
             <Route path="/" element={<Home />} />
             <Route path="/login" element={<Login />} />
             <Route path="/auth/verify" element={<AuthVerify />} />
+            <Route path="/privacy" element={<PrivacyPolicy />} />
+            <Route path="/terms" element={<TermsOfService />} />
 
             {/* ONBOARDING */}
             <Route path="/welcome" element={<WelcomeWizard />} />
