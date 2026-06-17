@@ -17,6 +17,7 @@ import {
 import { APP_CONFIG } from "../../lib/appConfig";
 import { useViewAs, VIEW_AS_LABELS } from "../../lib/viewAs";
 import Logo from "../../components/Logo";
+import NotificationBell from "../../components/admin/NotificationBell";
 
 // ---------------------------------------------------------------------------
 // AdminLayout — the shell every /admin/* page lives inside.
@@ -164,9 +165,15 @@ export default function AdminLayout() {
             <BreadCrumb path={pathname} />
           </div>
 
-          {/* Identity chip — opens a small dropdown with Settings + Sign out
-              so admins can manage their own profile without leaving /admin. */}
-          <AdminUserMenu user={user} roleLabel={roleLabel} onLogout={logout} />
+          {/* Notification bell — derives notifications from existing data
+              sources (homework, journal, feedback) scoped to the user's
+              cohorts. Hidden by useNotifications when scope is empty. */}
+          <div className="flex items-center gap-3">
+            <NotificationBell />
+            {/* Identity chip — opens a small dropdown with Settings + Sign out
+                so admins can manage their own profile without leaving /admin. */}
+            <AdminUserMenu user={user} roleLabel={roleLabel} onLogout={logout} />
+          </div>
         </header>
 
         {/* Mobile collapse nav */}
