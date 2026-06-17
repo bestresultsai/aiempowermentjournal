@@ -18,7 +18,11 @@ const BRAND = {
   appUrl: "https://tools.bestresults.ai", // swap to https://app.bestresults.ai post-migration
   sender: "BestResults.AI <hello@bestresults.ai>",
   replyTo: "support@bestresults.ai",
-  logoUrl: "https://tools.bestresults.ai/brand/logo.png",
+  // Horizontal color logo (no tagline). SVG renders fine in all modern web
+  // mail clients (Gmail, Apple Mail, Outlook web, mobile). For Outlook
+  // *desktop*, host a PNG mirror alongside the SVG before production
+  // sending and swap this URL — Outlook desktop ignores SVG.
+  logoUrl: "https://tools.bestresults.ai/brand/horizontal-color-no-tagline.svg",
 };
 
 // ---------------------------------------------------------------------------
@@ -39,8 +43,13 @@ export function renderShell({ title, bodyHtml, footerNote }) {
           <table role="presentation" width="560" cellpadding="0" cellspacing="0" border="0" style="background:#FFFFFF;border:1px solid #E5E1DA;border-radius:16px;overflow:hidden;">
             <tr>
               <td style="padding:24px 28px;border-bottom:1px solid #E5E1DA;">
-                <a href="${BRAND.appUrl}" style="text-decoration:none;color:#1B1F23;">
-                  <span style="font-family:'Inter',sans-serif;font-weight:800;font-size:18px;letter-spacing:-0.01em;">BestResults<span style="color:#2563EB;">.AI</span></span>
+                <a href="${BRAND.appUrl}" style="text-decoration:none;display:inline-block;">
+                  <img
+                    src="${BRAND.logoUrl}"
+                    alt="BestResults.AI"
+                    width="200"
+                    style="display:block;height:auto;border:0;outline:none;max-width:200px;"
+                  />
                 </a>
               </td>
             </tr>
