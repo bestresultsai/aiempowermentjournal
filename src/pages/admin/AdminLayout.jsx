@@ -3,7 +3,7 @@ import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-do
 import {
   LayoutDashboard, Users, BookCheck, GraduationCap, ArrowLeft,
   Shield, LogOut, ChevronDown, NotebookPen, Plus, User as UserIcon,
-  Calendar as CalendarIcon, Building2, Lock, Eye, X, Library,
+  Calendar as CalendarIcon, Building2, Lock, Eye, X, Library, Lightbulb,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import {
@@ -36,6 +36,9 @@ const NAV = [
   { to: "/admin/calendar",     label: "Calendar",      icon: CalendarIcon },
   { to: "/admin/cohorts",      label: "Cohorts",       icon: GraduationCap },
   { to: "/admin/journal",      label: "AI Journal",    icon: NotebookPen },
+  // Innovations — the cohort-tagged wins worth celebrating. Mirrors the
+  // AI Journal scope, but filtered to entries flagged as innovations.
+  { to: "/admin/innovations",  label: "Innovations",   icon: Lightbulb },
   // Homework is the facilitator's grading queue — org admins don't grade,
   // so this stays gated to roles that can act on submissions.
   { to: "/admin/homework",     label: "Homework",      icon: BookCheck, requires: "grade" },

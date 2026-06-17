@@ -1395,6 +1395,37 @@ export function getStaleParticipantsInScope(cohortSlugs, daysThreshold = 14) {
 }
 
 // Biggest individual time-savers across scope — the "wins worth celebrating".
+// Returns every journal entry that has an innovationTitle, scoped to the
+// given cohort slugs and (optionally) a time window. Each entry is stamped
+// with participant + cohort context so the consumer doesn't need a join.
+// `sort` accepts "saved" (default, descending hours saved) or "date"
+// (descending recency). `limit` caps the result; pass null/0 for "all".
+export function getInnovationsInScope(cohortSlugs, sinceMs = null, sort = "saved", limit = 0) {
+  const allowed = new Set(cohortSlugs);
+  const rows = ADMIN_MOCK_PARTICIPANTS
+    .filter((p) => allowed.has(p.cohortSlug))
+    .flatMap((p) =>
+      entriesInRange(p, sinceMs)
+        .filter((e) => (e.innovationTitle || "").trim())
+        .map((e) => ({
+          ...e,
+          participantId: p.id,
+          participantName: p.name,
+          participantEmail: p.email,
+          organization: p.organization,
+          cohortSlug: p.cohortSlug,
+          saved: timeSavedFor(e),
+        })),
+    );
+  rows.sort((a, b) => {
+    if (sort === "date") return new Date(b.date) - new Date(a.date);
+    // "saved" default — break ties by date so newer wins float up.
+    if (b.saved !== a.saved) return b.saved - a.saved;
+    return new Date(b.date) - new Date(a.date);
+  });
+  return limit > 0 ? rows.slice(0, limit) : rows;
+}
+
 export function getBiggestWinsInScope(cohortSlugs, limit = 3, sinceMs = null) {
   const allowed = new Set(cohortSlugs);
   return ADMIN_MOCK_PARTICIPANTS

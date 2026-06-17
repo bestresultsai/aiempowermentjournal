@@ -2,7 +2,7 @@ import { Link } from "react-router-dom";
 import {
   GraduationCap, Users, BookCheck, NotebookPen, ArrowRight,
   Clock, Sparkles, AlertTriangle, Calendar, Send, Download,
-  Activity, Award, CheckCircle2, MessageSquare, Trophy,
+  Activity, Award, CheckCircle2, MessageSquare, Trophy, Lightbulb,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { hasGlobalScope, getRoleLabel } from "../../lib/adminRoles";
@@ -21,6 +21,7 @@ import {
   getRecentEntriesInScope,
   getAtRiskParticipants,
   getBiggestWinsInScope,
+  getInnovationsInScope,
   getDeltaStats,
   getActivityStream,
   getCohortSparkline,
@@ -95,6 +96,9 @@ export default function AdminDashboard() {
   const recentEntries = getRecentEntriesInScope(cohortSlugs, 6);
   const atRisk = getAtRiskParticipants(cohortSlugs);
   const topWin = getBiggestWinsInScope(cohortSlugs, 1)[0] || null;
+  // Innovations are the highest-stakes entries — surface the top 3 with a
+  // direct link to the full feed.
+  const topInnovations = getInnovationsInScope(cohortSlugs, null, "saved", 3);
   const deltas = getDeltaStats(cohortSlugs, 7);
   // Scope-aware: only sessions belonging to cohorts in the user's scope.
   // Previously this used global MOCK_SESSIONS, which leaked other facilitators'
@@ -209,6 +213,61 @@ export default function AdminDashboard() {
               <Sparkles className="w-3.5 h-3.5" strokeWidth={3} />
               {formatMinutes(topWin.saved)} saved
             </div>
+          </div>
+        </section>
+      )}
+
+      {/* ---------- 2b. Innovation spotlight ---------- */}
+      {topInnovations.length > 0 && (
+        <section className="rounded-2xl bg-surface-card border border-soft p-5">
+          <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center">
+                <Lightbulb className="w-4 h-4" strokeWidth={2.5} />
+              </div>
+              <div>
+                <div className="h-eyebrow !text-amber-700">Innovation spotlight</div>
+                <h2 className="font-heading text-[15px] font-bold text-ink leading-tight">
+                  Cohort breakthroughs worth sharing
+                </h2>
+              </div>
+            </div>
+            <Link
+              to="/admin/innovations"
+              className="inline-flex items-center gap-1 text-[12px] font-heading font-semibold text-brand-700 hover:text-brand-800"
+            >
+              View all
+              <ArrowRight className="w-3 h-3" strokeWidth={2.5} />
+            </Link>
+          </div>
+          <div className="grid md:grid-cols-3 gap-3">
+            {topInnovations.map((e, i) => (
+              <Link
+                key={`${e.participantId}-${e.id || i}`}
+                to={`/admin/participants/${e.participantId}`}
+                className="group rounded-xl border border-amber-100 bg-gradient-to-br from-amber-50 to-surface-card hover:border-amber-300 hover:shadow-card transition-all duration-200 p-4 flex flex-col"
+              >
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="w-6 h-6 rounded-full bg-amber-100 text-amber-800 flex items-center justify-center font-heading font-extrabold text-[10.5px]">
+                    {i + 1}
+                  </div>
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-600 text-white text-[10.5px] font-heading font-bold">
+                    <Clock className="w-2.5 h-2.5" strokeWidth={3} />
+                    {formatMinutes(e.saved)} saved
+                  </span>
+                </div>
+                <div className="font-heading font-extrabold text-ink text-[13.5px] leading-snug">
+                  {e.innovationTitle}
+                </div>
+                <div className="text-[11.5px] text-ink-muted leading-relaxed mt-1 line-clamp-2 flex-1">
+                  {e.innovationDescription || e.description || ""}
+                </div>
+                <div className="mt-2 pt-2 border-t border-amber-100/60 text-[11px] text-ink-muted truncate">
+                  <span className="font-heading font-semibold text-ink">{e.participantName}</span>
+                  {" · "}{e.organization}
+                </div>
+              </Link>
+            ))}
           </div>
         </section>
       )}
