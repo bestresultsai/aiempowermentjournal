@@ -179,6 +179,30 @@ export function innovationsCount(entries) {
 }
 
 // ---------------------------------------------------------------------------
+// Calendar-month rollups — used in the participant Welcome banner to surface
+// "X badges this month" celebrations without requiring the participant to
+// open the journal.
+// ---------------------------------------------------------------------------
+
+// Returns the count of badges the participant crossed during the current
+// calendar month. We compare badges earned at the start of the month (only
+// entries dated before month start) against badges earned now.
+//
+// `now` is injectable for tests; production calls leave it default.
+export function badgesEarnedThisMonth(entries, badges, now = new Date()) {
+  if (!entries?.length) return 0;
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+  const before = entries.filter((e) => {
+    const t = e?.date ? new Date(e.date).getTime() : NaN;
+    return Number.isFinite(t) && t < monthStart;
+  }).length;
+  const total = entries.length;
+  const earnedBefore = earnedBadges(before, badges).length;
+  const earnedNow = earnedBadges(total, badges).length;
+  return Math.max(0, earnedNow - earnedBefore);
+}
+
+// ---------------------------------------------------------------------------
 // Cohort-level rollups — used by CohortStats to surface gamification signal
 // across the whole cohort, not just one participant. Each helper groups the
 // raw entries by participantEmail first, then aggregates.

@@ -1,12 +1,59 @@
-import { Sparkles, Flame, Calendar as CalendarIcon } from "lucide-react";
+import { Link } from "react-router-dom";
+import {
+  Sparkles, Flame, Calendar as CalendarIcon, Trophy, ArrowRight,
+} from "lucide-react";
+import { useMemo } from "react";
+import {
+  badgesEarnedThisMonth,
+  nextBadge,
+  progressToNext,
+} from "../lib/gamification";
 
-// `streak` is the current logging streak in weeks (computed by parent from entries).
-export default function WelcomeBanner({ user, subtitle, streak = 0 }) {
+// ---------------------------------------------------------------------------
+// WelcomeBanner — the participant greeting at the top of the home page.
+//
+// Now does triple-duty as a gamification surface:
+//
+//   1. Greeting + subtitle (unchanged)
+//   2. Streak chip            — weeks logged (passed in pre-computed)
+//   3. Badges-this-month chip — celebrates earned-this-cycle badges
+//   4. Next-milestone nudge   — distance to next badge, with a CTA to /journal
+//   5. Today's date           — quick anchor
+//
+// Pre-compute streak in the parent (we don't take `entries` for that to keep
+// the existing contract). Everything else flows from `entries` + `badges`,
+// which the parent passes through from the resolved cohort + program.
+// ---------------------------------------------------------------------------
+export default function WelcomeBanner({
+  user,
+  subtitle,
+  streak = 0,
+  entries = [],
+  badges,
+}) {
   const firstName = user?.name?.split(" ")[0] || null;
   const today = new Date();
   const hour = today.getHours();
   const greeting =
     hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
+
+  // Gamification computations. All cheap; memoize for readability rather
+  // than perf — the banner re-renders on every nav.
+  const monthBadges = useMemo(
+    () => badgesEarnedThisMonth(entries, badges),
+    [entries, badges],
+  );
+  const totalEntries = entries.length;
+  const next = useMemo(() => nextBadge(totalEntries, badges), [totalEntries, badges]);
+  const progress = useMemo(
+    () => progressToNext(totalEntries, badges),
+    [totalEntries, badges],
+  );
+  // Only show the next-milestone nudge if it's within a sensible reach.
+  // Showing "98 to Centurion" when the participant just logged their first
+  // win is demotivating; cap at 5 entries away so it reads as "almost there".
+  const showNextNudge =
+    !!next && progress.target - progress.current <= 5 && progress.current > 0;
 
   return (
     <section className="mb-6 rounded-2xl bg-surface-card border border-soft px-6 py-5 flex items-center justify-between gap-4 flex-wrap shadow-card animate-fade-in-up">
@@ -40,15 +87,41 @@ export default function WelcomeBanner({ user, subtitle, streak = 0 }) {
         </div>
       </div>
 
-      <div className="flex items-center gap-3 flex-wrap">
+      <div className="flex items-center gap-2 flex-wrap">
+        {/* Streak chip — only when active and we have a name to celebrate. */}
         {streak > 0 && firstName && (
-          <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700">
-            <Flame className="w-3.5 h-3.5" strokeWidth={2.5} />
-            <span className="text-[11px] font-heading font-bold uppercase tracking-wider">
-              Active Streak · {streak} {streak === 1 ? "week" : "weeks"}
-            </span>
-          </div>
+          <Chip
+            icon={<Flame className="w-3.5 h-3.5" strokeWidth={2.5} />}
+            label={`Active streak · ${streak} ${streak === 1 ? "week" : "weeks"}`}
+            tone="emerald"
+          />
         )}
+
+        {/* Badges-this-month chip — celebrates new milestones crossed in the
+            current calendar month. Hidden when zero. */}
+        {monthBadges > 0 && firstName && (
+          <Chip
+            icon={<Trophy className="w-3.5 h-3.5" strokeWidth={2.5} />}
+            label={`${monthBadges} badge${monthBadges === 1 ? "" : "s"} this month`}
+            tone="amber"
+          />
+        )}
+
+        {/* Next-milestone nudge — only when close enough to motivate. Links
+            straight to the journal entry form. */}
+        {showNextNudge && firstName && (
+          <Link
+            to="/journal/new"
+            className="group inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-brand-600 text-white text-[11px] font-heading font-bold hover:bg-brand-700 transition-colors"
+            title={`${progress.target - progress.current} more to unlock ${next.name}`}
+          >
+            <span className="uppercase tracking-wider">
+              {progress.target - progress.current} to {next.name}
+            </span>
+            <ArrowRight className="w-3 h-3 transition-transform duration-200 group-hover:translate-x-0.5" strokeWidth={2.5} />
+          </Link>
+        )}
+
         <div className="hidden md:flex items-center gap-2 text-ink-muted">
           <CalendarIcon className="w-4 h-4" strokeWidth={2} />
           <span className="h-eyebrow !text-[10px]">Today</span>
@@ -63,5 +136,27 @@ export default function WelcomeBanner({ user, subtitle, streak = 0 }) {
         </div>
       </div>
     </section>
+  );
+}
+
+// Local chip used for the streak + monthly-badges pills. Keeps tone consistent
+// without pulling in a shared component.
+const TONE_CHIP = {
+  emerald: "bg-emerald-50 border-emerald-200 text-emerald-700",
+  amber:   "bg-amber-50 border-amber-200 text-amber-700",
+};
+
+function Chip({ icon, label, tone }) {
+  return (
+    <span
+      className={
+        "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border " + TONE_CHIP[tone]
+      }
+    >
+      {icon}
+      <span className="text-[11px] font-heading font-bold uppercase tracking-wider">
+        {label}
+      </span>
+    </span>
   );
 }

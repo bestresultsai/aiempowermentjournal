@@ -102,6 +102,8 @@ export default function CohortLanding() {
         <WelcomeBanner
           user={user}
           streak={streak}
+          entries={userEntries}
+          badges={cohort ? getBadgesForCohort(cohort) : undefined}
           subtitle={
             cohort
               ? `You're in the ${cohort.organization?.shortName || cohort.name} cohort. Keep the streak alive.`
