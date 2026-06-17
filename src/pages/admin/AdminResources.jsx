@@ -137,6 +137,16 @@ function ResourceCard({ resource }) {
           >
             {resource.programCode || "Global"}
           </span>
+          {resource.cohortSlug && (
+            <span className="inline-flex items-center px-1.5 py-0 rounded-md bg-amber-50 text-amber-700 text-[9.5px] font-heading font-bold uppercase tracking-wider">
+              1 cohort
+            </span>
+          )}
+          {resource.fileName && (
+            <span className="inline-flex items-center px-1.5 py-0 rounded-md bg-violet-50 text-violet-700 text-[9.5px] font-heading font-bold uppercase tracking-wider">
+              File
+            </span>
+          )}
         </div>
         <h3 className="font-heading text-[14px] font-extrabold text-ink leading-tight truncate">
           {resource.title}

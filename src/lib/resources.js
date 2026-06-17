@@ -4,15 +4,24 @@ import { useEffect, useState } from "react";
 // Resources library — the source of truth for /resources content.
 //
 // A RESOURCE is a curated link / asset (video, prompt file, template, etc.)
-// shown to participants. Each resource is either:
-//   - global              (programCode = null) — every participant sees it
-//   - program-specific    (programCode = "AIEW3") — only that program's
-//                          participants see it
+// shown to participants. Scoping is hierarchical:
+//   - global              (programCode = null, cohortSlug = null)
+//   - program-specific    (programCode = "AIEW3", cohortSlug = null)
+//   - cohort-specific     (programCode = "AIEW3", cohortSlug = "summit-…")
+//                          Cohort scope implies the program — participants
+//                          only see cohort-scoped resources if they're in
+//                          that exact cohort.
+//
+// `url` is a real link OR a base64 data URL for an uploaded file (matches
+// MaterialsEditor pattern). `fileName` is set only on uploads.
 //
 // Shape:
 //   {
-//     id, title, description, type, url,
+//     id, title, description, type,
+//     url,            // link OR data URL
+//     fileName?,      // present only on uploads
 //     programCode | null,
+//     cohortSlug | null,
 //     category,
 //     addedAt, updatedAt?
 //   }
@@ -171,12 +180,19 @@ export function getAllResourcesForAdmin() {
   );
 }
 
-// All resources a participant in `programCode` should see — global plus
-// program-specific. Pass null/undefined to get only globals.
-export function getResourcesForParticipant(programCode) {
-  return getAllResourcesForAdmin().filter(
-    (r) => !r.programCode || (programCode && r.programCode === programCode),
-  );
+// All resources a participant should see, given their program + cohort.
+// Returns:
+//   - every global resource (programCode null, cohortSlug null)
+//   - every resource scoped to their program (programCode match, cohortSlug null)
+//   - every resource scoped to their specific cohort (cohortSlug match)
+//
+// Pass nulls for "no program / no cohort" — gets only globals.
+export function getResourcesForParticipant(programCode, cohortSlug) {
+  return getAllResourcesForAdmin().filter((r) => {
+    if (!r.programCode && !r.cohortSlug) return true; // global
+    if (r.cohortSlug) return cohortSlug && r.cohortSlug === cohortSlug;
+    return programCode && r.programCode === programCode;
+  });
 }
 
 export function getResourceById(id) {
@@ -234,8 +250,15 @@ function normalize(r) {
     title: (r.title || "").trim(),
     description: (r.description || "").trim(),
     type: RESOURCE_TYPES.some((t) => t.value === r.type) ? r.type : "link",
-    url: (r.url || "").trim(),
+    // Uploaded files use a base64 data URL which is far too long to trim
+    // safely — only trim plain http(s) links.
+    url: (r.url || "").startsWith("data:") ? r.url : (r.url || "").trim(),
+    fileName: r.fileName || null,
     programCode: r.programCode || null,
+    // Cohort scope implies program scope. If a caller sends a cohortSlug
+    // without a programCode it's a bug, but we tolerate it and trust the
+    // slug — the participant query checks slug equality directly.
+    cohortSlug: r.cohortSlug || null,
     category: (r.category || "Uncategorized").trim() || "Uncategorized",
     addedAt: r.addedAt || new Date().toISOString(),
     updatedAt: r.updatedAt,

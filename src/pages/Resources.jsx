@@ -47,11 +47,12 @@ export default function Resources() {
   const version = useResourceVersion();
   const { cohort } = useResolvedCohort();
   const programCode = cohort?.programCode || null;
+  const cohortSlug = cohort?.slug || null;
 
   const resources = useMemo(
-    () => getResourcesForParticipant(programCode),
+    () => getResourcesForParticipant(programCode, cohortSlug),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [programCode, version],
+    [programCode, cohortSlug, version],
   );
 
   // Group by category.
@@ -112,11 +113,15 @@ export default function Resources() {
 
 function ResourceCard({ resource }) {
   const Icon = TYPE_ICONS[resource.type] || LinkIcon;
+  // Uploaded files have a fileName; attach `download` so the browser saves
+  // with the original name rather than the data-URL hash.
+  const isUpload = !!resource.fileName;
   return (
     <a
       href={resource.url}
       target="_blank"
       rel="noopener noreferrer"
+      download={isUpload ? resource.fileName : undefined}
       className="group flex items-start gap-3 p-4 lg:p-5 rounded-2xl border border-soft bg-surface-card hover:border-brand-500 hover:shadow-card transition-all"
     >
       <div className="w-11 h-11 rounded-xl bg-brand-50 text-brand-700 flex items-center justify-center shrink-0">
@@ -127,6 +132,11 @@ function ResourceCard({ resource }) {
           <span className="inline-flex items-center px-1.5 py-0 rounded-md bg-ink/5 text-ink text-[9.5px] font-heading font-bold uppercase tracking-wider">
             {TYPE_LABELS[resource.type] || resource.type}
           </span>
+          {isUpload && (
+            <span className="inline-flex items-center px-1.5 py-0 rounded-md bg-emerald-50 text-emerald-700 text-[9.5px] font-heading font-bold uppercase tracking-wider">
+              File
+            </span>
+          )}
         </div>
         <h3 className="font-heading text-[15px] font-extrabold text-ink leading-tight">
           {resource.title}
