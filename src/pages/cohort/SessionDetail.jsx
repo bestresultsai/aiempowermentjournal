@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft, ArrowRight, ChevronRight, Calendar, Clock,
   Check, Play, FileText, NotebookPen, Lock, Sparkles, CheckCircle2,
+  Star, MessageSquare,
 } from "lucide-react";
 import NavBar from "../../components/NavBar";
 import SessionPlayer from "../../components/cohort/SessionPlayer";
@@ -13,6 +14,12 @@ import { BELT_COLORS } from "../../lib/mockCohort";
 import { getSession, markSessionComplete, submitHomework } from "../../lib/cohortApi";
 import { useResolvedCohort } from "../../lib/cohortResolution";
 import { getSessionState, SESSION_STATES, SESSION_STATE_META } from "../../lib/sessionState";
+import {
+  getFeedbackForParticipantSession,
+  submitFeedback,
+  useFeedbackVersion,
+} from "../../lib/feedbacks";
+import { useAuth } from "../../context/AuthContext";
 
 // SessionDetail is mounted on two URL patterns:
 //   /session/:order               — generic; cohort resolves via useResolvedCohort()
@@ -39,11 +46,16 @@ export default function SessionDetail() {
     scopedToCohort ? `/cohort/${slug}/session/${n}` : `/session/${n}`;
   const journeyUrl = scopedToCohort ? `/cohort/${slug}` : "/journey";
 
-  // Honor ?tab=homework links (from NextMilestoneCard and email reminders).
-  const initialTab = searchParams.get("tab") === "homework" || searchParams.get("tab") === "materials"
+  // Honor ?tab=homework / ?tab=materials / ?tab=feedback links.
+  const VALID_TABS = new Set(["homework", "materials", "feedback"]);
+  const initialTab = VALID_TABS.has(searchParams.get("tab"))
     ? searchParams.get("tab")
     : "overview";
   const [tab, setTab] = useState(initialTab);
+  const { user } = useAuth();
+  // Re-render when feedback is submitted so the panel updates without a
+  // page refresh. Cheap, listens to the same pubsub admin pages use.
+  useFeedbackVersion();
 
   function selectTab(next) {
     setTab(next);
@@ -208,7 +220,7 @@ export default function SessionDetail() {
 
             {/* ---------- Tabs ---------- */}
             <section className="mt-8 animate-fade-in-up delay-100">
-              <Tabs current={tab} onChange={selectTab} session={session} belt={belt} />
+              <Tabs current={tab} onChange={selectTab} session={session} belt={belt} feedbackEnabled={!isUpcoming} />
 
               <div className="rounded-2xl bg-surface-card border border-soft p-6 lg:p-7 shadow-card">
                 {tab === "overview"  && <OverviewPanel session={session} />}
@@ -219,6 +231,13 @@ export default function SessionDetail() {
                     pending={homework.isPending}
                     onSubmit={(payload) => homework.mutate(payload)}
                     facilitator={cohort?.trainer}
+                  />
+                )}
+                {tab === "feedback" && (
+                  <FeedbackPanel
+                    cohortSlug={slug}
+                    sessionOrder={Number(order)}
+                    user={user}
                   />
                 )}
               </div>
@@ -380,12 +399,15 @@ function UpcomingPlaceholder({ session, cohort, belt }) {
 // Tabs (pill style + indicator badges)
 // ---------------------------------------------------------------------------
 
-function Tabs({ current, onChange, session, belt }) {
+function Tabs({ current, onChange, session, belt, feedbackEnabled }) {
   const tabs = [
     { id: "overview",  label: "Overview",  icon: Sparkles },
     { id: "materials", label: "Materials", icon: FileText, badge: session?.materials?.length || 0 },
     { id: "homework",  label: "Homework",  icon: NotebookPen, status: session?.homeworkSubmitted ? "done" : (session?.customHomework || session?.homework?.prompt) ? "due" : null },
   ];
+  if (feedbackEnabled) {
+    tabs.push({ id: "feedback", label: "Feedback", icon: MessageSquare });
+  }
 
   return (
     <div className="flex items-center gap-2 mb-4 flex-wrap">
@@ -468,6 +490,159 @@ function OverviewPanel({ session }) {
         </>
       )}
     </>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// FeedbackPanel — star rating + comment, per (participant, cohort, session).
+// One row per participant per session — submitting again updates the row.
+// ---------------------------------------------------------------------------
+function FeedbackPanel({ cohortSlug, sessionOrder, user }) {
+  const existing = user?.email
+    ? getFeedbackForParticipantSession(user.email, cohortSlug, sessionOrder)
+    : null;
+
+  const [rating, setRating] = useState(existing?.rating || 0);
+  const [hoverRating, setHoverRating] = useState(0);
+  const [comment, setComment] = useState(existing?.comment || "");
+  const [error, setError] = useState("");
+  const [justSaved, setJustSaved] = useState(false);
+
+  // Re-seed if the cached existing record changes (e.g. user navigates between sessions).
+  useEffect(() => {
+    setRating(existing?.rating || 0);
+    setComment(existing?.comment || "");
+    setError("");
+  }, [existing?.id]);
+
+  // Anyone visiting /session without being signed in shouldn't see the form —
+  // gate behind a friendly notice.
+  if (!user?.email) {
+    return (
+      <div className="text-center py-8">
+        <MessageSquare className="w-6 h-6 mx-auto text-ink-subtle mb-2" strokeWidth={2} />
+        <h3 className="font-heading font-bold text-[15px] text-ink mb-1">
+          Sign in to leave feedback
+        </h3>
+        <p className="text-[13px] text-ink-muted">
+          Your feedback helps your facilitator tailor future sessions.
+        </p>
+      </div>
+    );
+  }
+
+  function handleSubmit(e) {
+    e.preventDefault();
+    setError("");
+    if (rating < 1) {
+      setError("Pick a star rating before submitting.");
+      return;
+    }
+    try {
+      submitFeedback({
+        participantId: user.id || null,
+        participantName: user.name || "",
+        participantEmail: user.email,
+        cohortSlug,
+        sessionOrder,
+        rating,
+        comment,
+      });
+      setJustSaved(true);
+      setTimeout(() => setJustSaved(false), 2500);
+    } catch (err) {
+      setError(err?.message || "Couldn't save your feedback.");
+    }
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-5">
+      <div className="flex items-center gap-2">
+        <MessageSquare className="w-4 h-4 text-amber-700" strokeWidth={2.5} />
+        <h3 className="font-heading text-[15px] font-extrabold text-ink">
+          {existing ? "Update your feedback" : "How was this session?"}
+        </h3>
+      </div>
+      <p className="text-[13px] text-ink-muted leading-relaxed max-w-xl">
+        Your facilitator sees this — be honest. Ratings + comments help us
+        sharpen the next sessions and the program overall.
+      </p>
+
+      <div>
+        <label className="block text-[12px] font-heading font-bold uppercase tracking-wider text-ink-muted mb-2">
+          Rating
+        </label>
+        <div className="flex items-center gap-1">
+          {[1, 2, 3, 4, 5].map((n) => {
+            const active = (hoverRating || rating) >= n;
+            return (
+              <button
+                key={n}
+                type="button"
+                onMouseEnter={() => setHoverRating(n)}
+                onMouseLeave={() => setHoverRating(0)}
+                onClick={() => setRating(n)}
+                aria-label={`${n} star${n === 1 ? "" : "s"}`}
+                className="p-1 rounded transition-transform duration-100 hover:scale-110"
+              >
+                <Star
+                  className={
+                    "w-7 h-7 " +
+                    (active ? "fill-amber-400 text-amber-500" : "text-ink-subtle")
+                  }
+                  strokeWidth={1.5}
+                />
+              </button>
+            );
+          })}
+          {rating > 0 && (
+            <span className="ml-2 text-[12px] text-ink-muted font-heading">
+              {rating} of 5
+            </span>
+          )}
+        </div>
+      </div>
+
+      <div>
+        <label className="block text-[12px] font-heading font-bold uppercase tracking-wider text-ink-muted mb-2">
+          Comments (optional)
+        </label>
+        <textarea
+          value={comment}
+          onChange={(e) => setComment(e.target.value)}
+          rows={4}
+          placeholder="What worked? What didn't? Anything we should adjust next time?"
+          className="w-full px-3.5 py-2.5 rounded-xl border border-soft bg-surface-card text-ink text-[13.5px] font-body leading-relaxed focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15"
+        />
+      </div>
+
+      {error && (
+        <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-[13px] text-rose-900">
+          {error}
+        </div>
+      )}
+
+      <div className="flex items-center gap-3 flex-wrap">
+        <button
+          type="submit"
+          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-ink text-white text-[13.5px] font-heading font-bold hover:bg-ink/90"
+        >
+          <Check className="w-4 h-4" strokeWidth={2.5} />
+          {existing ? "Save changes" : "Submit feedback"}
+        </button>
+        {justSaved && (
+          <span className="inline-flex items-center gap-1 text-[12.5px] font-heading font-semibold text-emerald-700">
+            <CheckCircle2 className="w-4 h-4" strokeWidth={2.5} />
+            Saved
+          </span>
+        )}
+        {existing && !justSaved && (
+          <span className="text-[11.5px] text-ink-muted">
+            Submitted {new Date(existing.submittedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+          </span>
+        )}
+      </div>
+    </form>
   );
 }
 
