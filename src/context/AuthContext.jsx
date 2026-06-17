@@ -10,6 +10,7 @@ import {
   activateDemoMode,
   deactivateDemoMode,
 } from "../lib/demoData";
+import { identifyUser, resetUser } from "../lib/observability";
 
 const AuthContext = createContext(null);
 
@@ -106,6 +107,9 @@ export function AuthProvider({ children }) {
   function login(token, userData) {
     localStorage.setItem("auth_token", token);
     setUser(userData);
+    // Identify the user to Sentry + PostHog so subsequent errors and events
+    // are attributed correctly. No-ops until #399 wires real DSN/keys.
+    identifyUser(userData);
   }
 
   function logout() {
@@ -113,6 +117,7 @@ export function AuthProvider({ children }) {
     deactivateDemoMode();
     setUser(null);
     setIsDemo(false);
+    resetUser();
   }
 
   function exitDemo() {

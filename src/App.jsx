@@ -41,6 +41,7 @@ import Login from "./pages/Login";
 import AuthVerify from "./pages/AuthVerify";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import TermsOfService from "./pages/TermsOfService";
+import Help from "./pages/Help";
 import Journal from "./pages/Journal";
 import JournalResult from "./pages/JournalResult";
 import JournalDashboard from "./pages/JournalDashboard";
@@ -127,6 +128,9 @@ export default function App() {
             <Route path="/auth/verify" element={<AuthVerify />} />
             <Route path="/privacy" element={<PrivacyPolicy />} />
             <Route path="/terms" element={<TermsOfService />} />
+            <Route path="/help" element={<Help />} />
+            <Route path="/contact" element={<Help />} />
+            <Route path="/nda" element={<Help />} />
 
             {/* ONBOARDING */}
             <Route path="/welcome" element={<WelcomeWizard />} />

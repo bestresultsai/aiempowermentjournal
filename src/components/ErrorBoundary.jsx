@@ -1,4 +1,5 @@
 import { Component } from "react";
+import { captureError } from "../lib/observability";
 
 // ---------------------------------------------------------------------------
 // ErrorBoundary — catches render-time errors in the child tree and shows a
@@ -22,6 +23,12 @@ export default class ErrorBoundary extends Component {
   componentDidCatch(error, info) {
     // eslint-disable-next-line no-console
     console.error("[ErrorBoundary]", error, info?.componentStack);
+    // Forward to Sentry when a DSN is configured. No-ops in dev/local.
+    captureError(error, {
+      source: "ErrorBoundary",
+      componentStack: info?.componentStack,
+      title: this.props.title || null,
+    });
   }
 
   reset = () => this.setState({ error: null });
