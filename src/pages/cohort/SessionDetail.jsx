@@ -564,8 +564,8 @@ function FeedbackPanel({ cohortSlug, sessionOrder, user }) {
         </h3>
       </div>
       <p className="text-[13px] text-ink-muted leading-relaxed max-w-xl">
-        Your facilitator sees this — be honest. Ratings + comments help us
-        sharpen the next sessions and the program overall.
+        We'd love to know what you thought about this session. Anything you
+        share helps your facilitator make the next one even better.
       </p>
 
       <div>
