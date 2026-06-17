@@ -33,6 +33,10 @@ import { useEffect, useState } from "react";
 // ---------------------------------------------------------------------------
 const AIEW3_BELTS = ["White", "Yellow", "Orange", "Green", "Blue", "Purple", "Brown", "Black"];
 
+// Sessions intentionally have NO default `videoUrl`. Recordings are uploaded
+// per-cohort via the session-customization flow on /admin/cohorts/:slug/...
+// SessionDetail only renders the player when a real recording exists, so the
+// placeholder video state ("Awaiting recording") is the default.
 const AIEW3_SESSIONS = [
   {
     order: 1,
@@ -41,7 +45,6 @@ const AIEW3_SESSIONS = [
     summary:
       "Set the foundation. Introductions, BRAI Platform overview, expectations, and the Critical Thinking framework for AI-driven decision making. Build your Role Matrix and prioritize use cases by % time saved and ease.",
     durationMinutes: 75,
-    videoUrl: "https://player.vimeo.com/video/76979871",
     materials: [
       { label: "White Belt Slides", url: "#", type: "pdf" },
       { label: "Role Matrix Template", url: "#", type: "doc" },
@@ -66,7 +69,6 @@ const AIEW3_SESSIONS = [
     summary:
       "Move from one-off prompts to powerful workflows. Master Comprehensive Context and Prompt Building done by AI, plus AI Self-Enhancement (3 Accelerators).",
     durationMinutes: 75,
-    videoUrl: "https://player.vimeo.com/video/76979871",
     materials: [
       { label: "Yellow Belt Slides", url: "#", type: "pdf" },
       { label: "Context & Prompt Building Accelerators", url: "#", type: "doc" },
@@ -89,7 +91,6 @@ const AIEW3_SESSIONS = [
     summary:
       "Stop being a one-person operation. Integrate Expert Advisors into your workflows and learn how to draw out the right context for advanced work (2 Accelerators).",
     durationMinutes: 75,
-    videoUrl: "https://player.vimeo.com/video/76979871",
     materials: [
       { label: "Orange Belt Slides", url: "#", type: "pdf" },
       { label: "Expert Advisor Templates", url: "#", type: "doc" },
@@ -112,7 +113,6 @@ const AIEW3_SESSIONS = [
     summary:
       "Build workflows you can trust to run again and again. Apply the Agent Building Templates and Best Practices to design assistants and agents for repeatable, high-stakes work.",
     durationMinutes: 75,
-    videoUrl: "https://player.vimeo.com/video/76979871",
     materials: [
       { label: "Green Belt Slides", url: "#", type: "pdf" },
       { label: "Agent Building Templates", url: "#", type: "doc" },
@@ -136,7 +136,6 @@ const AIEW3_SESSIONS = [
     summary:
       "Compose teams of professional AI personas to take on sophisticated projects — true 'insourcing' (Accelerator Collection). Move from individual contributor to AI manager.",
     durationMinutes: 75,
-    videoUrl: "https://player.vimeo.com/video/76979871",
     materials: [
       { label: "Blue Belt Slides", url: "#", type: "pdf" },
       { label: "AI Team Composition Guide", url: "#", type: "doc" },
@@ -159,7 +158,6 @@ const AIEW3_SESSIONS = [
     summary:
       "Agents that actually do the work. Cover autonomous task execution, deep autonomous research, scheduled/recurring agents, custom personas, connectors, computer/browser controls, persistent workspace context, artifact/doc/app creation, and coding tools.",
     durationMinutes: 75,
-    videoUrl: "https://player.vimeo.com/video/76979871",
     materials: [
       { label: "Purple Belt Slides", url: "#", type: "pdf" },
       { label: "Autonomous Agent Patterns", url: "#", type: "doc" },
@@ -182,7 +180,6 @@ const AIEW3_SESSIONS = [
     summary:
       "Once you have agents working, you need to keep them working. Cover Agent Quality Assurance and Orchestration — the prep for transitioning into a CEO AI OS posture.",
     durationMinutes: 75,
-    videoUrl: "https://player.vimeo.com/video/76979871",
     materials: [
       { label: "Brown Belt Slides", url: "#", type: "pdf" },
       { label: "Agent QA Framework", url: "#", type: "doc" },
@@ -205,7 +202,6 @@ const AIEW3_SESSIONS = [
     summary:
       "Capstone. Reflect on the journey, commit to forward plans, and earn your Black Belt. Custom assistants remember how to behave, agents do the work, scheduled agents do work later, connected agents touch real systems — yours, now.",
     durationMinutes: 75,
-    videoUrl: "https://player.vimeo.com/video/76979871",
     materials: [
       { label: "Black Belt Slides", url: "#", type: "pdf" },
       { label: "Capstone Submission Template", url: "#", type: "doc" },

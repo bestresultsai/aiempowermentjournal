@@ -38,7 +38,13 @@ import { getProgramForCohort, getSessionsCountForCohort, getBadgesForCohort } fr
 
 export default function CohortLanding() {
   const { user } = useAuth();
-  const { mode: viewAsMode } = useViewAs(user);
+  const { mode: viewAsMode, viewAsUser } = useViewAs(user);
+  // When admin previews as a specific participant (via the user-level
+  // view-as picker), every "you" surface — Welcome banner greeting, journal
+  // entries filter, streak — should reflect THAT participant, not the
+  // real signed-in admin. Without this, the banner says "Welcome Josue" on
+  // top of someone else's cohort, which breaks the preview illusion.
+  const displayedUser = viewAsMode === "participant" && viewAsUser ? viewAsUser : user;
   const [sessionFilter, setSessionFilter] = useState("all");
 
   const { cohort: realCohort, isLoading, error, resolvedFrom } = useResolvedCohort();
@@ -86,13 +92,15 @@ export default function CohortLanding() {
   const upNextOrder = upNextSession?.order;
   const currentBelt = upNextSession?.belt;
 
-  // Compute current user's journal streak for the Welcome banner badge.
+  // Compute the displayed user's journal streak for the Welcome banner badge.
+  // Reads from `displayedUser` so a previewed participant's chips line up
+  // with their actual entries, not the admin's.
   const userEntries = useMemo(() => {
-    if (!user?.email) return [];
+    if (!displayedUser?.email) return [];
     return cohortEntries.filter(
-      (e) => e.participantEmail?.toLowerCase() === user.email.toLowerCase()
+      (e) => e.participantEmail?.toLowerCase() === displayedUser.email.toLowerCase()
     );
-  }, [cohortEntries, user]);
+  }, [cohortEntries, displayedUser]);
   const streak = useMemo(() => calculateStreakWeeks(userEntries), [userEntries]);
 
   return (
@@ -100,7 +108,7 @@ export default function CohortLanding() {
       <NavBar />
       <main className="max-w-[1180px] mx-auto px-6 lg:px-8 py-8">
         <WelcomeBanner
-          user={user}
+          user={displayedUser}
           streak={streak}
           entries={userEntries}
           badges={cohort ? getBadgesForCohort(cohort) : undefined}
@@ -142,30 +150,32 @@ export default function CohortLanding() {
             <CertificateCallout cohort={cohort} user={user} />
 
 
-            {/* ==================== AI EMPOWERMENT JOURNAL ==================== */}
-            {showParticipantUI && (
-              <>
-                <div className="mt-6">
-                  <JournalGameCard
-                    entries={cohortEntries}
-                    currentUserEmail={user?.email}
-                    badges={getBadgesForCohort(cohort)}
-                  />
-                </div>
-                <NextMilestoneCard
-                  entries={cohortEntries}
-                  currentUserEmail={user?.email}
-                  badges={getBadgesForCohort(cohort)}
-                />
-                <div className="mt-6">
-                  <CohortLeaderboard
-                    entries={cohortEntries}
-                    badges={getBadgesForCohort(cohort)}
-                    highlightEmail={user?.email}
-                  />
-                </div>
-              </>
-            )}
+            {/* ==================== AI EMPOWERMENT JOURNAL ====================
+                Visible to everyone viewing the cohort page — these surfaces
+                handle their own empty states gracefully, and admins/dev
+                users previewing /home shouldn't lose the gamification view
+                just because they're not a formal cohort participant.
+                MissingHomeworkCard above stays gated since admins don't have
+                homework. */}
+            <div className="mt-6">
+              <JournalGameCard
+                entries={cohortEntries}
+                currentUserEmail={displayedUser?.email}
+                badges={getBadgesForCohort(cohort)}
+              />
+            </div>
+            <NextMilestoneCard
+              entries={cohortEntries}
+              currentUserEmail={displayedUser?.email}
+              badges={getBadgesForCohort(cohort)}
+            />
+            <div className="mt-6">
+              <CohortLeaderboard
+                entries={cohortEntries}
+                badges={getBadgesForCohort(cohort)}
+                highlightEmail={displayedUser?.email}
+              />
+            </div>
 
             {/* ==================== NDA ==================== */}
             {cohort.ndaRequired && <NDABanner />}

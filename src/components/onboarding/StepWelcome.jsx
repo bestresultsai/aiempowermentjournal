@@ -33,7 +33,7 @@ export default function StepWelcome({ firstName }) {
         <PreviewCard
           icon={Target}
           title="Your goals"
-          body="A few sentences on what brought you here. Your facilitator uses these in 1:1s."
+          body="A few sentences on what brought you here. Your facilitator uses these to tailor the cohort to you."
         />
         <PreviewCard
           icon={Trophy}

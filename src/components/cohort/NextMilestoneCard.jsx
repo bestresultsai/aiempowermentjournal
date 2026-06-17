@@ -104,7 +104,7 @@ export default function NextMilestoneCard({ entries = [], currentUserEmail, badg
           to="/journal"
           className="group inline-flex items-center gap-1.5 px-4 py-2.5 bg-white text-ink rounded-xl text-[13.5px] font-heading font-semibold hover:bg-surface-paper transition-colors duration-200 shrink-0"
         >
-          Log entry
+          New Journal Entry
           <ArrowRight className="w-4 h-4 transition-transform duration-200 group-hover:translate-x-0.5" strokeWidth={2.5} />
         </Link>
       </div>
@@ -141,7 +141,7 @@ function AllBadgesEarnedCard({ total }) {
           to="/journal"
           className="group inline-flex items-center gap-1.5 px-4 py-2.5 bg-white text-ink rounded-xl text-[13.5px] font-heading font-semibold hover:bg-surface-paper transition-colors duration-200 shrink-0"
         >
-          Log entry
+          New Journal Entry
           <ArrowRight className="w-4 h-4 transition-transform duration-200 group-hover:translate-x-0.5" strokeWidth={2.5} />
         </Link>
       </div>

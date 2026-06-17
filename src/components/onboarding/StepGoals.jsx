@@ -3,8 +3,8 @@ import { FormTextarea } from "./FormField";
 
 // ---------------------------------------------------------------------------
 // Step 3 — Goals. Two short prompts: "Why AI?" and the user's main cohort
-// goal. Both are required because they're the highest-leverage 1:1 prep
-// material for the facilitator.
+// goal. Both are required because they give the facilitator real material to
+// tailor the cohort experience to each participant.
 // ---------------------------------------------------------------------------
 
 export default function StepGoals({ form, update }) {
