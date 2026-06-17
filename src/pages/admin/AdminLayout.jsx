@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Users, BookCheck, GraduationCap, ArrowLeft,
   Shield, LogOut, ChevronDown, NotebookPen, Plus, User as UserIcon,
   Calendar as CalendarIcon, Building2, Lock, Eye, X, Library, Lightbulb,
-  MessageSquare, Quote,
+  MessageSquare, Quote, Mail,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import {
@@ -55,6 +55,9 @@ const NAV = [
   // Programs catalog — curriculum templates. Same permission gate as orgs:
   // creating a program is a platform-level write, not a per-cohort one.
   { to: "/admin/programs",     label: "Programs",      icon: Library, requires: "create" },
+  // Email templates — preview every transactional email the platform sends.
+  // Same permission gate as Programs (platform-level write surface).
+  { to: "/admin/emails",       label: "Emails",        icon: Mail, requires: "create" },
   // Resources library — curated content (videos, prompts, templates) shown
   // to participants on /resources. Available to anyone who can manage the
   // platform; per-cohort facilitators don't need this surface.

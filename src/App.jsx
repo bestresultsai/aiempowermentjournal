@@ -19,6 +19,7 @@ import AdminJournalDashboard from "./pages/admin/AdminJournalDashboard";
 import AdminInnovations from "./pages/admin/AdminInnovations";
 import AdminFeedback from "./pages/admin/AdminFeedback";
 import AdminTestimonials from "./pages/admin/AdminTestimonials";
+import AdminEmails from "./pages/admin/AdminEmails";
 import AdminHomeworkQueue from "./pages/admin/AdminHomeworkQueue";
 import AdminCalendar from "./pages/admin/AdminCalendar";
 import AdminParticipants from "./pages/admin/AdminParticipants";
@@ -256,6 +257,7 @@ export default function App() {
               <Route path="innovations" element={<AdminInnovations />} />
               <Route path="feedback" element={<AdminFeedback />} />
               <Route path="testimonials" element={<AdminTestimonials />} />
+              <Route path="emails" element={<AdminEmails />} />
               <Route path="homework" element={<AdminHomeworkQueue />} />
               <Route path="calendar" element={<AdminCalendar />} />
               {/* Participants list + per-participant detail. */}
