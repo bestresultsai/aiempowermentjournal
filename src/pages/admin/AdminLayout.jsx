@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Users, BookCheck, GraduationCap, ArrowLeft,
   Shield, LogOut, ChevronDown, NotebookPen, Plus, User as UserIcon,
   Calendar as CalendarIcon, Building2, Lock, Eye, X, Library, Lightbulb,
-  MessageSquare,
+  MessageSquare, Quote,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import {
@@ -43,6 +43,8 @@ const NAV = [
   { to: "/admin/innovations",  label: "Innovations",   icon: Lightbulb },
   // Feedback — facilitator + admin view of per-session participant feedback.
   { to: "/admin/feedback",     label: "Feedback",      icon: MessageSquare },
+  // Testimonials — review queue for program-completion testimonials.
+  { to: "/admin/testimonials", label: "Testimonials",  icon: Quote },
   // Homework is the facilitator's grading queue — org admins don't grade,
   // so this stays gated to roles that can act on submissions.
   { to: "/admin/homework",     label: "Homework",      icon: BookCheck, requires: "grade" },

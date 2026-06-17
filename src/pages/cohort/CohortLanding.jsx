@@ -10,6 +10,7 @@ import JournalGameCard from "../../components/cohort/JournalGameCard";
 import NextMilestoneCard from "../../components/cohort/NextMilestoneCard";
 import CohortLeaderboard from "../../components/cohort/CohortLeaderboard";
 import CohortStats from "../../components/cohort/CohortStats";
+import TestimonialPromptCard from "../../components/cohort/TestimonialPromptCard";
 import SessionRow from "../../components/cohort/SessionRow";
 import AddToCalendar from "../../components/AddToCalendar";
 import { useAuth } from "../../context/AuthContext";
@@ -148,6 +149,18 @@ export default function CohortLanding() {
               <ProgressBand cohort={cohort} currentBelt={currentBelt} />
             </div>
             <CertificateCallout cohort={cohort} user={user} />
+            {/* Testimonial prompt — appears once the participant has earned
+                their certificate. Renders nothing otherwise (unless they've
+                already submitted, in which case editing stays available). */}
+            <TestimonialPromptCard
+              user={displayedUser}
+              cohort={cohort}
+              eligible={(() => {
+                const completed = cohort?.progress?.completed ?? 0;
+                const total = cohort?.progress?.total ?? cohort?.sessions?.length ?? 0;
+                return total > 0 && completed >= total;
+              })()}
+            />
 
 
             {/* ==================== AI EMPOWERMENT JOURNAL ====================
