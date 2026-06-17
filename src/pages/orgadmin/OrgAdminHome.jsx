@@ -8,6 +8,7 @@ import NavBar from "../../components/NavBar";
 import Select from "../../components/Select";
 import GamificationStrip from "../../components/cohort/GamificationStrip";
 import CohortLeaderboard from "../../components/cohort/CohortLeaderboard";
+import CohortMiniStrip from "../../components/cohort/CohortMiniStrip";
 import { useAuth } from "../../context/AuthContext";
 import {
   getAccessibleCohorts, getAccessibleOrgs,
@@ -326,6 +327,15 @@ function CohortCard({ cohort, participants }) {
   const minutes = cohortParticipants.reduce((sum, p) =>
     sum + (p.journalEntries || []).reduce((s, e) => s + timeSavedFor(e), 0), 0,
   );
+  // Per-cohort entries (with email) for the gamification mini-strip below.
+  const cohortEntries = cohortParticipants.flatMap((p) =>
+    (p.journalEntries || []).map((e) => ({
+      ...e,
+      participantId: p.id,
+      participantName: p.name,
+      participantEmail: p.email,
+    })),
+  );
   return (
     <Link
       to={`/admin/cohorts/${cohort.slug}`}
@@ -356,6 +366,7 @@ function CohortCard({ cohort, participants }) {
           </span>
         </div>
       </div>
+      <CohortMiniStrip entries={cohortEntries} />
     </Link>
   );
 }

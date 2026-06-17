@@ -20,7 +20,7 @@ const PUBLIC_PATHS = ["/", "/login", "/auth/verify"];
 
 export default function OnboardingGate({ children }) {
   const { user, loading, needsOnboarding } = useAuth();
-  const { pathname } = useLocation();
+  const { pathname, search } = useLocation();
 
   // While auth is resolving, render whatever the route would normally render.
   // (Each page already handles its own "you need to sign in" state, so no
@@ -31,12 +31,16 @@ export default function OnboardingGate({ children }) {
 
   const isPublic = PUBLIC_PATHS.includes(pathname);
   const onWelcome = pathname === "/welcome";
+  // ?preview=1 lets an already-onboarded admin/facilitator open /welcome to
+  // QA the participant wizard without resetting their own onboarding state.
+  // Without this escape hatch the gate would bounce them straight to /home.
+  const isPreviewingOnboarding = onWelcome && new URLSearchParams(search).get("preview") === "1";
 
   if (needsOnboarding && !onWelcome && !isPublic) {
     return <Navigate to="/welcome" replace />;
   }
 
-  if (!needsOnboarding && onWelcome) {
+  if (!needsOnboarding && onWelcome && !isPreviewingOnboarding) {
     return <Navigate to="/home" replace />;
   }
 

@@ -6,6 +6,7 @@ import {
 import { BELT_COLORS } from "../../lib/mockCohort";
 import { DEFAULT_CERTIFICATE, DEFAULT_BADGES } from "../../lib/programs";
 import MaterialsEditor, { normalizeMaterials } from "./MaterialsEditor";
+import JournalGameCard from "../cohort/JournalGameCard";
 
 // Lucide icon names available for badges. Keep in sync with the BADGE_ICONS
 // map in JournalGameCard / NextMilestoneCard so anything the editor picks
@@ -825,6 +826,91 @@ function BadgesSection({ badges, onChange }) {
         <Plus className="w-3.5 h-3.5" strokeWidth={2.5} />
         Add badge
       </button>
+
+      <BadgesPreviewPane badges={rows} />
     </section>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// BadgesPreviewPane — renders JournalGameCard against synthetic entries at
+// a few entry-count milestones (0, 1, mid-ladder, last threshold) so admins
+// can see exactly what their participants will see at each stage. Live
+// updates as the editor changes.
+// ---------------------------------------------------------------------------
+function BadgesPreviewPane({ badges }) {
+  // Pull out a sane preview ladder. If the editor is mid-edit and a row is
+  // missing a name, drop it — JournalGameCard would crash on empty names.
+  const ladder = (badges || []).filter(
+    (b) => b && (b.name || "").trim() && Number(b.count) > 0,
+  );
+  if (ladder.length === 0) return null;
+
+  // Pick milestone snapshots: empty → first → mid → top.
+  const sorted = [...ladder].sort((a, b) => a.count - b.count);
+  const first = sorted[0]?.count || 1;
+  const last = sorted[sorted.length - 1]?.count || 1;
+  const mid = sorted[Math.floor(sorted.length / 2)]?.count || 5;
+  const snapshots = [
+    { label: "Brand-new participant", count: 0 },
+    { label: `1 entry — ${sorted[0].name} unlocked`, count: first },
+    { label: `${mid} entries — mid-ladder`, count: mid },
+    { label: `${last} entries — top of ladder`, count: last },
+  ];
+
+  return (
+    <div className="mt-6 pt-5 border-t border-soft">
+      <div className="text-[10.5px] font-heading font-bold uppercase tracking-wider text-ink-muted mb-2">
+        Live preview
+      </div>
+      <p className="text-[12px] text-ink-muted mb-4 max-w-xl">
+        How the JournalGameCard renders at four sample entry counts against
+        this ladder. Edit any row above to see the preview update.
+      </p>
+      <div className="grid lg:grid-cols-2 gap-4">
+        {snapshots.map((snap) => (
+          <BadgePreviewCard
+            key={snap.count + snap.label}
+            label={snap.label}
+            count={snap.count}
+            ladder={ladder}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function BadgePreviewCard({ label, count, ladder }) {
+  // Build N synthetic entries dated within the current week so the empty
+  // state, streak, and next-milestone math all compute realistically.
+  const entries = useMemo(() => {
+    const now = Date.now();
+    return Array.from({ length: count }, (_, i) => ({
+      id: `preview-${i}`,
+      date: new Date(now - i * 86400000).toISOString(),
+      title: `Sample entry ${i + 1}`,
+      description: "Preview content",
+      timeBeforeAI: 60,
+      timeWithAI: 15,
+      productionMethod: "ai-workflow",
+      participantEmail: "preview@bestresults.ai",
+      participantName: "Preview Participant",
+    }));
+  }, [count]);
+
+  return (
+    <div className="rounded-xl border border-soft bg-surface-soft/30 p-3">
+      <div className="text-[11px] font-heading font-semibold text-ink-muted mb-2">
+        {label}
+      </div>
+      <div className="bg-surface-paper rounded-lg p-2 scale-[0.85] origin-top">
+        <JournalGameCard
+          entries={entries}
+          currentUserEmail="preview@bestresults.ai"
+          badges={ladder}
+        />
+      </div>
+    </div>
   );
 }

@@ -301,6 +301,18 @@ function AdminUserMenu({ user, roleLabel, onLogout }) {
             <UserIcon className="w-4 h-4 text-ink-muted" strokeWidth={2} />
             View profile
           </button>
+          {/* Preview onboarding — opens the participant /welcome wizard
+              without resetting the admin's own onboarding state. The
+              ?preview=1 flag bypasses the OnboardingGate redirect. Useful
+              for QA + sales demos. */}
+          <button
+            type="button"
+            onClick={() => { setOpen(false); navigate("/welcome?preview=1"); }}
+            className="w-full px-4 py-2.5 text-left text-[13.5px] font-heading font-medium text-ink hover:bg-surface-soft transition-colors inline-flex items-center gap-2.5"
+          >
+            <Eye className="w-4 h-4 text-ink-muted" strokeWidth={2} />
+            Preview onboarding
+          </button>
           {/* View as — admin can step down to any lower role to preview the
               platform from that role's perspective. Persists across pages
               via the view-as banner; the existing "Participant view" entry

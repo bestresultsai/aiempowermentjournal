@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import NavBar from "../../components/NavBar";
 import GamificationStrip from "../../components/cohort/GamificationStrip";
+import CohortMiniStrip from "../../components/cohort/CohortMiniStrip";
 import { useAuth } from "../../context/AuthContext";
 import { getAccessibleCohorts } from "../../lib/adminRoles";
 import { getAllCohortsForAdmin, useCohortVersion } from "../../lib/cohortAdmin";
@@ -379,6 +380,19 @@ function CohortCard({ cohort }) {
     ? new Date(nextSession.date).toLocaleDateString("en-US", { month: "short", day: "numeric" })
     : "—";
 
+  // Per-cohort journal entries (with email stamped) for the gamification
+  // mini-strip below. Cheap pass — ~5 participants × ~3 entries per cohort.
+  const cohortEntries = ADMIN_MOCK_PARTICIPANTS
+    .filter((p) => p.cohortSlug === cohort.slug)
+    .flatMap((p) =>
+      (p.journalEntries || []).map((e) => ({
+        ...e,
+        participantId: p.id,
+        participantName: p.name,
+        participantEmail: p.email,
+      })),
+    );
+
   return (
     <Link
       to={`/admin/cohorts/${cohort.slug}`}
@@ -407,6 +421,7 @@ function CohortCard({ cohort }) {
           </span>
         </div>
       </div>
+      <CohortMiniStrip entries={cohortEntries} />
       <div className="inline-flex items-center gap-1 text-[11.5px] font-heading font-bold text-brand-700 group-hover:text-brand-800">
         Open cohort
         <ExternalLink className="w-3 h-3" strokeWidth={2.5} />
