@@ -16,8 +16,9 @@ export default function Footer() {
 
   return (
     <footer className="border-t border-soft bg-surface-paper mt-16">
-      <div className="max-w-[1180px] mx-auto px-6 lg:px-8 py-8 flex items-center justify-between gap-6 flex-wrap">
-        {/* Left — small logo + copyright */}
+      <div className="max-w-[1180px] mx-auto px-6 lg:px-8 py-8 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 sm:gap-6 sm:flex-wrap">
+        {/* Left — small logo + copyright. Stacks on phone so the copyright
+            never wraps awkwardly against the logo. */}
         <div className="flex items-center gap-4 opacity-80">
           <Logo size="sm" />
           <div className="hidden sm:block w-px h-6 bg-soft" />

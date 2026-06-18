@@ -181,6 +181,7 @@ function UserMenu({ user, onLogout, withDivider = true }) {
   const ref = useRef(null);
   const navigate = useNavigate();
   const { isLeader } = useCohortLeader();
+  const homePath = homePathForRole(user);
   // View-as switcher. Available options depend on the user's real role.
   const {
     mode: viewAsMode,
@@ -232,6 +233,46 @@ function UserMenu({ user, onLogout, withDivider = true }) {
           <div className="px-4 py-3 border-b border-soft">
             <div className="text-[13.5px] font-heading font-bold text-ink truncate">{user.name}</div>
             <div className="text-[11.5px] text-ink-muted truncate mt-0.5">{user.email}</div>
+          </div>
+          {/* Mobile-only primary nav. The full-width nav row above is hidden
+              below md (768px). Without these entries phone users have no way
+              to navigate between the main app sections from NavBar. */}
+          <div className="md:hidden border-b border-soft">
+            <button
+              onClick={() => { setOpen(false); navigate(homePath); }}
+              className="w-full px-4 py-2.5 text-left text-[13.5px] font-heading font-medium text-ink hover:bg-surface-soft transition-colors inline-flex items-center gap-2.5"
+            >
+              <HomeIcon className="w-4 h-4 text-ink-muted" strokeWidth={2} />
+              Home
+            </button>
+            <button
+              onClick={() => { setOpen(false); navigate("/journey"); }}
+              className="w-full px-4 py-2.5 text-left text-[13.5px] font-heading font-medium text-ink hover:bg-surface-soft transition-colors inline-flex items-center gap-2.5"
+            >
+              <GraduationCap className="w-4 h-4 text-ink-muted" strokeWidth={2} />
+              Journey
+            </button>
+            <button
+              onClick={() => { setOpen(false); navigate("/journal"); }}
+              className="w-full px-4 py-2.5 text-left text-[13.5px] font-heading font-medium text-ink hover:bg-surface-soft transition-colors inline-flex items-center gap-2.5"
+            >
+              <NotebookPen className="w-4 h-4 text-ink-muted" strokeWidth={2} />
+              Journal
+            </button>
+            <button
+              onClick={() => { setOpen(false); navigate("/resources"); }}
+              className="w-full px-4 py-2.5 text-left text-[13.5px] font-heading font-medium text-ink hover:bg-surface-soft transition-colors inline-flex items-center gap-2.5"
+            >
+              <Library className="w-4 h-4 text-ink-muted" strokeWidth={2} />
+              Resources
+            </button>
+            <button
+              onClick={() => { setOpen(false); navigate("/journal/new"); }}
+              className="w-full px-4 py-2.5 text-left text-[13.5px] font-heading font-medium text-brand-700 hover:bg-surface-soft transition-colors inline-flex items-center gap-2.5"
+            >
+              <Plus className="w-4 h-4" strokeWidth={2.5} />
+              New journal entry
+            </button>
           </div>
           <button
             onClick={() => { setOpen(false); navigate("/settings"); }}
