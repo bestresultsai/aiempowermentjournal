@@ -103,9 +103,16 @@ These map to env var names in Netlify like this:
 1. Go to **https://resend.com** → **Sign up** with `josue@bestresults.ai`.
 2. Verify your email.
 3. Click **Domains** in the left nav → **Add Domain**.
-   - Domain: `tools.bestresults.ai`
+   - Domain: `bestresults.ai` (the **root** domain — not a subdomain).
+     This is intentional: sender domain should be stable across future
+     app re-platforming. `tools.bestresults.ai` was the initial choice but
+     we're decoupling email from app URL.
    - Region: **N. Virginia (us-east-1)**.
-4. Resend will show you DNS records (SPF, DKIM, return-path). **Don't add them yet** — we'll batch the DNS work in section 6.
+   - If you already added `tools.bestresults.ai`, leave it for now (no
+     harm) and add `bestresults.ai` as a second domain. We'll only use the
+     root one going forward.
+4. Resend will show you DNS records (SPF, DKIM, return-path) for the new
+   domain. **Don't add them yet** — we'll batch the DNS work in section 6.
 5. Click **API Keys** → **Create API Key**.
    - Name: `brai-staging`
    - Permission: **Sending access**
