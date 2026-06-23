@@ -70,7 +70,9 @@ Each section is one external dependency. For each one:
    - Create a bucket called `headshots` — **Private** (only authenticated users see them).
    - Create a bucket called `homework` — **Private**.
    - Create a bucket called `materials` — **Private**.
-   - Create a bucket called `public` — **Public** (for brand assets that we want CDN-served).
+   - Create a bucket called `brand` — **Public** (for logos + certificate
+     assets that we want CDN-served). Don't try to name this `public` —
+     Supabase reserves that name for the default API schema.
 
 ### Values to save
 

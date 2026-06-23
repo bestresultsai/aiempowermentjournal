@@ -20,7 +20,7 @@
 // Storage helpers:
 //
 //   await db.uploadFile("headshots", `${profileId}.png`, file)
-//   db.getPublicUrl("public", "brand/logo.svg")
+//   db.getPublicUrl("brand", "logos/horizontal-color.svg")
 // ---------------------------------------------------------------------------
 
 import { initSupabase, SupabaseNotReady } from "./supabase";
