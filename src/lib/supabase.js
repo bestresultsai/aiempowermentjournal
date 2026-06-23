@@ -8,7 +8,8 @@
 // Env vars (set per branch in Netlify):
 //
 //   VITE_SUPABASE_URL
-//   VITE_SUPABASE_ANON_KEY
+//   VITE_SUPABASE_PUBLISHABLE_KEY    (new format, sb_publishable_*)
+//   VITE_SUPABASE_ANON_KEY           (legacy alias, still accepted)
 //
 // Same runtime-import trick used in observability.js so the @supabase/supabase-js
 // package doesn't have to be installed at build time. Once Phase 1 is wired
@@ -24,7 +25,12 @@
 // ---------------------------------------------------------------------------
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || "";
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || "";
+// Accept either the new "publishable" key (sb_publishable_*) or the legacy
+// "anon" key. Both work with @supabase/supabase-js identically.
+const SUPABASE_PUBLISHABLE_KEY =
+  import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ||
+  import.meta.env.VITE_SUPABASE_ANON_KEY ||
+  "";
 const ENV_NAME = import.meta.env.VITE_ENV_NAME || import.meta.env.MODE || "development";
 
 let _client = null;
@@ -45,7 +51,7 @@ export async function initSupabase() {
   if (_initPromise) return _initPromise;
 
   _initPromise = (async () => {
-    if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+    if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) {
       // No env vars → platform stays on localStorage demo mode. Expected
       // during Phase 0 (today) and Phase 1 before keys land.
       return null;
@@ -57,7 +63,7 @@ export async function initSupabase() {
       if (typeof createClient !== "function") {
         throw new Error("createClient export not found on @supabase/supabase-js");
       }
-      _client = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+      _client = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
         auth: {
           persistSession: true,
           autoRefreshToken: true,
@@ -138,7 +144,7 @@ export function onAuthStateChange(callback) {
  */
 export function supabaseStatus() {
   return {
-    configured: !!(SUPABASE_URL && SUPABASE_ANON_KEY),
+    configured: !!(SUPABASE_URL && SUPABASE_PUBLISHABLE_KEY),
     ready: _ready,
     url: SUPABASE_URL ? SUPABASE_URL.replace(/^https?:\/\//, "").split(".")[0] : null,
     env: ENV_NAME,

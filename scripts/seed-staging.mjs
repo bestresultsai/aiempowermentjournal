@@ -5,8 +5,10 @@
 // Run with:
 //
 //   SUPABASE_URL=https://xxx.supabase.co \
-//   SUPABASE_SERVICE_ROLE_KEY=eyJ... \
+//   SUPABASE_SECRET_KEY=sb_secret_xxx \
 //   node scripts/seed-staging.mjs
+//
+// (Legacy SUPABASE_SERVICE_ROLE_KEY also accepted.)
 //
 // Or, more practically, after `cp .env.example .env.local` and filling in
 // values, use a small wrapper:
@@ -32,10 +34,14 @@
 import { createClient } from "@supabase/supabase-js";
 
 const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
-const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+// Accept either the new "secret key" (sb_secret_*) or the legacy
+// service_role JWT. Both have the same privileges from the SDK's perspective.
+const SERVICE_KEY =
+  process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 if (!SUPABASE_URL || !SERVICE_KEY) {
-  console.error("Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY in env.");
+  console.error("Missing SUPABASE_URL or SUPABASE_SECRET_KEY in env.");
+  console.error("(SUPABASE_SERVICE_ROLE_KEY also accepted for legacy keys.)");
   console.error("Set them in .env.local, then run with --env-file=.env.local");
   process.exit(1);
 }

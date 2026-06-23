@@ -39,14 +39,33 @@ Each section is one external dependency. For each one:
    - Pricing plan: **Free**.
 5. Wait ~2 min for the project to provision.
 6. Once provisioned, go to **Project Settings → API**.
-   - Copy the **Project URL** (looks like `https://xxx.supabase.co`)
-   - Copy the **`anon` `public` key** (the long JWT)
-   - Copy the **`service_role` `secret` key** (the other long JWT — treat like a password)
-7. Go to **Project Settings → Auth → Email**.
-   - **Enable email signups:** turn this **off** for now. We'll use magic links only.
-   - **Enable email confirmations:** off.
-   - **Enable magic links:** on.
-   - Site URL: leave blank for now (we'll fill in once Netlify staging exists).
+   - Copy the **Project URL** — just the bare hostname like
+     `https://xxx.supabase.co`. **Drop any `/rest/v1/` path** — that's the
+     REST endpoint, not what the SDK expects. No trailing slash either.
+7. Go to **Project Settings → API Keys** (left nav).
+   - Stay on the **"Publishable and secret API keys"** tab (the new format).
+     The "Legacy anon, service_role API keys" tab still works but is being
+     phased out — prefer the new format.
+   - Copy the **Publishable key** (`sb_publishable_*`). Safe to ship in the
+     browser bundle — RLS controls what each user sees.
+   - Copy the **Secret key** (`sb_secret_*`). Treat like a password. Used
+     only by the seed script + future Netlify Functions.
+8. Go to **Authentication → Sign In / Providers** (left nav).
+   - **User Signups → Allow new users to sign up:** leave **OFF**. We're
+     invite-only — only users that exist in `auth.users` (seeded by us) can
+     sign in.
+   - **Confirm email:** OFF. Magic links handle verification implicitly.
+   - Scroll to **Auth Providers** → click the **Email** row.
+   - Toggle **Enable Email provider: ON**. This is where magic links live in
+     the new UI — there's no separate "magic links" switch, they're part of
+     the Email provider.
+   - Inside the Email provider: leave **Confirm email** OFF; leave
+     **Secure email change** ON (default).
+   - Save.
+   - Note on the new UI: there is no longer a standalone "Enable magic
+     links" toggle. As long as the Email provider is on and you call
+     `supabase.auth.signInWithOtp({ email })` from the app, the user gets a
+     magic link. The platform's existing login flow already does this.
 8. Go to **Storage** in the left nav.
    - Create a bucket called `headshots` — **Private** (only authenticated users see them).
    - Create a bucket called `homework` — **Private**.
@@ -56,11 +75,20 @@ Each section is one external dependency. For each one:
 ### Values to save
 
 ```
-SUPABASE_PROJECT_URL = https://___________.supabase.co
-SUPABASE_ANON_KEY    = eyJhbGc...                  (long JWT)
-SUPABASE_SERVICE_KEY = eyJhbGc...                  (long JWT, secret)
-SUPABASE_DB_PASSWORD = ____________________        (the one you generated in step 4)
+SUPABASE_PROJECT_URL    = https://___________.supabase.co
+SUPABASE_PUBLISHABLE_KEY = sb_publishable_xxxxx          (browser-safe)
+SUPABASE_SECRET_KEY      = sb_secret_xxxxx               (treat like a password)
+SUPABASE_DB_PASSWORD    = ____________________           (from step 4)
 ```
+
+These map to env var names in Netlify like this:
+
+| Save under | Netlify env var | Used by |
+|---|---|---|
+| `SUPABASE_PROJECT_URL` | `VITE_SUPABASE_URL` | Browser |
+| `SUPABASE_PUBLISHABLE_KEY` | `VITE_SUPABASE_PUBLISHABLE_KEY` | Browser |
+| `SUPABASE_SECRET_KEY` | `SUPABASE_SECRET_KEY` | Seed script + Netlify Functions only — **never** `VITE_*` |
+| `SUPABASE_DB_PASSWORD` | n/a | Only if you use `psql` directly |
 
 ---
 
@@ -154,14 +182,15 @@ POSTHOG_HOST = https://us.i.posthog.com
 | Key | Value | Scope |
 |---|---|---|
 | `VITE_SUPABASE_URL` | (from section 1) | staging branch |
-| `VITE_SUPABASE_ANON_KEY` | (from section 1) | staging branch |
-| `VITE_RESEND_API_KEY` | (from section 2) | staging branch — server-side only, used by Netlify Functions later |
+| `VITE_SUPABASE_PUBLISHABLE_KEY` | (from section 1, `sb_publishable_*`) | staging branch |
+| `SUPABASE_SECRET_KEY` | (from section 1, `sb_secret_*`) | staging branch — **NO `VITE_` prefix** so it stays out of the browser |
+| `RESEND_API_KEY` | (from section 2) | staging branch — server-side only, used by Netlify Functions later. **NO `VITE_` prefix.** |
 | `VITE_SENTRY_DSN` | (from section 3) | staging branch |
 | `VITE_POSTHOG_KEY` | (from section 4) | staging branch |
 | `VITE_POSTHOG_HOST` | (from section 4) | staging branch |
 | `VITE_ENV_NAME` | `staging` | staging branch |
 
-**Note on `VITE_RESEND_API_KEY`:** Vite exposes any `VITE_*` env var to the browser bundle. Resend keys must NEVER end up in the bundle — they'll be moved to a Netlify Function during Phase 3. For now leave the variable defined but don't reference it from app code yet. Claude will set this up correctly in the email-send Netlify Function.
+**Why two prefix conventions:** Vite exposes every `VITE_*` env var to the browser bundle. Anything without that prefix is server-side only — invisible to the browser. The Supabase publishable key + Sentry DSN + PostHog key are safe in the browser; the Supabase secret key + Resend API key are not. The naming difference is the safety boundary.
 
 ### Values to confirm
 
