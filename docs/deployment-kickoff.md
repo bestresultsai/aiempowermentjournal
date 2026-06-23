@@ -155,9 +155,16 @@ SENTRY_DSN = https://xxx@yyy.ingest.sentry.io/zzz
 2. Choose **US Cloud** (matches where most participants are).
 3. Organization: `BestResults.AI`.
 4. Project name: `BRAI Platform`.
-5. After signup you land on the project overview. Go to **Project Settings** (gear icon, bottom-left) → **Project Variables**.
-   - Copy the **Project API Key** (`phc_xxxxx`).
-   - Note the **API Host** — should be `https://us.i.posthog.com` for US Cloud.
+5. After signup you land on the project overview. Click **Settings** (gear
+   icon, bottom-left) → **Project → General**. PostHog renamed the keys
+   in 2025 — what used to be "Project API Key" is now under the
+   **"Project token & ID"** section at the top of the General page.
+   - Copy the **Project token** (`phc_xxxxx`). This is the public/safe key
+     that goes in the browser bundle.
+   - For the **API Host**, check the **Region** field on the same page. If
+     it says "US Cloud", the host is `https://us.i.posthog.com`. (The SDK
+     setup snippet below the keys section confirms it — look at the
+     `api_host` line.)
 
 ### Values to save
 
