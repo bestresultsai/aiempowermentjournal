@@ -1,20 +1,15 @@
 // ---------------------------------------------------------------------------
 // Supabase client wrapper.
 //
-// Initializes the Supabase client lazily when env vars are present. Until
-// they are, every read returns null and every write throws SupabaseNotReady,
-// which the overlay stores in src/lib/* fall back from to localStorage.
+// Initializes the Supabase client when env vars are present. Until they are,
+// every read returns null and every write throws SupabaseNotReady, which the
+// overlay stores in src/lib/* fall back from to localStorage.
 //
 // Env vars (set per branch in Netlify):
 //
 //   VITE_SUPABASE_URL
 //   VITE_SUPABASE_PUBLISHABLE_KEY    (new format, sb_publishable_*)
 //   VITE_SUPABASE_ANON_KEY           (legacy alias, still accepted)
-//
-// Same runtime-import trick used in observability.js so the @supabase/supabase-js
-// package doesn't have to be installed at build time. Once Phase 1 is wired
-// in (`npm install @supabase/supabase-js`), this file will still work — the
-// _runtimeImport just becomes a real dynamic import that Vite can chunk.
 //
 // Public API:
 //
@@ -23,6 +18,8 @@
 //   supabaseStatus()     → diagnostic object for the admin /system page
 //   onAuthStateChange(cb)→ wraps the supabase listener, returns unsubscribe
 // ---------------------------------------------------------------------------
+
+import { createClient } from "@supabase/supabase-js";
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || "";
 // Accept either the new "publishable" key (sb_publishable_*) or the legacy
@@ -37,10 +34,6 @@ let _client = null;
 let _ready = false;
 let _initPromise = null;
 let _initError = null;
-
-// Hide the dynamic import from Rollup until @supabase/supabase-js is
-// installed in package.json. Swap for a plain `await import(name)` after.
-const _runtimeImport = new Function("m", "return import(m)");
 
 /**
  * Initialize the Supabase client. Idempotent — calling multiple times returns
@@ -58,11 +51,6 @@ export async function initSupabase() {
     }
 
     try {
-      const mod = await _runtimeImport("@supabase/supabase-js");
-      const createClient = mod.createClient || (mod.default && mod.default.createClient);
-      if (typeof createClient !== "function") {
-        throw new Error("createClient export not found on @supabase/supabase-js");
-      }
       _client = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
         auth: {
           persistSession: true,
@@ -77,10 +65,8 @@ export async function initSupabase() {
       return _client;
     } catch (err) {
       _initError = err;
-      // Expected today — SDK not yet installed. Demoted to debug so the
-      // console doesn't spam during development.
       // eslint-disable-next-line no-console
-      console.debug("[supabase] SDK not present yet — staying in demo mode.", err?.message || err);
+      console.error("[supabase] Failed to initialize client.", err?.message || err);
       return null;
     }
   })();
