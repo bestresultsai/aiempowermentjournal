@@ -941,6 +941,7 @@ export function submitHomeworkAsParticipant(email, sessionOrder, { response, lin
     updatedAt: p.submissions[order].updatedAt,
   };
   persistStoredReviews(stored);
+  mirrorHomeworkToSupabase(p, order, p.submissions[order]);
   return p.submissions[order];
 }
 
@@ -971,6 +972,7 @@ export function submitJournalEntryAsParticipant(email, payload) {
   if (!Array.isArray(p.journalEntries)) p.journalEntries = [];
   p.journalEntries = [newEntry, ...p.journalEntries];
   p.lastJournalDaysAgo = 0;
+  mirrorJournalEntryToSupabase(p, newEntry);
   return newEntry;
 }
 
@@ -982,6 +984,7 @@ export function markSessionCompleteForParticipant(email, sessionOrder, completed
   const set = new Set(p.progress || []);
   if (completed) set.add(ord); else set.delete(ord);
   p.progress = [...set].sort((a, b) => a - b);
+  mirrorSessionProgressToSupabase(p, ord, completed);
   return p.progress;
 }
 
@@ -997,6 +1000,7 @@ export function markHomeworkReviewed(participantId, sessionOrder, feedback) {
   const stored = loadStoredReviews();
   stored[`${participantId}::${sessionOrder}`] = { reviewedAt, feedback };
   persistStoredReviews(stored);
+  mirrorHomeworkToSupabase(p, sessionOrder, p.submissions[sessionOrder]);
   return p.submissions[sessionOrder];
 }
 
@@ -1011,6 +1015,7 @@ export function unmarkHomeworkReviewed(participantId, sessionOrder) {
   const stored = loadStoredReviews();
   delete stored[`${participantId}::${sessionOrder}`];
   persistStoredReviews(stored);
+  mirrorHomeworkToSupabase(p, sessionOrder, sub);
   return sub;
 }
 
@@ -1802,6 +1807,221 @@ function resolveSupabaseCohortId(slug) {
 // Update the matching profile + (optionally) upsert the cohort_participants
 // link row. Only runs for participants whose email already has a Supabase
 // profile — net-new auth users need a server endpoint.
+// ---------------------------------------------------------------------------
+// Round B — activity hydration: journal entries, homework submissions,
+// session progress. Each table is hydrated in parallel, grouped by
+// profile_id, then attached to the matching participant via their
+// _supabaseProfileId. Best-effort write mirrors run on submit/review/
+// mark-complete.
+//
+// IMPORTANT: legacy participants (those without _supabaseProfileId) keep
+// their seed activity unchanged. Only Supabase-hydrated participants get
+// their activity arrays populated from Postgres.
+// ---------------------------------------------------------------------------
+
+let activityHydrated = false;
+let activityHydratePromise = null;
+
+function journalRowToEntry(row) {
+  return {
+    id: row.id,
+    _supabaseId: row.id,
+    date: row.created_at,
+    title: row.title || "",
+    description: row.body || "",
+    timeBeforeAI: row.time_before_ai,
+    timeWithAI: row.time_with_ai,
+    productionMethod: row.production_method,
+    volumePerDay: row.volume_per_day,
+    frequency: row.frequency,
+    scope: row.scope,
+    qualityOutcome: row.quality_outcome,
+    innovationTitle: row.innovation_title,
+    innovationDescription: row.innovation_description,
+    link: row.link,
+    attachment: null, // attachments JSONB lands when storage uploads ship
+    cohortId: row.cohort_id,
+    sessionNumber: row.session_number,
+  };
+}
+
+function homeworkRowToSubmission(row) {
+  return {
+    _supabaseId: row.id,
+    response: row.body || "",
+    link: row.link || "",
+    attachment: null,
+    submittedAt: row.submitted_at || row.created_at,
+    updatedAt: row.updated_at,
+    reviewedAt: row.reviewed_at || undefined,
+    feedback: row.reviewer_notes || undefined,
+  };
+}
+
+export async function hydrateActivityFromSupabase({ force = false } = {}) {
+  if (!isSupabaseEnabled()) return;
+  if (activityHydratePromise && !force) return activityHydratePromise;
+
+  activityHydratePromise = (async () => {
+    try {
+      const [journals, homework, progress] = await Promise.all([
+        db.list("journal_entries", {
+          order: { column: "created_at", ascending: false },
+        }),
+        db.list("homework_submissions", { includeArchived: true }),
+        db.list("session_progress", { includeArchived: true }),
+      ]);
+
+      // Group all three by profile_id.
+      const journalByProfile = {};
+      for (const r of journals || []) {
+        if (!journalByProfile[r.profile_id]) journalByProfile[r.profile_id] = [];
+        journalByProfile[r.profile_id].push(journalRowToEntry(r));
+      }
+      const homeworkByProfile = {};
+      for (const r of homework || []) {
+        if (!homeworkByProfile[r.profile_id]) homeworkByProfile[r.profile_id] = {};
+        homeworkByProfile[r.profile_id][String(r.session_number)] = homeworkRowToSubmission(r);
+      }
+      const progressByProfile = {};
+      for (const r of progress || []) {
+        if (!progressByProfile[r.profile_id]) progressByProfile[r.profile_id] = new Set();
+        if (r.completed_at) progressByProfile[r.profile_id].add(Number(r.session_number));
+      }
+
+      // Attach to participants. Only participants with _supabaseProfileId
+      // get their activity overwritten — seed-only participants keep their
+      // seed entries.
+      for (const p of ADMIN_MOCK_PARTICIPANTS) {
+        const profileId = p._supabaseProfileId;
+        if (!profileId) continue;
+        const supJournal = journalByProfile[profileId] || [];
+        const supHomework = homeworkByProfile[profileId] || {};
+        const supProgress = progressByProfile[profileId];
+
+        if (supJournal.length) {
+          p.journalEntries = supJournal;
+          // Recompute lastJournalDaysAgo for the seed-derived helpers.
+          const newest = supJournal.reduce((max, e) => {
+            const ts = new Date(e.date).getTime();
+            return ts > max ? ts : max;
+          }, 0);
+          p.lastJournalDaysAgo = newest ? Math.floor((Date.now() - newest) / 86400000) : 999;
+        }
+        if (Object.keys(supHomework).length) {
+          // Merge with existing seed submissions — Supabase wins per session.
+          p.submissions = { ...(p.submissions || {}), ...supHomework };
+        }
+        if (supProgress && supProgress.size) {
+          p.progress = [...supProgress].sort((a, b) => a - b);
+        }
+      }
+
+      activityHydrated = true;
+    } catch (err) {
+      if (!(err instanceof SupabaseNotReady)) {
+        captureError(err, { source: "hydrateActivityFromSupabase" });
+      }
+    }
+  })();
+
+  return activityHydratePromise;
+}
+
+// ---------------------------------------------------------------------------
+// Activity write mirrors
+// ---------------------------------------------------------------------------
+
+async function mirrorJournalEntryToSupabase(participant, entry) {
+  if (!isSupabaseEnabled() || !participant?._supabaseProfileId || !entry) return;
+  try {
+    const cohortUuid = participant.cohortSlug
+      ? resolveSupabaseCohortId(participant.cohortSlug)
+      : null;
+    const row = {
+      id: entry._supabaseId || undefined,
+      profile_id: participant._supabaseProfileId,
+      cohort_id: cohortUuid,
+      title: entry.title || null,
+      body: entry.description || "",
+      link: entry.link || null,
+      time_before_ai: entry.timeBeforeAI ?? null,
+      time_with_ai: entry.timeWithAI ?? null,
+      production_method: entry.productionMethod || null,
+      volume_per_day: entry.volumePerDay || null,
+      frequency: entry.frequency || null,
+      scope: entry.scope || null,
+      quality_outcome: entry.qualityOutcome || null,
+      innovation_title: entry.innovationTitle || null,
+      innovation_description: entry.innovationDescription || null,
+      visibility: "cohort",
+    };
+    if (!row.id) {
+      const inserted = await db.insert("journal_entries", row);
+      if (inserted?.id) entry._supabaseId = inserted.id;
+    } else {
+      await db.upsert("journal_entries", row, { onConflict: "id" });
+    }
+  } catch (err) {
+    if (!(err instanceof SupabaseNotReady)) {
+      captureError(err, { source: "mirrorJournalEntryToSupabase" });
+    }
+  }
+}
+
+async function mirrorHomeworkToSupabase(participant, sessionOrder, submission) {
+  if (!isSupabaseEnabled() || !participant?._supabaseProfileId || !submission) return;
+  try {
+    const cohortUuid = resolveSupabaseCohortId(participant.cohortSlug);
+    if (!cohortUuid) return;
+    const row = {
+      id: submission._supabaseId || undefined,
+      profile_id: participant._supabaseProfileId,
+      cohort_id: cohortUuid,
+      session_number: Number(sessionOrder),
+      status: submission.reviewedAt ? "reviewed" : "submitted",
+      body: submission.response || "",
+      link: submission.link || null,
+      submitted_at: submission.submittedAt || null,
+      reviewed_at: submission.reviewedAt || null,
+      reviewer_notes: submission.feedback || null,
+    };
+    if (!row.id) {
+      const inserted = await db.insert("homework_submissions", row);
+      if (inserted?.id) submission._supabaseId = inserted.id;
+    } else {
+      await db.upsert("homework_submissions", row, { onConflict: "id" });
+    }
+  } catch (err) {
+    if (!(err instanceof SupabaseNotReady)) {
+      captureError(err, { source: "mirrorHomeworkToSupabase" });
+    }
+  }
+}
+
+async function mirrorSessionProgressToSupabase(participant, sessionOrder, completed) {
+  if (!isSupabaseEnabled() || !participant?._supabaseProfileId) return;
+  try {
+    const cohortUuid = resolveSupabaseCohortId(participant.cohortSlug);
+    if (!cohortUuid) return;
+    await db.upsert(
+      "session_progress",
+      {
+        profile_id: participant._supabaseProfileId,
+        cohort_id: cohortUuid,
+        session_number: Number(sessionOrder),
+        status: completed ? "completed" : "not_started",
+        completed_at: completed ? new Date().toISOString() : null,
+      },
+      { onConflict: "profile_id,cohort_id,session_number" },
+    );
+  } catch (err) {
+    if (!(err instanceof SupabaseNotReady)) {
+      captureError(err, { source: "mirrorSessionProgressToSupabase" });
+    }
+  }
+}
+
 async function mirrorParticipantToSupabase(participant) {
   if (!isSupabaseEnabled() || !participant) return;
   try {

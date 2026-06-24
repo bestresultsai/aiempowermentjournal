@@ -10,7 +10,7 @@ import { hydrateCohortsFromSupabase } from './lib/cohortAdmin'
 import { hydrateResourcesFromSupabase } from './lib/resources'
 import { hydrateFeedbacksFromSupabase } from './lib/feedbacks'
 import { hydrateTestimonialsFromSupabase } from './lib/testimonials'
-import { hydrateParticipantsFromSupabase } from './lib/adminMockData'
+import { hydrateParticipantsFromSupabase, hydrateActivityFromSupabase } from './lib/adminMockData'
 
 const queryClient = new QueryClient()
 
@@ -29,6 +29,7 @@ initSupabase().then(async () => {
   await hydrateProgramsFromSupabase();
   await hydrateCohortsFromSupabase();
   await hydrateParticipantsFromSupabase();
+  await hydrateActivityFromSupabase();
   await hydrateResourcesFromSupabase();
   await hydrateFeedbacksFromSupabase();
   await hydrateTestimonialsFromSupabase();
