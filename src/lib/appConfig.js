@@ -13,14 +13,14 @@ function detectOrigin() {
   if (typeof window !== "undefined" && window.location?.origin) {
     return window.location.origin;
   }
-  return "https://app.bestresults.ai";
+  return "https://platform.bestresults.ai";
 }
 
 export const APP_CONFIG = {
   // The canonical production URL. Used as the fallback when window isn't
-  // available (e.g. inside Netlify Functions). When migrating from
-  // tools.bestresults.ai to app.bestresults.ai, this is the line to change.
-  primaryUrl: "https://app.bestresults.ai",
+  // available (e.g. inside Netlify Functions). If the platform ever moves
+  // to a new domain, this is the line to change.
+  primaryUrl: "https://platform.bestresults.ai",
 
   // Brand name shown in titles, email signatures, etc.
   brand: "BestResults.AI",

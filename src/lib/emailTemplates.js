@@ -15,14 +15,14 @@
 // ---------------------------------------------------------------------------
 
 const BRAND = {
-  appUrl: "https://tools.bestresults.ai", // swap to https://app.bestresults.ai post-migration
+  appUrl: "https://platform.bestresults.ai",
   sender: "BestResults.AI <hello@bestresults.ai>",
   replyTo: "support@bestresults.ai",
   // Horizontal color logo (no tagline). SVG renders fine in all modern web
   // mail clients (Gmail, Apple Mail, Outlook web, mobile). For Outlook
   // *desktop*, host a PNG mirror alongside the SVG before production
   // sending and swap this URL — Outlook desktop ignores SVG.
-  logoUrl: "https://tools.bestresults.ai/brand/horizontal-color-no-tagline.svg",
+  logoUrl: "https://platform.bestresults.ai/brand/horizontal-color-no-tagline.svg",
 };
 
 // ---------------------------------------------------------------------------

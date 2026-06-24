@@ -43,7 +43,7 @@ export default function PrivacyPolicy() {
           <Section title="Who we are">
             <p>
               BestResults.AI ("we", "us") operates the AI Empowerment platform
-              at tools.bestresults.ai (and any successor domain). This policy
+              at platform.bestresults.ai (and any successor domain). This policy
               describes what personal information we collect, why we collect
               it, and what choices you have about it.
             </p>
