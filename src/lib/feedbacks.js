@@ -1,4 +1,8 @@
 import { useEffect, useState } from "react";
+import { isSupabaseEnabled } from "./supabase";
+import { db, SupabaseNotReady } from "./db";
+import { captureError } from "./observability";
+import { getAllCohortsForAdmin } from "./cohortAdmin";
 
 // ---------------------------------------------------------------------------
 // Feedbacks — per-session participant feedback.
@@ -320,6 +324,7 @@ export function submitFeedback(payload) {
     feedbackOverlays = { ...feedbackOverlays, [existing.id]: next };
     writeOverlays(feedbackOverlays);
     emit();
+    mirrorFeedbackToSupabase(next);
     return next;
   }
 
@@ -338,6 +343,7 @@ export function submitFeedback(payload) {
   feedbackOverlays = { ...feedbackOverlays, [id]: fb };
   writeOverlays(feedbackOverlays);
   emit();
+  mirrorFeedbackToSupabase(fb);
   return fb;
 }
 
@@ -351,4 +357,194 @@ export function deleteFeedback(id) {
   };
   writeOverlays(feedbackOverlays);
   emit();
+  // Best-effort: archive the row in Supabase if we have a UUID for it.
+  if (existing._supabaseId) {
+    mirrorFeedbackArchiveToSupabase(existing._supabaseId);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Supabase hydration — Phase 2 of #399.
+//
+// Feedback rows reference cohort_id (FK to cohorts) and profile_id (FK to
+// profiles). Cohort UUID resolution reuses the map built by cohorts
+// hydration. Profile UUID resolution is per-email — we keep an
+// emails-to-profile-UUID cache that's rebuilt at hydration time AND on
+// every write that fails to find a profile (in case a new participant just
+// signed in for the first time).
+//
+// IMPORTANT: participant profiles aren't seeded yet — only staff
+// (josue@bestresults.ai, mike@bestresults.ai, jordan@summithealth.example).
+// So today, only feedback FROM those three would mirror to Supabase.
+// Regular participant feedback stays in localStorage until the participant
+// migration round seeds their profile rows.
+// ---------------------------------------------------------------------------
+
+let feedbacksHydrated = false;
+let feedbackHydratePromise = null;
+
+// Email → Supabase profile UUID. Populated at hydration time; consulted by
+// the write mirror.
+let profilesByEmail = new Map();
+
+// Map a Supabase feedbacks row to the legacy overlay shape.
+function feedbackRowToOverlay(row, { cohortsByUuid, profilesByUuid }) {
+  if (!row) return null;
+  const cohort = row.cohort_id ? cohortsByUuid[row.cohort_id] : null;
+  const profile = row.profile_id ? profilesByUuid[row.profile_id] : null;
+  return {
+    id: row.id,
+    _supabaseId: row.id,
+    participantId: profile?.legacyParticipantId || null,
+    participantName: profile?.name || "",
+    participantEmail: profile?.email || "",
+    cohortSlug: cohort?.slug || null,
+    sessionOrder: row.session_number,
+    rating: row.rating,
+    comment: row.comment || "",
+    submittedAt: row.created_at,
+    updatedAt: row.updated_at,
+    deletedAt: row.archived_at || null,
+    _source: "supabase",
+  };
+}
+
+/**
+ * Hydrate feedbacks from Supabase. Requires cohorts to be hydrated first
+ * for cohort_id UUID resolution.
+ */
+export async function hydrateFeedbacksFromSupabase({ force = false } = {}) {
+  if (!isSupabaseEnabled()) return;
+  if (feedbackHydratePromise && !force) return feedbackHydratePromise;
+
+  feedbackHydratePromise = (async () => {
+    try {
+      const [rows, profiles, cohorts] = await Promise.all([
+        db.list("feedbacks", { order: { column: "created_at", ascending: false } }),
+        db.list("profiles", { includeArchived: false }),
+        Promise.resolve(getAllCohortsForAdmin()),
+      ]);
+
+      const cohortsByUuid = {};
+      for (const c of cohorts || []) {
+        if (c._supabaseId) cohortsByUuid[c._supabaseId] = c;
+      }
+      const profilesByUuid = {};
+      const nextProfilesByEmail = new Map();
+      for (const p of profiles || []) {
+        profilesByUuid[p.id] = { name: p.name, email: p.email, legacyParticipantId: null };
+        if (p.email) nextProfilesByEmail.set(p.email.toLowerCase(), p.id);
+      }
+      profilesByEmail = nextProfilesByEmail;
+
+      const seedIds = new Set(SEED_FEEDBACKS.map((f) => f.id));
+      const additions = {};
+      for (const row of rows || []) {
+        const overlay = feedbackRowToOverlay(row, { cohortsByUuid, profilesByUuid });
+        if (!overlay?.id) continue;
+        if (seedIds.has(overlay.id)) {
+          // Seed feedback: only attach Supabase id + deletion state.
+          additions[overlay.id] = {
+            ...(feedbackOverlays[overlay.id] || {}),
+            _supabaseId: overlay._supabaseId,
+            _source: "supabase",
+            deletedAt: overlay.deletedAt,
+          };
+        } else {
+          // Supabase-only feedback: full hydration.
+          additions[overlay.id] = {
+            ...(feedbackOverlays[overlay.id] || {}),
+            ...overlay,
+          };
+        }
+      }
+      feedbackOverlays = { ...feedbackOverlays, ...additions };
+      writeOverlays(feedbackOverlays);
+      feedbacksHydrated = true;
+      emit();
+    } catch (err) {
+      if (!(err instanceof SupabaseNotReady)) {
+        captureError(err, { source: "hydrateFeedbacksFromSupabase" });
+      }
+    }
+  })();
+
+  return feedbackHydratePromise;
+}
+
+// ---------------------------------------------------------------------------
+// Write mirror
+// ---------------------------------------------------------------------------
+
+// On-demand profile-by-email lookup. Falls back to a fresh Supabase query
+// if the email isn't in the cached map (e.g. a participant who signed in
+// for the first time after hydration ran).
+async function resolveProfileUuidByEmail(email) {
+  if (!email) return null;
+  const key = email.toLowerCase();
+  if (profilesByEmail.has(key)) return profilesByEmail.get(key);
+  try {
+    const rows = await db.list("profiles", { eq: { email }, limit: 1 });
+    const uuid = rows && rows[0] && rows[0].id;
+    if (uuid) profilesByEmail.set(key, uuid);
+    return uuid || null;
+  } catch {
+    return null;
+  }
+}
+
+// Resolve cohortSlug → Supabase cohort UUID via the already-hydrated cohort
+// overlay map. Returns null if not found.
+function resolveCohortUuidBySlug(slug) {
+  if (!slug) return null;
+  const cohort = getAllCohortsForAdmin().find((c) => c.slug === slug);
+  return cohort?._supabaseId || null;
+}
+
+async function mirrorFeedbackToSupabase(feedback) {
+  if (!isSupabaseEnabled() || !feedback) return;
+  try {
+    const cohortUuid = resolveCohortUuidBySlug(feedback.cohortSlug);
+    const profileUuid = await resolveProfileUuidByEmail(feedback.participantEmail);
+    if (!cohortUuid || !profileUuid) return; // can't satisfy FKs — skip
+
+    const row = {
+      id: feedback._supabaseId || undefined,
+      profile_id: profileUuid,
+      cohort_id: cohortUuid,
+      session_number: Number(feedback.sessionOrder) || 0,
+      rating: Math.max(1, Math.min(5, Math.round(Number(feedback.rating) || 0))),
+      comment: feedback.comment || "",
+    };
+
+    if (!row.id) {
+      // Conflict on the unique (profile_id, cohort_id, session_number)
+      // index so re-submits update instead of duplicate.
+      const inserted = await db.upsert("feedbacks", row, {
+        onConflict: "profile_id,cohort_id,session_number",
+      });
+      if (inserted?.id) {
+        const merged = { ...feedback, _supabaseId: inserted.id };
+        feedbackOverlays = { ...feedbackOverlays, [feedback.id]: merged };
+        writeOverlays(feedbackOverlays);
+      }
+    } else {
+      await db.upsert("feedbacks", row, { onConflict: "id" });
+    }
+  } catch (err) {
+    if (!(err instanceof SupabaseNotReady)) {
+      captureError(err, { source: "mirrorFeedbackToSupabase", id: feedback?.id });
+    }
+  }
+}
+
+async function mirrorFeedbackArchiveToSupabase(supabaseId) {
+  if (!isSupabaseEnabled() || !supabaseId) return;
+  try {
+    await db.update("feedbacks", supabaseId, {
+      archived_at: new Date().toISOString(),
+    });
+  } catch (err) {
+    captureError(err, { source: "mirrorFeedbackArchiveToSupabase", supabaseId });
+  }
 }

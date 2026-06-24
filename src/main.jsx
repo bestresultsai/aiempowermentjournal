@@ -8,6 +8,7 @@ import { initSupabase } from './lib/supabase'
 import { hydrateProgramsFromSupabase } from './lib/programs'
 import { hydrateCohortsFromSupabase } from './lib/cohortAdmin'
 import { hydrateResourcesFromSupabase } from './lib/resources'
+import { hydrateFeedbacksFromSupabase } from './lib/feedbacks'
 
 const queryClient = new QueryClient()
 
@@ -26,6 +27,7 @@ initSupabase().then(async () => {
   await hydrateProgramsFromSupabase();
   await hydrateCohortsFromSupabase();
   await hydrateResourcesFromSupabase();
+  await hydrateFeedbacksFromSupabase();
 });
 
 createRoot(document.getElementById('root')).render(
