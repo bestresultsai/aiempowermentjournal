@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import { renderTemplate } from "./emailTemplates";
+import { initSupabase, isSupabaseEnabled } from "./supabase";
+import { captureError } from "./observability";
 
 // ---------------------------------------------------------------------------
 // Mailer — the single send surface every feature calls.
@@ -47,8 +49,48 @@ export async function sendEmail({ template, to, data, sender }) {
     text: rendered.text,
   };
 
+  // When Supabase is wired up, route the send through the Netlify Function
+  // that posts to Resend + logs to email_sends. The localStorage log keeps
+  // running in parallel so /admin/emails still shows a preview history.
+  // Failures fall through to the local log so the UI stays usable.
+  if (isSupabaseEnabled()) {
+    try {
+      await _postToSendFunction({ template, to: recipient, data, cohortSlug: data?.cohortSlug });
+    } catch (err) {
+      captureError(err, { source: "sendEmail.netlifyFunction", template });
+    }
+  }
+
   await _enqueue(entry, rendered);
   return entry;
+}
+
+// Calls the /.netlify/functions/send-email endpoint. The function requires
+// an admin-authenticated caller; the access token is pulled from the live
+// Supabase session.
+async function _postToSendFunction({ template, to, data, cohortSlug }) {
+  const client = await initSupabase();
+  if (!client) return;
+  const { data: sessionData } = await client.auth.getSession();
+  const accessToken = sessionData?.session?.access_token;
+  if (!accessToken) return; // not signed in — caller wouldn't be authorized anyway
+  const res = await fetch("/.netlify/functions/send-email", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${accessToken}`,
+    },
+    body: JSON.stringify({
+      template,
+      to,
+      data,
+      cohortSlug: cohortSlug || null,
+    }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body?.error || `send-email returned ${res.status}`);
+  }
 }
 
 // Check whether a recipient should receive a template, given preferences.
