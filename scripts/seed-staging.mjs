@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // ============================================================================
-// seed-staging.mjs — idempotent staging seed for the Supabase project.
+// seed-staging.mjs — idempotent platform seed for Supabase.
 //
 // Run with:
 //
@@ -8,27 +8,28 @@
 //   SUPABASE_SECRET_KEY=sb_secret_xxx \
 //   node scripts/seed-staging.mjs
 //
-// (Legacy SUPABASE_SERVICE_ROLE_KEY also accepted.)
-//
-// Or, more practically, after `cp .env.example .env.local` and filling in
-// values, use a small wrapper:
+// Or, after `cp .env.example .env.local` and filling in values:
 //
 //   node --env-file=.env.local scripts/seed-staging.mjs
 //
-// Safe to re-run. Every insert uses upsert on a natural key (slug, email,
-// or a composite). Re-running picks up edits to this file.
+// Safe to re-run — every insert uses upsert on a natural key (slug, id, or
+// email).
 //
-// What gets seeded:
+// What gets seeded (clean-slate config):
 //
-//   - 2 organizations:     summit-health, pacific-health-system
-//   - 2 programs:          aiew3 (AI Empowerment Workshop Series),
-//                          apfw  (AI Power Foundations Workshop)
-//   - 4 cohorts:           Summit AIEW3 + APFW, PHS AIEW3 + APFW
-//   - Core staff profiles: Mike (facilitator), Jordan (org admin), Josue (super)
+//   - 2 programs:
+//       aiew3 — AI Empowerment Workshop Series 3.0
+//       apfw  — AI Power Foundations Workshop
 //
-// Does NOT seed participants — those come in via the cohort import UI
-// (Phase 2) so we don't accidentally email a real test address. Once the
-// import UI is wired, run it against a CSV in /scripts/fixtures/.
+//   - 4 staff profiles:
+//       Josue Acuna    (josue@bestresults.ai)    super + admin
+//       Mike Burkesmith (mike@bestresults.ai)    admin + facilitator
+//       Lee Truax       (lee@bestresults.ai)     admin + facilitator
+//       Bethany Truax   (bethany@bestresults.ai) admin
+//
+// Does NOT seed organizations, cohorts, or participants. Those are created
+// via the admin UI (/admin/orgs, /admin/cohorts/new, /admin/users/new) once
+// the platform is live.
 // ============================================================================
 
 import { createClient } from "@supabase/supabase-js";
@@ -67,46 +68,18 @@ async function upsertBySlug(table, rows, conflictKey = "slug") {
 }
 
 // ----------------------------------------------------------------------------
-// 1. Organizations
-// ----------------------------------------------------------------------------
-
-async function seedOrganizations() {
-  log("orgs", "upserting Summit Health + Pacific Health System");
-  const orgs = await upsertBySlug("organizations", [
-    {
-      slug: "summit-health",
-      name: "Summit Health",
-      logo_url: null,
-      primary_color: "#0F4F7A",
-      notes: "First production cohort. Facilitated by Mike Burkesmith.",
-    },
-    {
-      slug: "pacific-health-system",
-      name: "Pacific Health System",
-      logo_url: null,
-      primary_color: "#1F7A4F",
-      notes: "Second production cohort. Facilitated by Mike Burkesmith.",
-    },
-  ]);
-  const byslug = Object.fromEntries(orgs.map((o) => [o.slug, o]));
-  return byslug;
-}
-
-// ----------------------------------------------------------------------------
-// 2. Programs
+// Programs
 // ----------------------------------------------------------------------------
 
 const AIEW3_SESSIONS = [
-  { number: 1, title: "Mindset & Foundations" },
-  { number: 2, title: "Prompt Engineering Basics" },
-  { number: 3, title: "Document Workflows" },
-  { number: 4, title: "Data + Spreadsheets" },
-  { number: 5, title: "Meetings + Email" },
-  { number: 6, title: "Building Your First Workflow" },
-  { number: 7, title: "Agents Overview" },
-  { number: 8, title: "Production Tier: From SOP to Swarm" },
-  { number: 9, title: "Custom Use Cases — Workshop" },
-  { number: 10, title: "Capstone + Certification" },
+  { number: 1, title: "White Belt — Full Role Matrices, Prioritized Use Cases, Change Management" },
+  { number: 2, title: "Yellow Belt — Power AI-Driven Workflows" },
+  { number: 3, title: "Orange Belt — 100,000 Experts Enhancing Every AI Workflow" },
+  { number: 4, title: "Green Belt — High-Reliability Repeatable Workflows, Assistants, Agents" },
+  { number: 5, title: "Blue Belt — Professional AI Teams Doing Sophisticated Projects" },
+  { number: 6, title: "Purple Belt — Autonomous Agent Functions" },
+  { number: 7, title: "Brown Belt — Agent Quality Assurance and Orchestration" },
+  { number: 8, title: "Black Belt — Progress, Plans, Getting Future Results" },
 ];
 
 const APFW_SESSIONS = [
@@ -123,10 +96,10 @@ async function seedPrograms() {
   const programs = await upsertBySlug("programs", [
     {
       slug: "aiew3",
-      name: "AI Empowerment Workshop Series",
+      name: "AI Empowerment Workshop Series 3.0",
       short_name: "AIEW3",
       description:
-        "Ten-session cohort that takes participants from mindset to production-tier workflows.",
+        "Eight-session belt-ranked program. Participants move from mindset + role matrix through autonomous agents and orchestration.",
       production_tiers: ["no-sop", "with-sop", "ai-workflow", "ai-agent", "ai-swarm"],
       sessions: AIEW3_SESSIONS,
       badges: [],
@@ -142,7 +115,7 @@ async function seedPrograms() {
       name: "AI Power Foundations Workshop",
       short_name: "APFW",
       description:
-        "Six-session intro program. Designed for orgs new to AI workflows.",
+        "Six-session intro program. Foundations for teams new to AI workflows.",
       production_tiers: ["no-sop", "with-sop", "ai-workflow"],
       sessions: APFW_SESSIONS,
       badges: [],
@@ -158,15 +131,10 @@ async function seedPrograms() {
 }
 
 // ----------------------------------------------------------------------------
-// 3. Staff profiles
-// Note: in real auth, these get created when the user first signs in via
-// magic link. For the staging seed we create the auth.users entry too so
-// admin pages have someone to display.
+// Staff profiles. Each one has both an auth.users entry and a profiles row.
 // ----------------------------------------------------------------------------
 
-async function seedStaffUser({ email, name, capabilities, org_id = null }) {
-  // Use the admin createUser API to make sure auth.users + profiles are
-  // consistent. If the user already exists, we just upsert into profiles.
+async function seedStaffUser({ email, name, capabilities }) {
   const { data: existing } = await supabase.auth.admin.listUsers();
   let user = existing?.users?.find((u) => u.email?.toLowerCase() === email.toLowerCase());
 
@@ -191,7 +159,6 @@ async function seedStaffUser({ email, name, capabilities, org_id = null }) {
         email,
         name,
         capabilities,
-        org_id,
       },
       { onConflict: "id" }
     );
@@ -203,8 +170,8 @@ async function seedStaffUser({ email, name, capabilities, org_id = null }) {
   return user;
 }
 
-async function seedStaff(orgs) {
-  log("staff", "creating Josue (super), Mike (facilitator), Jordan (org admin)");
+async function seedStaff() {
+  log("staff", "Josue (super+admin), Mike (admin+facilitator), Lee (admin+facilitator), Bethany (admin)");
 
   const josue = await seedStaffUser({
     email: "josue@bestresults.ai",
@@ -218,74 +185,19 @@ async function seedStaff(orgs) {
     capabilities: ["admin", "facilitator"],
   });
 
-  const jordan = await seedStaffUser({
-    email: "jordan@summithealth.example",
-    name: "Jordan Park",
-    capabilities: ["org_admin"],
-    org_id: orgs["summit-health"].id,
+  const lee = await seedStaffUser({
+    email: "lee@bestresults.ai",
+    name: "Lee Truax",
+    capabilities: ["admin", "facilitator"],
   });
 
-  return { josue, mike, jordan };
-}
+  const bethany = await seedStaffUser({
+    email: "bethany@bestresults.ai",
+    name: "Bethany Truax",
+    capabilities: ["admin"],
+  });
 
-// ----------------------------------------------------------------------------
-// 4. Cohorts
-// ----------------------------------------------------------------------------
-
-async function seedCohorts(orgs, programs, staff) {
-  log("cohorts", "upserting Summit + PHS cohorts (AIEW3 + APFW each)");
-  const cohorts = await upsertBySlug(
-    "cohorts",
-    [
-      {
-        slug: "summit-aiew3-2026q3",
-        program_id: programs["aiew3"].id,
-        org_id: orgs["summit-health"].id,
-        name: "Summit Health · AIEW3 · 2026 Q3",
-        start_date: "2026-07-09",
-        end_date: "2026-10-15",
-        meeting_day: "Thursday",
-        meeting_time: "12:00 PT",
-        facilitator_id: staff.mike.id,
-        notes: "First production cohort. Lock down before kickoff.",
-      },
-      {
-        slug: "summit-apfw-2026q3",
-        program_id: programs["apfw"].id,
-        org_id: orgs["summit-health"].id,
-        name: "Summit Health · APFW · 2026 Q3",
-        start_date: "2026-07-10",
-        end_date: "2026-08-21",
-        meeting_day: "Friday",
-        meeting_time: "11:00 PT",
-        facilitator_id: staff.mike.id,
-      },
-      {
-        slug: "phs-aiew3-2026q3",
-        program_id: programs["aiew3"].id,
-        org_id: orgs["pacific-health-system"].id,
-        name: "Pacific Health System · AIEW3 · 2026 Q3",
-        start_date: "2026-07-16",
-        end_date: "2026-10-22",
-        meeting_day: "Thursday",
-        meeting_time: "15:00 PT",
-        facilitator_id: staff.mike.id,
-      },
-      {
-        slug: "phs-apfw-2026q3",
-        program_id: programs["apfw"].id,
-        org_id: orgs["pacific-health-system"].id,
-        name: "Pacific Health System · APFW · 2026 Q3",
-        start_date: "2026-07-17",
-        end_date: "2026-08-28",
-        meeting_day: "Friday",
-        meeting_time: "14:00 PT",
-        facilitator_id: staff.mike.id,
-      },
-    ],
-    "program_id,slug"
-  );
-  return Object.fromEntries(cohorts.map((c) => [c.slug, c]));
+  return { josue, mike, lee, bethany };
 }
 
 // ----------------------------------------------------------------------------
@@ -294,25 +206,24 @@ async function seedCohorts(orgs, programs, staff) {
 
 (async () => {
   console.log("");
-  console.log("Seeding staging Supabase project at", SUPABASE_URL);
+  console.log("Seeding Supabase project at", SUPABASE_URL);
   console.log("");
 
-  const orgs = await seedOrganizations();
   const programs = await seedPrograms();
-  const staff = await seedStaff(orgs);
-  const cohorts = await seedCohorts(orgs, programs, staff);
+  const staff = await seedStaff();
 
   console.log("");
   console.log("Seed complete.");
-  console.log(`  Organizations: ${Object.keys(orgs).length}`);
-  console.log(`  Programs:      ${Object.keys(programs).length}`);
-  console.log(`  Cohorts:       ${Object.keys(cohorts).length}`);
-  console.log(`  Staff:         3 (super: josue, facilitator: mike, org admin: jordan)`);
+  console.log(`  Programs:      ${Object.keys(programs).length} (${Object.keys(programs).join(", ")})`);
+  console.log(`  Staff:         4 (josue, mike, lee, bethany)`);
+  console.log(`  Organizations: 0 (create via /admin/orgs)`);
+  console.log(`  Cohorts:       0 (create via /admin/cohorts/new)`);
+  console.log(`  Participants:  0 (create via /admin/users/new)`);
   console.log("");
   console.log("Next:");
-  console.log("  1. Sign in to the staging URL as one of the staff emails");
-  console.log("     (a magic link will be sent — check your inbox).");
-  console.log("  2. Visit /admin/cohorts to confirm the four cohorts appear.");
-  console.log("  3. Use the participant import UI to load real cohort rosters.");
+  console.log("  1. Sign in to the platform as one of the staff emails");
+  console.log("     (a magic link will be sent — check your Workspace inbox).");
+  console.log("  2. Visit /admin/orgs to create your first organization.");
+  console.log("  3. Visit /admin/cohorts/new to launch the first cohort.");
   console.log("");
 })();

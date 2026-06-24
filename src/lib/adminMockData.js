@@ -16,6 +16,19 @@ import { isSupabaseEnabled } from "./supabase";
 import { db, SupabaseNotReady } from "./db";
 import { captureError } from "./observability";
 import { getAllCohortsForAdmin } from "./cohortAdmin";
+import { shouldUseSeedData } from "./demoData";
+
+// Filter the underlying ADMIN_MOCK_PARTICIPANTS array so seed-only entries
+// drop out in clean-slate mode (Supabase wired + not in demo mode). Real
+// admins should only see Supabase-sourced + admin-created participants.
+// Seed entries are recognizable by NOT having _source === 'supabase' AND
+// NOT having an addedAt field (admin-created participants always have one).
+function getEffectiveParticipants() {
+  if (shouldUseSeedData()) return ADMIN_MOCK_PARTICIPANTS;
+  return ADMIN_MOCK_PARTICIPANTS.filter(
+    (p) => p._source === "supabase" || p._supabaseProfileId || p.addedAt,
+  );
+}
 
 const COHORT_IAHE = "iahe-aiew3-2026q1";
 const COHORT_MAYO = "mayo-aiew3-2026q1";
@@ -566,11 +579,11 @@ export const ADMIN_MOCK_PARTICIPANTS = [
 // ---------------------------------------------------------------------------
 
 export function getParticipantsForCohort(slug) {
-  return ADMIN_MOCK_PARTICIPANTS.filter((p) => p.cohortSlug === slug);
+  return getEffectiveParticipants().filter((p) => p.cohortSlug === slug);
 }
 
 export function getParticipantById(id) {
-  return ADMIN_MOCK_PARTICIPANTS.find((p) => p.id === id) || null;
+  return getEffectiveParticipants().find((p) => p.id === id) || null;
 }
 
 // Lookup by email — used by the participant-facing flow to find the same
@@ -578,7 +591,7 @@ export function getParticipantById(id) {
 export function getParticipantByEmail(email) {
   if (!email) return null;
   const lc = email.toLowerCase();
-  return ADMIN_MOCK_PARTICIPANTS.find((p) => p.email?.toLowerCase() === lc) || null;
+  return getEffectiveParticipants().find((p) => p.email?.toLowerCase() === lc) || null;
 }
 
 // ---------------------------------------------------------------------------
@@ -818,7 +831,7 @@ export function assignParticipantsToCohort(participantIds, cohortSlug) {
 export function getPendingHomework(cohortSlugs) {
   const allowed = new Set(cohortSlugs);
   const rows = [];
-  for (const p of ADMIN_MOCK_PARTICIPANTS) {
+  for (const p of getEffectiveParticipants()) {
     if (!allowed.has(p.cohortSlug)) continue;
     for (const [orderStr, sub] of Object.entries(p.submissions || {})) {
       if (!sub.reviewedAt) {
@@ -1024,7 +1037,7 @@ export function unmarkHomeworkReviewed(participantId, sessionOrder) {
 export function getHomeworkRows(cohortSlugs, status = "pending") {
   const allowed = new Set(cohortSlugs);
   const rows = [];
-  for (const p of ADMIN_MOCK_PARTICIPANTS) {
+  for (const p of getEffectiveParticipants()) {
     if (!allowed.has(p.cohortSlug)) continue;
     for (const [orderStr, sub] of Object.entries(p.submissions || {})) {
       const reviewed = !!sub.reviewedAt;
@@ -1169,7 +1182,7 @@ export function getDeltaStats(cohortSlugs, periodDays = 7) {
   let curHomework = 0, prevHomework = 0;
   let curReviews = 0, prevReviews = 0;
 
-  for (const p of ADMIN_MOCK_PARTICIPANTS) {
+  for (const p of getEffectiveParticipants()) {
     if (!allowed.has(p.cohortSlug)) continue;
 
     for (const e of p.journalEntries || []) {
@@ -1227,7 +1240,7 @@ export function getActivityStream(cohortSlugs, limit = 20) {
   const allowed = new Set(cohortSlugs);
   const events = [];
 
-  for (const p of ADMIN_MOCK_PARTICIPANTS) {
+  for (const p of getEffectiveParticipants()) {
     if (!allowed.has(p.cohortSlug)) continue;
     for (const e of p.journalEntries || []) {
       events.push({
@@ -1376,7 +1389,7 @@ export function getCohortJournalStats(slug, sinceMs = null) {
 // Cross-cohort aggregate — what the admin dashboard KPI cards show.
 export function getScopeJournalStats(cohortSlugs, sinceMs = null) {
   const allowed = new Set(cohortSlugs);
-  const roster = ADMIN_MOCK_PARTICIPANTS.filter((p) => allowed.has(p.cohortSlug));
+  const roster = getEffectiveParticipants().filter((p) => allowed.has(p.cohortSlug));
   const allEntries = roster.flatMap((p) => entriesInRange(p, sinceMs));
   return {
     totalEntries: allEntries.length,
@@ -1387,7 +1400,7 @@ export function getScopeJournalStats(cohortSlugs, sinceMs = null) {
 // Leaderboard — top time-savers across scope (optionally inside a time window).
 export function getTopContributorsInScope(cohortSlugs, limit = 5, sinceMs = null) {
   const allowed = new Set(cohortSlugs);
-  return ADMIN_MOCK_PARTICIPANTS
+  return getEffectiveParticipants()
     .filter((p) => allowed.has(p.cohortSlug))
     .map((p) => {
       const inRange = entriesInRange(p, sinceMs);
@@ -1409,7 +1422,7 @@ export function getTopContributorsInScope(cohortSlugs, limit = 5, sinceMs = null
 // Participants who haven't journaled in N+ days — useful for nudges.
 export function getStaleParticipantsInScope(cohortSlugs, daysThreshold = 14) {
   const allowed = new Set(cohortSlugs);
-  return ADMIN_MOCK_PARTICIPANTS
+  return getEffectiveParticipants()
     .filter((p) => allowed.has(p.cohortSlug))
     .filter((p) => (p.lastJournalDaysAgo ?? 0) > daysThreshold)
     .sort((a, b) => (b.lastJournalDaysAgo ?? 0) - (a.lastJournalDaysAgo ?? 0));
@@ -1423,7 +1436,7 @@ export function getStaleParticipantsInScope(cohortSlugs, daysThreshold = 14) {
 // (descending recency). `limit` caps the result; pass null/0 for "all".
 export function getInnovationsInScope(cohortSlugs, sinceMs = null, sort = "saved", limit = 0) {
   const allowed = new Set(cohortSlugs);
-  const rows = ADMIN_MOCK_PARTICIPANTS
+  const rows = getEffectiveParticipants()
     .filter((p) => allowed.has(p.cohortSlug))
     .flatMap((p) =>
       entriesInRange(p, sinceMs)
@@ -1449,7 +1462,7 @@ export function getInnovationsInScope(cohortSlugs, sinceMs = null, sort = "saved
 
 export function getBiggestWinsInScope(cohortSlugs, limit = 3, sinceMs = null) {
   const allowed = new Set(cohortSlugs);
-  return ADMIN_MOCK_PARTICIPANTS
+  return getEffectiveParticipants()
     .filter((p) => allowed.has(p.cohortSlug))
     .flatMap((p) =>
       entriesInRange(p, sinceMs).map((e) => ({
@@ -1492,7 +1505,7 @@ export function getWeeklyTrend(cohortSlugs, weeks = 8) {
     });
   }
 
-  for (const p of ADMIN_MOCK_PARTICIPANTS) {
+  for (const p of getEffectiveParticipants()) {
     if (!allowed.has(p.cohortSlug)) continue;
     for (const e of p.journalEntries || []) {
       const t = new Date(e.date).getTime();
@@ -1518,7 +1531,7 @@ export function getProductionMethodMix(cohortSlugs, sinceMs = null) {
     "ai-swarm":    { key: "ai-swarm",    label: "AI Swarm",    count: 0, color: "#A855F7" },
   };
   let unlabeled = 0;
-  for (const p of ADMIN_MOCK_PARTICIPANTS) {
+  for (const p of getEffectiveParticipants()) {
     if (!allowed.has(p.cohortSlug)) continue;
     for (const e of filterEntriesByRange(p.journalEntries || [], sinceMs)) {
       const key = e.productionMethod;
@@ -1544,7 +1557,7 @@ export function getEngagementSegments(cohortSlugs, sinceMs = null) {
     trying:   { key: "trying",   label: "Trying",   count: 0, hint: "1 entry", color: "#F59E0B" },
     absent:   { key: "absent",   label: "Absent",   count: 0, hint: "0 entries", color: "#9CA3AF" },
   };
-  for (const p of ADMIN_MOCK_PARTICIPANTS) {
+  for (const p of getEffectiveParticipants()) {
     if (!allowed.has(p.cohortSlug)) continue;
     const n = entriesInRange(p, sinceMs).length;
     if (n >= 5)      segments.champion.count++;
@@ -1563,7 +1576,7 @@ export function getEngagementSegments(cohortSlugs, sinceMs = null) {
 export function getAtRiskParticipants(cohortSlugs) {
   const allowed = new Set(cohortSlugs);
   const rows = [];
-  for (const p of ADMIN_MOCK_PARTICIPANTS) {
+  for (const p of getEffectiveParticipants()) {
     if (!allowed.has(p.cohortSlug)) continue;
     const risks = [];
     if ((p.lastJournalDaysAgo ?? 0) > 10) {
@@ -1638,7 +1651,7 @@ export function getParticipantHomeworkStats(p) {
 // Most recent entries across scope (for the dashboard activity feed).
 export function getRecentEntriesInScope(cohortSlugs, limit = 6, sinceMs = null) {
   const allowed = new Set(cohortSlugs);
-  return ADMIN_MOCK_PARTICIPANTS
+  return getEffectiveParticipants()
     .filter((p) => allowed.has(p.cohortSlug))
     .flatMap((p) =>
       entriesInRange(p, sinceMs).map((e) => ({
@@ -1892,7 +1905,7 @@ export async function hydrateActivityFromSupabase({ force = false } = {}) {
       // Attach to participants. Only participants with _supabaseProfileId
       // get their activity overwritten — seed-only participants keep their
       // seed entries.
-      for (const p of ADMIN_MOCK_PARTICIPANTS) {
+      for (const p of getEffectiveParticipants()) {
         const profileId = p._supabaseProfileId;
         if (!profileId) continue;
         const supJournal = journalByProfile[profileId] || [];

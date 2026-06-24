@@ -326,6 +326,32 @@ const VALID_VALUES = new Set([
   "facilitator", "facilitator-pure", "leader",
 ]);
 
+// Clean-slate gate. When Supabase is wired up and we're NOT in demo mode,
+// the platform should show whatever Supabase actually has — no leftover
+// seed cohorts / participants / orgs from the demo data. When Supabase
+// isn't wired (legacy localStorage demo path) OR demo mode is active, the
+// seed data is used.
+//
+// Callers must invoke this at render time (not module load) so the
+// demo-mode flag has had a chance to be set by AuthContext's effect.
+export function shouldUseSeedData() {
+  // Imported lazily to avoid circular deps and to keep the import cost off
+  // the demoData boot path.
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const supabaseUrl = import.meta.env?.VITE_SUPABASE_URL || "";
+    const supabaseKey =
+      import.meta.env?.VITE_SUPABASE_PUBLISHABLE_KEY ||
+      import.meta.env?.VITE_SUPABASE_ANON_KEY ||
+      "";
+    const supabaseConfigured = !!(supabaseUrl && supabaseKey);
+    if (!supabaseConfigured) return true; // legacy localStorage demo path
+    return isDemoModeActive();           // Supabase enabled → only seeds in demo mode
+  } catch {
+    return true;
+  }
+}
+
 export function isDemoModeActive() {
   if (typeof window === "undefined") return false;
   try {

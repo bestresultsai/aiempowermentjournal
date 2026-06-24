@@ -11,7 +11,7 @@
 // ---------------------------------------------------------------------------
 
 import { useEffect, useState } from "react";
-import { DEMO_COHORTS } from "./demoData";
+import { DEMO_COHORTS, shouldUseSeedData } from "./demoData";
 import { MOCK_SESSIONS } from "./mockCohort";
 import { getProgramForCohort, getSessionsForProgram, getAllProgramsForAdmin } from "./programs";
 import { isSupabaseEnabled } from "./supabase";
@@ -78,8 +78,11 @@ export function slugify(input) {
 // Organizations
 // ---------------------------------------------------------------------------
 
-// Base orgs derived from DEMO_COHORTS, deduplicated by id.
+// Base orgs derived from DEMO_COHORTS, deduplicated by id. Returns empty
+// when Supabase is wired up and demo mode isn't active — real admins start
+// from a clean Supabase slate, not the in-code demo data.
 function baseOrgs() {
+  if (!shouldUseSeedData()) return [];
   const seen = new Map();
   for (const c of DEMO_COHORTS) {
     if (c.organization && !seen.has(c.organization.id)) {
@@ -134,8 +137,11 @@ export function updateOrganization(id, { name, shortName }) {
 // Facilitators
 // ---------------------------------------------------------------------------
 
-// Base facilitators derived from DEMO_COHORTS, deduplicated by id.
+// Base facilitators derived from DEMO_COHORTS, deduplicated by id. Returns
+// empty in clean-slate mode (Supabase wired up, demo mode off) so real
+// admins see only the facilitators they / Supabase have explicitly added.
 function baseFacilitators() {
+  if (!shouldUseSeedData()) return [];
   const seen = new Map();
   for (const c of DEMO_COHORTS) {
     if (c.facilitator && !seen.has(c.facilitator.id)) {
@@ -232,7 +238,13 @@ export function getArchivedCohorts() {
 // ---------------------------------------------------------------------------
 
 export function getAllCohortsForAdmin() {
-  const baseBySlug = Object.fromEntries(DEMO_COHORTS.map((c) => [c.slug, c]));
+  // Seed cohorts (DEMO_COHORTS) only contribute when we're in legacy
+  // localStorage-demo mode OR demo mode is explicitly active. Real admins
+  // signed into a Supabase-wired platform start from a clean slate —
+  // cohorts come from Supabase hydration alone.
+  const baseBySlug = shouldUseSeedData()
+    ? Object.fromEntries(DEMO_COHORTS.map((c) => [c.slug, c]))
+    : {};
   const merged = { ...baseBySlug };
   for (const [slug, overlay] of Object.entries(cohortOverlays)) {
     if (overlay.archivedAt) {
