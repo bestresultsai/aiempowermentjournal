@@ -1,4 +1,7 @@
 import { useEffect, useState } from "react";
+import { isSupabaseEnabled } from "./supabase";
+import { db, SupabaseNotReady } from "./db";
+import { captureError } from "./observability";
 
 // ---------------------------------------------------------------------------
 // Programs catalog — the source of truth for curriculum + belt taxonomy.
@@ -570,6 +573,9 @@ export function createProgram(payload) {
   programOverlays = { ...programOverlays, [code]: overlay };
   writeProgramOverlays(programOverlays);
   emitProgramChange();
+  // Best-effort mirror to Supabase. Doesn't block the UI; failures land in
+  // the observability captureError stream for later triage.
+  mirrorOverlayToSupabase(overlay);
   return overlay;
 }
 
@@ -591,6 +597,7 @@ export function updateProgram(code, patch) {
   programOverlays = { ...programOverlays, [code]: next };
   writeProgramOverlays(programOverlays);
   emitProgramChange();
+  mirrorOverlayToSupabase(next);
   return getProgramForAdminByCode(code);
 }
 
@@ -598,12 +605,14 @@ export function updateProgram(code, patch) {
 // no longer offered when creating cohorts.
 export function archiveProgram(code) {
   const existing = programOverlays[code] || { code };
+  const slug = existing.slug || existing._supabaseSlug || code.toLowerCase();
   programOverlays = {
     ...programOverlays,
     [code]: { ...existing, archivedAt: new Date().toISOString() },
   };
   writeProgramOverlays(programOverlays);
   emitProgramChange();
+  mirrorArchiveToSupabase(slug, true);
 }
 
 // Restore an archived program (clears archivedAt).
@@ -614,6 +623,7 @@ export function restoreProgram(code) {
   programOverlays = { ...programOverlays, [code]: rest };
   writeProgramOverlays(programOverlays);
   emitProgramChange();
+  mirrorArchiveToSupabase(existing.slug || code.toLowerCase(), false);
 }
 
 // Normalize a sessions array — ensure order is 1-based + monotonic, and
@@ -653,6 +663,202 @@ function normalizeBadges(arr) {
     .filter(Boolean)
     .sort((a, b) => a.count - b.count);
   return cleaned.length ? cleaned : null;
+}
+
+// ---------------------------------------------------------------------------
+// Supabase hydration — Phase 2 of #399.
+//
+// When VITE_SUPABASE_URL is set, fetch programs from Postgres on app boot
+// and merge them into the overlay. Everything downstream
+// (getAllProgramsForAdmin, getProgramByCode, etc.) reads the merged catalog
+// so no component needs to change.
+//
+// When Supabase is disabled, this is a no-op and the platform continues
+// running on seed + localStorage overlay (today's prod behavior).
+//
+// Writes (createProgram/updateProgram/archiveProgram) still go through the
+// localStorage overlay AND best-effort mirror to Supabase. If the mirror
+// fails (RLS denial, network blip), the local overlay is the source of
+// truth for that session — eventual consistency, not strong.
+// ---------------------------------------------------------------------------
+
+let hydrated = false;
+let hydratePromise = null;
+
+// "Rich" sessions are ones that have at least a summary, materials, or
+// objectives. Sparse seed-time sessions ({number, title} only) don't qualify.
+// Used by rowToOverlay so we don't overwrite the in-code seed's rich
+// curriculum with a sparse Supabase row.
+function sessionsLookRich(arr) {
+  if (!Array.isArray(arr) || !arr.length) return false;
+  return arr.some((s) => s?.summary || (s?.materials && s.materials.length) || (s?.objectives && s.objectives.length));
+}
+
+// Capitalize a belt name. Supabase stores ["white", "yellow", ...] but the
+// UI uses "White", "Yellow", ... so we normalize on the way in.
+function normalizeBeltOrder(arr) {
+  if (!Array.isArray(arr) || !arr.length) return [];
+  return arr.map((b) => {
+    if (typeof b !== "string" || !b) return b;
+    return b.charAt(0).toUpperCase() + b.slice(1).toLowerCase();
+  });
+}
+
+// Map a Supabase programs row to the legacy overlay shape so the rest of
+// the app doesn't need to know the column names.
+//
+// Conservative strategy for this round: if a program already exists in the
+// in-code seed (PROGRAMS array), defer to the seed entirely for curriculum
+// content (sessions, belts, badges, certificate, methodName, tagline,
+// sessionDurationMinutes). Only hydrate the Supabase UUID + metadata so
+// cohorts can resolve their program by id and writes can target the right
+// row.
+//
+// For programs that don't exist in the seed (future admin-UI-created
+// programs), set all rich fields from Supabase so they render correctly.
+function rowToOverlay(row) {
+  const branding = row.branding || {};
+  const completionCriteria = row.completion_criteria || {};
+  const code = (row.slug || "").toUpperCase();
+  const seedProgram = PROGRAMS.find((p) => p.code === code);
+  const isSeedProgram = !!seedProgram;
+
+  const overlay = {
+    code,
+    slug: row.slug,            // keep around so writes can target the right row
+    _supabaseId: row.id,       // Postgres UUID — needed for upsert by id
+    name: row.name || (seedProgram?.name || ""),
+    productionTiers: row.production_tiers || [],
+    completionCriteria,
+    branding,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    archivedAt: row.archived_at || null,
+    _source: "supabase",
+  };
+
+  if (isSeedProgram) {
+    // Defer to seed for everything curriculum-shaped. The merge in
+    // getAllProgramsForAdmin falls through to seed when overlay doesn't
+    // set these. Setting them undefined here makes that explicit.
+    return overlay;
+  }
+
+  // Supabase-only program — populate everything from the row so the UI has
+  // real content to render.
+  overlay.methodName = branding.methodName || row.short_name || "AI Empowerment Method";
+  overlay.description = row.description || "";
+  overlay.tagline = branding.tagline || row.description || "";
+  overlay.sessionDurationMinutes = branding.sessionDurationMinutes || 75;
+  overlay.sessions = row.sessions || [];
+  overlay.belts = normalizeBeltOrder(row.belt_order);
+  overlay.badges = Array.isArray(row.badges) && row.badges.length ? row.badges : DEFAULT_BADGES;
+  overlay.certificate = completionCriteria.certificate || branding.certificate || DEFAULT_CERTIFICATE;
+  return overlay;
+}
+
+// Reverse mapping for writes — overlay shape → Supabase row.
+function overlayToRow(overlay) {
+  const slug = (overlay.slug || overlay.code || "").toString().toLowerCase();
+  return {
+    id: overlay._supabaseId || undefined,           // omit on insert so default uuid fires
+    slug,
+    name: overlay.name || "",
+    short_name: overlay.shortName || overlay.methodName || "",
+    description: overlay.description || overlay.tagline || "",
+    production_tiers: overlay.productionTiers || [],
+    sessions: overlay.sessions || [],
+    badges: overlay.badges || [],
+    completion_criteria: {
+      ...(overlay.completionCriteria || {}),
+      certificate: overlay.certificate || undefined,
+    },
+    belt_order: overlay.belts || [],
+    branding: {
+      ...(overlay.branding || {}),
+      methodName: overlay.methodName,
+      tagline: overlay.tagline,
+      sessionDurationMinutes: overlay.sessionDurationMinutes,
+    },
+  };
+}
+
+/**
+ * Fetch programs from Supabase and merge into the local overlay. Idempotent —
+ * safe to call multiple times. Returns a promise that resolves once the
+ * hydration completes (or no-ops if Supabase isn't enabled).
+ */
+export async function hydrateProgramsFromSupabase({ force = false } = {}) {
+  if (!isSupabaseEnabled()) return;
+  if (hydratePromise && !force) return hydratePromise;
+
+  hydratePromise = (async () => {
+    try {
+      const rows = await db.list("programs", {
+        order: { column: "created_at", ascending: true },
+      });
+      const additions = {};
+      for (const row of rows || []) {
+        const overlay = rowToOverlay(row);
+        if (!overlay.code) continue;
+        // Merge over existing overlay if any, but Supabase wins on the
+        // base fields. Local-only fields (e.g. isCustom) carry through.
+        const existing = programOverlays[overlay.code] || {};
+        additions[overlay.code] = { ...existing, ...overlay };
+      }
+      programOverlays = { ...programOverlays, ...additions };
+      writeProgramOverlays(programOverlays);
+      hydrated = true;
+      emitProgramChange();
+    } catch (err) {
+      if (!(err instanceof SupabaseNotReady)) {
+        captureError(err, { source: "hydrateProgramsFromSupabase" });
+      }
+      // Don't throw — leave the platform on localStorage overlay if the
+      // hydration fails. A user staring at a stale list is better than a
+      // broken page.
+    }
+  })();
+
+  return hydratePromise;
+}
+
+/**
+ * Best-effort mirror — push a local overlay change to Supabase. Doesn't
+ * block or throw; the local overlay is the source of truth in this round.
+ * Real strong consistency lands when we delete the localStorage overlay
+ * (separate task).
+ */
+async function mirrorOverlayToSupabase(overlay) {
+  if (!isSupabaseEnabled()) return;
+  try {
+    const row = overlayToRow(overlay);
+    const conflictKey = row.id ? "id" : "slug";
+    await db.upsert("programs", row, { onConflict: conflictKey });
+  } catch (err) {
+    if (!(err instanceof SupabaseNotReady)) {
+      captureError(err, { source: "mirrorOverlayToSupabase", code: overlay?.code });
+    }
+  }
+}
+
+/**
+ * Best-effort soft-delete mirror — sets archived_at on the matching row.
+ */
+async function mirrorArchiveToSupabase(slug, archived) {
+  if (!isSupabaseEnabled() || !slug) return;
+  try {
+    // db.update expects an id; we don't have a direct "update by slug"
+    // helper, so look up the row first.
+    const rows = await db.list("programs", { eq: { slug }, includeArchived: true });
+    const row = rows && rows[0];
+    if (!row) return;
+    await db.update("programs", row.id, {
+      archived_at: archived ? new Date().toISOString() : null,
+    });
+  } catch (err) {
+    captureError(err, { source: "mirrorArchiveToSupabase", slug });
+  }
 }
 
 // Materials may arrive as strings, legacy {label, type, url} objects, or
