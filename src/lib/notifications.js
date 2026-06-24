@@ -3,6 +3,9 @@ import { ADMIN_MOCK_PARTICIPANTS, getHomeworkRows } from "./adminMockData";
 import { getAccessibleCohorts } from "./adminRoles";
 import { getAllCohortsForAdmin } from "./cohortAdmin";
 import { getFeedbacksInScope } from "./feedbacks";
+import { isSupabaseEnabled } from "./supabase";
+import { db, SupabaseNotReady } from "./db";
+import { captureError } from "./observability";
 
 // ---------------------------------------------------------------------------
 // Notifications — facilitator-only in-app notification feed.
@@ -175,12 +178,89 @@ function deriveNotifications(cohortSlugs) {
 }
 
 // ---------------------------------------------------------------------------
+// Supabase mirror — Phase 2 of #399.
+//
+// Notifications are DERIVED, so we don't push the source rows to Supabase
+// (those land when the underlying data sources migrate — homework, journal,
+// feedback). What we DO mirror is the read state, per (profile_id,
+// source_key). This is what makes "mark as read on phone" sync to desktop.
+//
+// On hydration: pull the user's notification rows from Supabase, populate
+// the local readIds set with source_keys that have read_at set.
+//
+// On mark-read: upsert a row in Supabase with read_at = now(). The unique
+// (profile_id, source_key) index ensures one row per (user × notification).
+// ---------------------------------------------------------------------------
+
+let userNotificationsHydratedForProfile = null;
+
+async function hydrateUserNotificationReadState(profileId) {
+  if (!isSupabaseEnabled() || !profileId) return;
+  if (userNotificationsHydratedForProfile === profileId) return;
+  try {
+    const rows = await db.list("notifications", {
+      eq: { profile_id: profileId },
+      includeArchived: true,
+    });
+    const set = readReadIds();
+    let changed = false;
+    for (const row of rows || []) {
+      if (row.read_at && row.source_key && !set.has(row.source_key)) {
+        set.add(row.source_key);
+        changed = true;
+      }
+    }
+    userNotificationsHydratedForProfile = profileId;
+    if (changed) writeReadIds(set);
+  } catch (err) {
+    if (!(err instanceof SupabaseNotReady)) {
+      captureError(err, { source: "hydrateUserNotificationReadState", profileId });
+    }
+  }
+}
+
+async function mirrorNotificationReadToSupabase(profileId, notification) {
+  if (!isSupabaseEnabled() || !profileId || !notification?.id) return;
+  try {
+    await db.upsert(
+      "notifications",
+      {
+        profile_id: profileId,
+        kind: notification.type || "system",
+        title: notification.title || "",
+        body: notification.detail || "",
+        link_path: notification.href || null,
+        source_key: notification.id, // matches deriveNotifications' makeId()
+        read_at: new Date().toISOString(),
+      },
+      { onConflict: "profile_id,source_key" },
+    );
+  } catch (err) {
+    if (!(err instanceof SupabaseNotReady)) {
+      captureError(err, {
+        source: "mirrorNotificationReadToSupabase",
+        profileId,
+        sourceKey: notification?.id,
+      });
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Hook — the single consumer surface. Returns notifications + read state +
 // helpers. Filters to the cohorts the facilitator can access. If the user
 // can't see anything (e.g. no assignments yet) the list is empty.
 // ---------------------------------------------------------------------------
 export function useNotifications(user) {
   const readIds = useReadIds();
+
+  // When the user is Supabase-sourced, fetch their per-user notification
+  // read state on mount and merge into the local set. Cross-device sync.
+  useEffect(() => {
+    if (user?._source === "supabase" && user.userId) {
+      hydrateUserNotificationReadState(user.userId);
+    }
+  }, [user?.userId, user?._source]);
 
   const cohortSlugs = useMemo(() => {
     if (!user) return [];
@@ -202,7 +282,22 @@ export function useNotifications(user) {
 
   function markAllRead() {
     markAllNotificationsRead(allIds);
+    // Mirror each unread notification to Supabase so the read state syncs
+    // across devices. No-op for non-Supabase users.
+    if (user?._source === "supabase" && user.userId) {
+      for (const n of decorated) {
+        if (!n.read) mirrorNotificationReadToSupabase(user.userId, n);
+      }
+    }
   }
 
-  return { notifications: decorated, unreadCount, markAllRead };
+  function markOneRead(notification) {
+    if (!notification?.id) return;
+    markNotificationRead(notification.id);
+    if (user?._source === "supabase" && user.userId) {
+      mirrorNotificationReadToSupabase(user.userId, notification);
+    }
+  }
+
+  return { notifications: decorated, unreadCount, markAllRead, markOneRead };
 }
