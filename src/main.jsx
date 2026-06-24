@@ -7,6 +7,7 @@ import { initObservability } from './lib/observability'
 import { initSupabase } from './lib/supabase'
 import { hydrateProgramsFromSupabase } from './lib/programs'
 import { hydrateCohortsFromSupabase } from './lib/cohortAdmin'
+import { hydrateResourcesFromSupabase } from './lib/resources'
 
 const queryClient = new QueryClient()
 
@@ -24,6 +25,7 @@ initSupabase().then(async () => {
   // No-ops when Supabase is disabled.
   await hydrateProgramsFromSupabase();
   await hydrateCohortsFromSupabase();
+  await hydrateResourcesFromSupabase();
 });
 
 createRoot(document.getElementById('root')).render(
