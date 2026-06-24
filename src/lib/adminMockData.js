@@ -2022,6 +2022,67 @@ async function mirrorSessionProgressToSupabase(participant, sessionOrder, comple
   }
 }
 
+/**
+ * Generate a magic-link URL for a participant via the invite-participant
+ * Function. Returns { ok, magicLink, error }. Called from the admin UI
+ * "Send sign-in link" button — admin can copy the link to clipboard, share
+ * it directly, or trigger the magic-link email template through sendEmail.
+ *
+ * Idempotent: invite-participant returns the existing profile if the email
+ * already has an auth user, so calling this twice doesn't duplicate
+ * anything.
+ */
+export async function sendMagicLinkForParticipant(participant) {
+  if (!isSupabaseEnabled() || !participant?.email) {
+    return { ok: false, error: "Supabase isn't configured." };
+  }
+  try {
+    const client = await (await import("./supabase")).initSupabase();
+    if (!client) return { ok: false, error: "Supabase client unavailable." };
+    const { data: sessionData } = await client.auth.getSession();
+    const accessToken = sessionData?.session?.access_token;
+    if (!accessToken) return { ok: false, error: "You aren't signed in as an admin." };
+
+    const res = await fetch("/.netlify/functions/invite-participant", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({
+        email: participant.email,
+        name: participant.name || "",
+        cohortSlug: participant.cohortSlug || null,
+        capabilities: participant.capabilities || [],
+        title: participant.title || null,
+        organization: participant.organization || null,
+        isCohortLead: !!participant.isCohortLead,
+        sendMagicLink: true,
+      }),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      return { ok: false, error: body?.error || `Function returned ${res.status}` };
+    }
+    if (body?.profile?.id) {
+      // Persist the resolved IDs onto the local record same as
+      // mirrorParticipantToSupabase does.
+      participant._supabaseProfileId = body.profile.id;
+      participant._supabaseCohortLinkId = body.cohortLink?.id || null;
+      if (participant.email) {
+        _supabaseProfileByEmail.set(participant.email.toLowerCase(), {
+          id: body.profile.id,
+          capabilities: body.profile.capabilities || [],
+        });
+      }
+    }
+    return { ok: true, magicLink: body?.magicLink || null };
+  } catch (err) {
+    captureError(err, { source: "sendMagicLinkForParticipant", email: participant?.email });
+    return { ok: false, error: err.message || String(err) };
+  }
+}
+
 // Best-effort server-side invite. POSTs to the invite-participant Netlify
 // Function with the current admin's access token. Function creates the
 // Supabase auth user + profile + cohort link with the service-role key

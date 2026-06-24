@@ -4,6 +4,7 @@ import {
   ArrowLeft, Mail, Building2, BookCheck, Check, Clock, GraduationCap,
   ExternalLink, NotebookPen, Sparkles, Lightbulb, Target, Lock, Save, Crown,
   AlertTriangle, X, Download, MessageSquare, Paperclip, Zap, Camera, MapPin, Globe,
+  Send, Copy, CheckCircle2,
 } from "lucide-react";
 import { formatLocation } from "../../lib/locationToTimeZone";
 import { useAuth } from "../../context/AuthContext";
@@ -23,10 +24,12 @@ import {
   setFacilitatorNote,
   setParticipantCapabilities,
   setParticipantHeadshot,
+  sendMagicLinkForParticipant,
   totalTimeSaved,
   timeSavedFor,
   formatMinutes,
 } from "../../lib/adminMockData";
+import { isSupabaseEnabled } from "../../lib/supabase";
 import { canAssignRoles, hasGlobalScope } from "../../lib/adminRoles";
 import HeadshotUpload from "../../components/HeadshotUpload";
 
@@ -124,6 +127,9 @@ export default function AdminParticipantDetail() {
             )}
           </div>
         </div>
+        {/* Right-side actions. Only shown when Supabase is wired (real
+            participants); demo-mode users can't get a real magic link. */}
+        {isSupabaseEnabled() && <MagicLinkButton participant={p} />}
       </header>
 
       {/* Why they're here — onboarding payload from /welcome wizard.
@@ -730,4 +736,144 @@ function timeAgo(iso) {
 function dateLabel(iso) {
   const d = new Date(iso);
   return d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+}
+
+// ---------------------------------------------------------------------------
+// MagicLinkButton — admin-only action on the participant header.
+//
+// Calls the invite-participant Netlify Function with sendMagicLink:true to
+// (a) ensure the auth user + profile exist server-side, and (b) generate a
+// one-tap sign-in URL the admin can copy and share.
+//
+// Three states:
+//   idle    → "Send sign-in link" button
+//   sending → spinner
+//   success → expanded card with the magic link + Copy button
+//   error   → red callout under the button, retry
+// ---------------------------------------------------------------------------
+function MagicLinkButton({ participant }) {
+  const [status, setStatus] = useState("idle"); // idle | sending | success | error
+  const [magicLink, setMagicLink] = useState("");
+  const [errorMsg, setErrorMsg] = useState("");
+  const [copied, setCopied] = useState(false);
+
+  async function handleClick() {
+    setStatus("sending");
+    setErrorMsg("");
+    const { ok, magicLink: link, error } = await sendMagicLinkForParticipant(participant);
+    if (!ok) {
+      setStatus("error");
+      setErrorMsg(error || "Failed to generate magic link.");
+      return;
+    }
+    setMagicLink(link || "");
+    setStatus("success");
+  }
+
+  async function handleCopy() {
+    if (!magicLink) return;
+    try {
+      await navigator.clipboard.writeText(magicLink);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1800);
+    } catch {
+      /* clipboard write blocked — user can long-press the field */
+    }
+  }
+
+  function reset() {
+    setStatus("idle");
+    setMagicLink("");
+    setErrorMsg("");
+    setCopied(false);
+  }
+
+  return (
+    <div className="flex flex-col items-stretch gap-2 w-full sm:w-auto sm:min-w-[260px]">
+      {status !== "success" && (
+        <button
+          type="button"
+          onClick={handleClick}
+          disabled={status === "sending"}
+          className={
+            "inline-flex items-center justify-center gap-2 px-3.5 py-2 rounded-lg text-[12.5px] font-heading font-semibold transition-all " +
+            (status === "sending"
+              ? "bg-ink/40 text-white cursor-wait"
+              : "bg-ink text-white hover:bg-brand-700")
+          }
+          title="Generate a one-tap sign-in URL for this participant"
+        >
+          {status === "sending" ? (
+            <>
+              <Clock className="w-3.5 h-3.5 animate-spin" strokeWidth={2.5} />
+              Generating…
+            </>
+          ) : (
+            <>
+              <Send className="w-3.5 h-3.5" strokeWidth={2.5} />
+              Send sign-in link
+            </>
+          )}
+        </button>
+      )}
+
+      {status === "success" && (
+        <div className="rounded-lg border border-emerald-200 bg-emerald-50/60 p-3 space-y-2">
+          <div className="inline-flex items-center gap-1.5 text-[11.5px] font-heading font-bold uppercase tracking-wider text-emerald-700">
+            <CheckCircle2 className="w-3.5 h-3.5" strokeWidth={2.5} />
+            Link ready
+          </div>
+          {magicLink ? (
+            <>
+              <input
+                readOnly
+                value={magicLink}
+                onClick={(e) => e.currentTarget.select()}
+                className="w-full text-[11.5px] font-mono bg-white border border-emerald-200 rounded px-2 py-1.5 text-ink overflow-x-auto"
+              />
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleCopy}
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[12px] font-heading font-semibold bg-emerald-600 text-white hover:bg-emerald-700"
+                >
+                  {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                  {copied ? "Copied" : "Copy link"}
+                </button>
+                <button
+                  type="button"
+                  onClick={reset}
+                  className="text-[11.5px] font-heading font-semibold text-ink-muted hover:text-ink"
+                >
+                  New link
+                </button>
+              </div>
+              <p className="text-[11px] text-ink-muted leading-relaxed">
+                Single-use, 1-hour expiry. Share it directly with{" "}
+                <strong className="text-ink">{participant.email}</strong>.
+              </p>
+            </>
+          ) : (
+            <p className="text-[12px] text-ink-muted">
+              Profile is provisioned. Magic-link generation isn't returning a URL — the
+              participant can sign in via the standard <Link to="/login" className="underline">/login</Link> flow.
+            </p>
+          )}
+        </div>
+      )}
+
+      {status === "error" && (
+        <div className="rounded-lg border border-rose-200 bg-rose-50/60 px-3 py-2 text-[12px] text-rose-800 leading-relaxed">
+          {errorMsg}
+          <button
+            type="button"
+            onClick={handleClick}
+            className="ml-2 inline-flex items-center gap-1 font-heading font-semibold underline underline-offset-2 hover:text-rose-900"
+          >
+            Try again
+          </button>
+        </div>
+      )}
+    </div>
+  );
 }
