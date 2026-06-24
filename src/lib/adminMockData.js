@@ -12,6 +12,10 @@
 // ---------------------------------------------------------------------------
 
 import { MOCK_SESSIONS as MOCK_SESSIONS_FOR_HELPERS } from "./mockCohort";
+import { isSupabaseEnabled } from "./supabase";
+import { db, SupabaseNotReady } from "./db";
+import { captureError } from "./observability";
+import { getAllCohortsForAdmin } from "./cohortAdmin";
 
 const COHORT_IAHE = "iahe-aiew3-2026q1";
 const COHORT_MAYO = "mayo-aiew3-2026q1";
@@ -691,6 +695,9 @@ export function addParticipantsToCohort(cohortSlug, payloads) {
   const stored = loadAddedParticipants();
   persistAddedParticipants([...stored, ...added]);
 
+  // Best-effort mirror each new participant.
+  for (const p of added) mirrorParticipantToSupabase(p);
+
   return { added, skipped };
 }
 
@@ -775,6 +782,12 @@ export function createStandaloneUser(payload) {
   ADMIN_MOCK_PARTICIPANTS.push(user);
   const stored = loadAddedParticipants();
   persistAddedParticipants([...stored, user]);
+  // Best-effort mirror. If this email already has a Supabase auth user
+  // (e.g. an admin re-registering an existing user), the mirror updates
+  // the profile. If not, the mirror is a no-op and the local record
+  // becomes the only source — the user can be invited to Supabase later
+  // via a server endpoint.
+  mirrorParticipantToSupabase(user);
   return { user, errors: [] };
 }
 
@@ -796,6 +809,7 @@ export function assignParticipantsToCohort(participantIds, cohortSlug) {
     else stored.push({ ...p });
   }
   persistAddedParticipants(stored);
+  for (const p of updated) mirrorParticipantToSupabase(p);
   return updated;
 }
 
@@ -1090,6 +1104,7 @@ export function setParticipantHeadshot(participantId, url) {
   const p = getParticipantById(participantId);
   if (!p) return null;
   p.headshotUrl = (url || "").trim() || null;
+  mirrorParticipantToSupabase(p);
   return p.headshotUrl;
 }
 
@@ -1102,6 +1117,7 @@ export function setParticipantCapabilities(participantId, capabilities) {
   p.capabilities = list.filter((c) => c !== "participant" && c !== "cohort-leader");
   // Sync isCohortLead if it's being toggled via capability UI.
   if (list.includes("cohort-leader")) p.isCohortLead = true;
+  mirrorParticipantToSupabase(p);
   return p.capabilities;
 }
 
@@ -1630,4 +1646,218 @@ export function getRecentEntriesInScope(cohortSlugs, limit = 6, sinceMs = null) 
     )
     .sort((a, b) => new Date(b.date) - new Date(a.date))
     .slice(0, limit);
+}
+
+// ===========================================================================
+// Supabase hydration — Phase 2 Round A of #399.
+//
+// Pulls profiles + cohort_participants from Supabase and merges them into
+// ADMIN_MOCK_PARTICIPANTS. Three cases per row:
+//
+//   1. Email matches an existing seed participant → attach Supabase IDs
+//      so future writes target the right row, otherwise defer to seed.
+//   2. Email matches a participant already added via the admin UI → same.
+//   3. Email is brand new (Supabase-only) → push a new participant entry.
+//
+// For writes, the mirror skips gracefully if a participant's email doesn't
+// already have a Supabase auth user. Creating profiles from the browser
+// requires a server endpoint (separate task) because profiles.id must
+// reference auth.users(id).
+// ===========================================================================
+
+let participantsHydrated = false;
+let participantHydratePromise = null;
+let _supabaseProfileByEmail = new Map();  // email (lc) → { id, capabilities }
+
+function profileRowToParticipant(row, { cohortBySupabaseId, cohortLinkRow }) {
+  if (!row) return null;
+  const cohort = cohortLinkRow?.cohort_id ? cohortBySupabaseId[cohortLinkRow.cohort_id] : null;
+  const isLeader = cohortLinkRow?.role === "cohort_leader";
+  return {
+    _supabaseProfileId: row.id,
+    _supabaseCohortLinkId: cohortLinkRow?.id || null,
+    _source: "supabase",
+    id: `user-supabase-${row.id.slice(0, 8)}`,
+    name: row.name || "",
+    email: (row.email || "").toLowerCase(),
+    title: row.preferences?.title || "",
+    organization: row.preferences?.organization || "",
+    phone: row.phone || "",
+    headshotUrl: row.avatar_url || null,
+    location: row.preferences?.location || { country: "", state: "", city: "" },
+    defaultTimeZone: row.time_zone || null,
+    role: row.preferences?.role || null,
+    isCohortLead: isLeader,
+    capabilities: Array.isArray(row.capabilities)
+      ? row.capabilities.filter((c) => c !== "participant" && c !== "cohort-leader")
+      : [],
+    cohortSlug: cohort?.slug || null,
+    belt: cohortLinkRow?.belt || null,
+    productionTier: cohortLinkRow?.production_tier || null,
+    whyAi: row.preferences?.whyAi || "",
+    mainGoal: row.preferences?.mainGoal || "",
+    // Activity data (progress / submissions / journalEntries) lands in
+    // Round B when journal_entries + homework_submissions + session_progress
+    // migrate. For now they stay empty for Supabase-only participants.
+    progress: [],
+    lastJournalDaysAgo: 999,
+    submissions: {},
+    journalEntries: [],
+  };
+}
+
+export async function hydrateParticipantsFromSupabase({ force = false } = {}) {
+  if (!isSupabaseEnabled()) return;
+  if (participantHydratePromise && !force) return participantHydratePromise;
+
+  participantHydratePromise = (async () => {
+    try {
+      const [profiles, links, cohorts] = await Promise.all([
+        db.list("profiles", { includeArchived: false }),
+        db.list("cohort_participants", { includeArchived: true }),
+        Promise.resolve(getAllCohortsForAdmin()),
+      ]);
+
+      // Lookup maps.
+      const cohortBySupabaseId = {};
+      for (const c of cohorts || []) {
+        if (c._supabaseId) cohortBySupabaseId[c._supabaseId] = c;
+      }
+      const linkByProfile = {};
+      for (const l of links || []) {
+        // A profile can be in multiple cohorts; we keep the most recent active.
+        const existing = linkByProfile[l.profile_id];
+        if (!existing || (l.joined_at && new Date(l.joined_at) > new Date(existing.joined_at))) {
+          linkByProfile[l.profile_id] = l;
+        }
+      }
+
+      // Rebuild email lookup so writes can find profiles by email.
+      const nextByEmail = new Map();
+      for (const p of profiles || []) {
+        if (p.email) {
+          nextByEmail.set(p.email.toLowerCase(), {
+            id: p.id,
+            capabilities: p.capabilities || [],
+          });
+        }
+      }
+      _supabaseProfileByEmail = nextByEmail;
+
+      // Merge into ADMIN_MOCK_PARTICIPANTS by email match.
+      for (const row of profiles || []) {
+        if (!row.email) continue;
+        const lc = row.email.toLowerCase();
+        const cohortLinkRow = linkByProfile[row.id];
+        const supParticipant = profileRowToParticipant(row, {
+          cohortBySupabaseId,
+          cohortLinkRow,
+        });
+        if (!supParticipant) continue;
+
+        const existing = ADMIN_MOCK_PARTICIPANTS.find(
+          (p) => (p.email || "").toLowerCase() === lc,
+        );
+        if (existing) {
+          // Attach Supabase IDs + capabilities; defer to seed for activity.
+          existing._supabaseProfileId = supParticipant._supabaseProfileId;
+          existing._supabaseCohortLinkId = supParticipant._supabaseCohortLinkId;
+          existing._source = "supabase";
+          if (supParticipant.capabilities?.length && !existing.capabilities?.length) {
+            existing.capabilities = supParticipant.capabilities;
+          }
+        } else {
+          // Net-new Supabase participant.
+          ADMIN_MOCK_PARTICIPANTS.push(supParticipant);
+        }
+      }
+
+      participantsHydrated = true;
+    } catch (err) {
+      if (!(err instanceof SupabaseNotReady)) {
+        captureError(err, { source: "hydrateParticipantsFromSupabase" });
+      }
+    }
+  })();
+
+  return participantHydratePromise;
+}
+
+// ---------------------------------------------------------------------------
+// Write mirrors
+// ---------------------------------------------------------------------------
+
+function resolveSupabaseProfileId(email) {
+  if (!email) return null;
+  const hit = _supabaseProfileByEmail.get(email.toLowerCase());
+  return hit?.id || null;
+}
+
+function resolveSupabaseCohortId(slug) {
+  if (!slug) return null;
+  const cohort = getAllCohortsForAdmin().find((c) => c.slug === slug);
+  return cohort?._supabaseId || null;
+}
+
+// Update the matching profile + (optionally) upsert the cohort_participants
+// link row. Only runs for participants whose email already has a Supabase
+// profile — net-new auth users need a server endpoint.
+async function mirrorParticipantToSupabase(participant) {
+  if (!isSupabaseEnabled() || !participant) return;
+  try {
+    const profileId =
+      participant._supabaseProfileId || resolveSupabaseProfileId(participant.email);
+    if (!profileId) return; // no auth user yet — skip silently
+
+    // Squeeze fields the profiles schema doesn't have its own column for
+    // into the preferences JSONB blob.
+    const prefsPatch = {
+      title: participant.title || undefined,
+      organization: participant.organization || undefined,
+      location: participant.location || undefined,
+      role: participant.role || undefined,
+      whyAi: participant.whyAi || undefined,
+      mainGoal: participant.mainGoal || undefined,
+    };
+
+    await db.update("profiles", profileId, {
+      name: participant.name || "",
+      avatar_url: participant.headshotUrl || null,
+      phone: participant.phone || null,
+      time_zone: participant.defaultTimeZone || null,
+      capabilities:
+        Array.isArray(participant.capabilities) && participant.capabilities.length
+          ? [...new Set([...participant.capabilities, "participant"])]
+          : ["participant"],
+      preferences: prefsPatch,
+    });
+
+    // Stash the resolved id back on the in-memory record so future writes
+    // skip the email lookup.
+    participant._supabaseProfileId = profileId;
+
+    // Upsert the cohort link if the participant is in a cohort.
+    if (participant.cohortSlug) {
+      const cohortId = resolveSupabaseCohortId(participant.cohortSlug);
+      if (cohortId) {
+        const linkRow = {
+          cohort_id: cohortId,
+          profile_id: profileId,
+          role: participant.isCohortLead ? "cohort_leader" : "participant",
+          belt: participant.belt || "white",
+          production_tier: participant.productionTier || "no-sop",
+        };
+        await db.upsert("cohort_participants", linkRow, {
+          onConflict: "cohort_id,profile_id",
+        });
+      }
+    }
+  } catch (err) {
+    if (!(err instanceof SupabaseNotReady)) {
+      captureError(err, {
+        source: "mirrorParticipantToSupabase",
+        email: participant?.email,
+      });
+    }
+  }
 }

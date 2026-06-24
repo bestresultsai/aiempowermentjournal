@@ -10,6 +10,7 @@ import { hydrateCohortsFromSupabase } from './lib/cohortAdmin'
 import { hydrateResourcesFromSupabase } from './lib/resources'
 import { hydrateFeedbacksFromSupabase } from './lib/feedbacks'
 import { hydrateTestimonialsFromSupabase } from './lib/testimonials'
+import { hydrateParticipantsFromSupabase } from './lib/adminMockData'
 
 const queryClient = new QueryClient()
 
@@ -27,6 +28,7 @@ initSupabase().then(async () => {
   // No-ops when Supabase is disabled.
   await hydrateProgramsFromSupabase();
   await hydrateCohortsFromSupabase();
+  await hydrateParticipantsFromSupabase();
   await hydrateResourcesFromSupabase();
   await hydrateFeedbacksFromSupabase();
   await hydrateTestimonialsFromSupabase();
