@@ -6,6 +6,7 @@ import App from './App.jsx'
 import { initObservability } from './lib/observability'
 import { initSupabase } from './lib/supabase'
 import { hydrateProgramsFromSupabase } from './lib/programs'
+import { hydrateCohortsFromSupabase } from './lib/cohortAdmin'
 
 const queryClient = new QueryClient()
 
@@ -16,11 +17,13 @@ initObservability();
 // Fire-and-forget — Supabase client init runs early so the SDK can consume
 // any `#access_token` URL hash from a magic-link landing BEFORE the app
 // tree mounts. When VITE_SUPABASE_URL is unset, this no-ops.
-initSupabase().then(() => {
-  // After the client is up, pull programs from Supabase and merge into the
-  // overlay. Components subscribed to useProgramVersion() re-render when
-  // hydration finishes. No-op when Supabase is disabled.
-  hydrateProgramsFromSupabase();
+initSupabase().then(async () => {
+  // After the client is up, pull domain data from Supabase and merge into
+  // the local overlays. Programs hydrate first because cohort hydration
+  // resolves cohort.program_id (UUID) via the programs lookup map.
+  // No-ops when Supabase is disabled.
+  await hydrateProgramsFromSupabase();
+  await hydrateCohortsFromSupabase();
 });
 
 createRoot(document.getElementById('root')).render(

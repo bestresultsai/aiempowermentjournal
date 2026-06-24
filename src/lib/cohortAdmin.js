@@ -13,7 +13,10 @@
 import { useEffect, useState } from "react";
 import { DEMO_COHORTS } from "./demoData";
 import { MOCK_SESSIONS } from "./mockCohort";
-import { getProgramForCohort, getSessionsForProgram } from "./programs";
+import { getProgramForCohort, getSessionsForProgram, getAllProgramsForAdmin } from "./programs";
+import { isSupabaseEnabled } from "./supabase";
+import { db, SupabaseNotReady } from "./db";
+import { captureError } from "./observability";
 
 const COHORTS_KEY       = "brai_admin_cohorts";
 const ORGS_KEY          = "brai_admin_orgs";
@@ -213,6 +216,7 @@ export function restoreCohort(slug) {
   cohortOverlays[slug] = overlay;
   safePersist(COHORTS_KEY, cohortOverlays);
   emit();
+  mirrorCohortArchiveToSupabase(slug, false);
   return overlay;
 }
 
@@ -535,6 +539,7 @@ export function createCohort(payload, { orgs, facilitators, program } = {}) {
   };
   safePersist(COHORTS_KEY, cohortOverlays);
   emit();
+  mirrorCohortToSupabase(cohortOverlays[cohort.slug]);
   return cohort;
 }
 
@@ -550,6 +555,7 @@ export function updateCohort(slug, payload, { orgs, facilitators, program } = {}
   };
   safePersist(COHORTS_KEY, cohortOverlays);
   emit();
+  mirrorCohortToSupabase(cohortOverlays[slug]);
   return cohort;
 }
 
@@ -560,6 +566,7 @@ export function archiveCohort(slug) {
   };
   safePersist(COHORTS_KEY, cohortOverlays);
   emit();
+  mirrorCohortArchiveToSupabase(slug, true);
 }
 
 // ---------------------------------------------------------------------------
@@ -664,4 +671,266 @@ export function clearAllCohortOverlays() {
   safePersist(COHORTS_KEY, cohortOverlays);
   safePersist(ORGS_KEY,    orgOverlays);
   emit();
+}
+
+// ---------------------------------------------------------------------------
+// Supabase hydration — Phase 2 of #399.
+//
+// On boot, fetch organizations + cohorts + facilitator profiles from
+// Supabase and merge them into the local overlays. Same pattern as
+// programs.js: conservative on rich seed content, additive for
+// Supabase-only rows.
+//
+// IDs in Supabase are UUIDs; the legacy demo data uses string slugs/keys.
+// We build lookup maps at hydration time so cohort.organization /
+// cohort.facilitator land in the legacy shape the UI already knows how
+// to render.
+// ---------------------------------------------------------------------------
+
+let cohortsHydrated = false;
+let cohortHydratePromise = null;
+
+// Reshape a Supabase profiles row (with facilitator capability) into the
+// legacy facilitator object the cohort UI consumes.
+function profileToFacilitator(row) {
+  if (!row) return null;
+  return {
+    id: "fac-" + (row.id || ""),
+    _supabaseProfileId: row.id,
+    name: row.name || row.email || "",
+    email: row.email || "",
+    title: row.preferences?.title || "Facilitator",
+    headshotUrl: row.avatar_url || null,
+    defaultZoomLink: row.preferences?.defaultZoomLink || null,
+    defaultTimeZone: row.time_zone || "America/New_York",
+  };
+}
+
+// Reshape a Supabase organizations row into the legacy org object.
+function organizationRowToOverlay(row) {
+  if (!row) return null;
+  return {
+    id: "org-" + (row.slug || row.id),
+    _supabaseId: row.id,
+    slug: row.slug,
+    name: row.name || "",
+    shortName: row.name?.split(" ")[0] || row.slug || "",
+    primaryColor: row.primary_color || null,
+    archivedAt: row.archived_at || null,
+  };
+}
+
+// Reshape a Supabase cohorts row into the legacy cohort object. Uses lookup
+// maps for program/org/facilitator resolution.
+function cohortRowToOverlay(row, { programsByUuid, orgsByUuid, profilesByUuid }) {
+  if (!row) return null;
+  const program = programsByUuid[row.program_id] || null;
+  const org = orgsByUuid[row.org_id] || null;
+  const facilitator = profilesByUuid[row.facilitator_id] || null;
+
+  // Build sessions array. Supabase stores session_overrides as JSONB but
+  // base session content is on the program — apply overrides to program
+  // sessions to get the per-cohort list. If no program is resolvable, fall
+  // back to MOCK_SESSIONS so the UI doesn't break.
+  let sessions = [];
+  if (program?.sessions?.length) {
+    sessions = program.sessions.map((s) => ({ ...s }));
+    // Apply schedule from session_overrides (admin-edited per-cohort dates).
+    const overrides = Array.isArray(row.session_overrides) ? row.session_overrides : [];
+    for (const ov of overrides) {
+      const idx = sessions.findIndex((s) => s.order === ov.order);
+      if (idx >= 0) sessions[idx] = { ...sessions[idx], ...ov };
+    }
+  }
+
+  return {
+    slug: row.slug,
+    _supabaseId: row.id,
+    name: row.name || "",
+    cohortType: org ? "closed" : "open",
+    programCode: program?.code || null,
+    programName: program?.name || null,
+    methodName: program?.methodName || null,
+    organization: org,
+    facilitator,
+    timeZone: row.time_zone || "America/New_York",
+    zoomLink: row.meeting_zoom_url || null,
+    startDate: row.start_date || null,
+    endDate: row.end_date || null,
+    meetingDay: row.meeting_day || null,
+    meetingTime: row.meeting_time || null,
+    participantCount: row.participant_count || 0,
+    sessions: sessions.length ? sessions : undefined,
+    archivedAt: row.archived_at || null,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    _source: "supabase",
+  };
+}
+
+/**
+ * Hydrate cohorts + organizations + facilitator profiles from Supabase.
+ * Idempotent. No-op when Supabase isn't enabled.
+ */
+export async function hydrateCohortsFromSupabase({ force = false } = {}) {
+  if (!isSupabaseEnabled()) return;
+  if (cohortHydratePromise && !force) return cohortHydratePromise;
+
+  cohortHydratePromise = (async () => {
+    try {
+      // Pull the three reference sets in parallel. We need them all before
+      // we can resolve cohort references.
+      const [cohortRows, orgRows, facilitatorRows, programs] = await Promise.all([
+        db.list("cohorts", { order: { column: "start_date", ascending: true } }),
+        db.list("organizations"),
+        // Facilitator profiles = anyone with 'facilitator' OR 'admin' in
+        // capabilities. We pull all profiles since the set is tiny; filter
+        // client-side to avoid a complex .contains() query.
+        db.list("profiles", { includeArchived: false }),
+        Promise.resolve(getAllProgramsForAdmin()),
+      ]);
+
+      // Build lookup maps keyed by Supabase UUID.
+      const programsByUuid = {};
+      for (const p of programs || []) {
+        if (p._supabaseId) programsByUuid[p._supabaseId] = p;
+      }
+      const orgsByUuid = {};
+      for (const row of orgRows || []) {
+        orgsByUuid[row.id] = organizationRowToOverlay(row);
+      }
+      const profilesByUuid = {};
+      for (const row of facilitatorRows || []) {
+        const caps = Array.isArray(row.capabilities) ? row.capabilities : [];
+        if (caps.includes("facilitator") || caps.includes("admin") || caps.includes("super")) {
+          profilesByUuid[row.id] = profileToFacilitator(row);
+        }
+      }
+
+      // Merge organizations into the overlay. Use legacy-shape id ("org-xxx")
+      // so the UI's existing org lookups continue working.
+      const orgAdditions = {};
+      for (const overlay of Object.values(orgsByUuid)) {
+        if (!overlay?.id) continue;
+        const existing = orgOverlays[overlay.id] || {};
+        orgAdditions[overlay.id] = { ...existing, ...overlay };
+      }
+      Object.assign(orgOverlays, orgAdditions);
+      safePersist(ORGS_KEY, orgOverlays);
+
+      // Merge facilitator profiles into the facilitator overlay.
+      const facAdditions = {};
+      for (const overlay of Object.values(profilesByUuid)) {
+        if (!overlay?.id) continue;
+        const existing = facilitatorOverlays[overlay.id] || {};
+        facAdditions[overlay.id] = { ...existing, ...overlay };
+      }
+      Object.assign(facilitatorOverlays, facAdditions);
+      safePersist(FACILITATORS_KEY, facilitatorOverlays);
+
+      // Merge cohorts. Cohorts whose slug already appears in DEMO_COHORTS
+      // get their Supabase id attached but defer to seed for content.
+      const demoSlugs = new Set(DEMO_COHORTS.map((c) => c.slug));
+      const cohortAdditions = {};
+      for (const row of cohortRows || []) {
+        const overlay = cohortRowToOverlay(row, { programsByUuid, orgsByUuid, profilesByUuid });
+        if (!overlay?.slug) continue;
+        if (demoSlugs.has(overlay.slug)) {
+          // Seed-cohort: only attach IDs + Supabase metadata, leave content
+          // to the seed.
+          cohortAdditions[overlay.slug] = {
+            ...(cohortOverlays[overlay.slug] || {}),
+            _supabaseId: overlay._supabaseId,
+            _source: "supabase",
+            archivedAt: overlay.archivedAt,
+          };
+        } else {
+          // Supabase-only cohort: full hydration.
+          cohortAdditions[overlay.slug] = {
+            ...(cohortOverlays[overlay.slug] || {}),
+            ...overlay,
+          };
+        }
+      }
+      Object.assign(cohortOverlays, cohortAdditions);
+      safePersist(COHORTS_KEY, cohortOverlays);
+
+      cohortsHydrated = true;
+      emit();
+    } catch (err) {
+      if (!(err instanceof SupabaseNotReady)) {
+        captureError(err, { source: "hydrateCohortsFromSupabase" });
+      }
+    }
+  })();
+
+  return cohortHydratePromise;
+}
+
+/**
+ * Best-effort mirror — push a cohort overlay change to Supabase. Doesn't
+ * block or throw; local overlay is the source of truth.
+ */
+async function mirrorCohortToSupabase(cohort) {
+  if (!isSupabaseEnabled() || !cohort?.slug) return;
+  try {
+    // Resolve program code → Supabase program UUID.
+    const program = getAllProgramsForAdmin().find((p) => p.code === cohort.programCode);
+    if (!program?._supabaseId) return; // can't mirror without a valid FK
+
+    // Resolve org legacy id → Supabase org UUID via the orgOverlays lookup.
+    const orgOverlay = cohort.organization?.id ? orgOverlays[cohort.organization.id] : null;
+    const orgUuid = orgOverlay?._supabaseId || null;
+
+    // Resolve facilitator legacy id → Supabase profile UUID.
+    const facOverlay = cohort.facilitator?.id ? facilitatorOverlays[cohort.facilitator.id] : null;
+    const facUuid = facOverlay?._supabaseProfileId || null;
+
+    // Date strings: cohort.sessions[0]?.date is "YYYY-MM-DDTHH:MM" datetime-local.
+    // Postgres `date` column wants YYYY-MM-DD only. Best-effort coerce.
+    const startDate = cohort.sessions?.[0]?.date?.slice(0, 10) || null;
+    const lastDate = cohort.sessions?.length
+      ? cohort.sessions[cohort.sessions.length - 1].date?.slice(0, 10)
+      : null;
+
+    const row = {
+      id: cohort._supabaseId || undefined,
+      slug: cohort.slug,
+      program_id: program._supabaseId,
+      org_id: orgUuid,
+      name: cohort.name || "",
+      start_date: startDate,
+      end_date: lastDate,
+      meeting_day: cohort.meetingDay || null,
+      meeting_time: cohort.meetingTime || null,
+      meeting_zoom_url: cohort.zoomLink || null,
+      participant_count: cohort.participantCount || 0,
+      session_overrides: cohort.sessions || [],
+      facilitator_id: facUuid,
+    };
+
+    const conflictKey = row.id ? "id" : "program_id,slug";
+    await db.upsert("cohorts", row, { onConflict: conflictKey });
+  } catch (err) {
+    if (!(err instanceof SupabaseNotReady)) {
+      captureError(err, { source: "mirrorCohortToSupabase", slug: cohort?.slug });
+    }
+  }
+}
+
+/**
+ * Best-effort soft-delete mirror.
+ */
+async function mirrorCohortArchiveToSupabase(slug, archived) {
+  if (!isSupabaseEnabled() || !slug) return;
+  try {
+    const rows = await db.list("cohorts", { eq: { slug }, includeArchived: true });
+    const row = rows && rows[0];
+    if (!row) return;
+    await db.update("cohorts", row.id, {
+      archived_at: archived ? new Date().toISOString() : null,
+    });
+  } catch (err) {
+    captureError(err, { source: "mirrorCohortArchiveToSupabase", slug });
+  }
 }
