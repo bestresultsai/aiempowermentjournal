@@ -16,8 +16,11 @@
 
 const BRAND = {
   appUrl: "https://platform.bestresults.ai",
+  // Resend has bestresults.ai verified at root. DKIM signs with the root key,
+  // bounces route through send.bestresults.ai (Resend's standard pattern).
+  // From + Reply-To both land in the Google Workspace inbox.
   sender: "BestResults.AI <hello@bestresults.ai>",
-  replyTo: "support@bestresults.ai",
+  replyTo: "hello@bestresults.ai",
   // Horizontal color logo (no tagline). SVG renders fine in all modern web
   // mail clients (Gmail, Apple Mail, Outlook web, mobile). For Outlook
   // *desktop*, host a PNG mirror alongside the SVG before production
