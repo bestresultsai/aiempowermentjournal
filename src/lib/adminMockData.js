@@ -2022,12 +2022,75 @@ async function mirrorSessionProgressToSupabase(participant, sessionOrder, comple
   }
 }
 
+// Best-effort server-side invite. POSTs to the invite-participant Netlify
+// Function with the current admin's access token. Function creates the
+// Supabase auth user + profile + cohort link with the service-role key
+// and returns the resolved IDs.
+async function _inviteViaFunction(participant) {
+  if (!isSupabaseEnabled() || !participant?.email) return null;
+  try {
+    const client = await (await import("./supabase")).initSupabase();
+    if (!client) return null;
+    const { data: sessionData } = await client.auth.getSession();
+    const accessToken = sessionData?.session?.access_token;
+    if (!accessToken) return null;
+
+    const res = await fetch("/.netlify/functions/invite-participant", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({
+        email: participant.email,
+        name: participant.name || "",
+        cohortSlug: participant.cohortSlug || null,
+        capabilities: participant.capabilities || [],
+        title: participant.title || null,
+        organization: participant.organization || null,
+        isCohortLead: !!participant.isCohortLead,
+        sendMagicLink: false,
+      }),
+    });
+    if (!res.ok) {
+      if (res.status >= 500) {
+        const body = await res.json().catch(() => ({}));
+        captureError(new Error(`invite-participant ${res.status}: ${body?.error || ""}`), {
+          source: "_inviteViaFunction",
+          email: participant.email,
+        });
+      }
+      return null;
+    }
+    const result = await res.json();
+    if (result?.profile?.id) {
+      participant._supabaseProfileId = result.profile.id;
+      participant._supabaseCohortLinkId = result.cohortLink?.id || null;
+      if (participant.email) {
+        _supabaseProfileByEmail.set(participant.email.toLowerCase(), {
+          id: result.profile.id,
+          capabilities: result.profile.capabilities || [],
+        });
+      }
+    }
+    return result;
+  } catch (err) {
+    captureError(err, { source: "_inviteViaFunction", email: participant.email });
+    return null;
+  }
+}
+
 async function mirrorParticipantToSupabase(participant) {
   if (!isSupabaseEnabled() || !participant) return;
   try {
-    const profileId =
+    let profileId =
       participant._supabaseProfileId || resolveSupabaseProfileId(participant.email);
-    if (!profileId) return; // no auth user yet — skip silently
+    if (!profileId) {
+      // No auth user yet — fall through to the server-side invite Function.
+      const invited = await _inviteViaFunction(participant);
+      profileId = invited?.profile?.id || null;
+      if (!profileId) return; // invite failed or caller wasn't an admin
+    }
 
     // Squeeze fields the profiles schema doesn't have its own column for
     // into the preferences JSONB blob.
