@@ -1,4 +1,9 @@
 import { useEffect, useState } from "react";
+import { isSupabaseEnabled } from "./supabase";
+import { db, SupabaseNotReady } from "./db";
+import { captureError } from "./observability";
+import { getAllCohortsForAdmin } from "./cohortAdmin";
+import { getAllProgramsForAdmin } from "./programs";
 
 // ---------------------------------------------------------------------------
 // Testimonials — program-completion testimonials with admin approval flow.
@@ -226,6 +231,7 @@ export function submitTestimonial(payload) {
     testimonialOverlays = { ...testimonialOverlays, [existing.id]: next };
     writeOverlays(testimonialOverlays);
     emit();
+    mirrorTestimonialToSupabase(next);
     return next;
   }
 
@@ -247,6 +253,7 @@ export function submitTestimonial(payload) {
   testimonialOverlays = { ...testimonialOverlays, [id]: tm };
   writeOverlays(testimonialOverlays);
   emit();
+  mirrorTestimonialToSupabase(tm);
   return tm;
 }
 
@@ -265,6 +272,7 @@ export function approveTestimonial(id, approverEmail) {
   testimonialOverlays = { ...testimonialOverlays, [id]: next };
   writeOverlays(testimonialOverlays);
   emit();
+  mirrorTestimonialToSupabase(next);
   return next;
 }
 
@@ -283,6 +291,7 @@ export function declineTestimonial(id, declinerEmail) {
   testimonialOverlays = { ...testimonialOverlays, [id]: next };
   writeOverlays(testimonialOverlays);
   emit();
+  mirrorTestimonialToSupabase(next);
   return next;
 }
 
@@ -290,10 +299,209 @@ export function declineTestimonial(id, declinerEmail) {
 export function deleteTestimonial(id) {
   const existing = testimonialOverlays[id] || getAllTestimonials().find((t) => t.id === id);
   if (!existing) return;
-  testimonialOverlays = {
-    ...testimonialOverlays,
-    [id]: { ...existing, deletedAt: new Date().toISOString() },
-  };
+  const next = { ...existing, deletedAt: new Date().toISOString() };
+  testimonialOverlays = { ...testimonialOverlays, [id]: next };
   writeOverlays(testimonialOverlays);
   emit();
+  if (next._supabaseId) mirrorTestimonialArchiveToSupabase(next._supabaseId);
+}
+
+// ---------------------------------------------------------------------------
+// Supabase hydration — Phase 2 of #399.
+//
+// Testimonials reference cohort_id + profile_id (both nullable in the
+// Supabase schema). Status mapping between platform + Supabase isn't 1:1:
+//
+//   Platform:  pending  → approved → declined
+//   Supabase:  draft    → approved → retired (with 'published' as a
+//                                             post-approval marketing
+//                                             state we don't use yet)
+//
+// We translate at the boundary so the UI doesn't need to know.
+// ---------------------------------------------------------------------------
+
+let testimonialsHydrated = false;
+let testimonialHydratePromise = null;
+let testimonialProfilesByEmail = new Map();
+
+function statusToSupabase(status) {
+  if (status === "approved") return "approved";
+  if (status === "declined") return "retired";
+  return "draft";
+}
+
+function statusFromSupabase(status) {
+  if (status === "approved" || status === "published") return "approved";
+  if (status === "retired") return "declined";
+  return "pending";
+}
+
+function testimonialRowToOverlay(row, { cohortsByUuid, profilesByUuid, programsByUuid }) {
+  if (!row) return null;
+  const cohort = row.cohort_id ? cohortsByUuid[row.cohort_id] : null;
+  const profile = row.profile_id ? profilesByUuid[row.profile_id] : null;
+  const program = cohort?._supabaseProgramId
+    ? programsByUuid[cohort._supabaseProgramId]
+    : null;
+  return {
+    id: row.id,
+    _supabaseId: row.id,
+    participantId: null,
+    participantName: row.author_name || profile?.name || "",
+    participantEmail: profile?.email || "",
+    cohortSlug: cohort?.slug || null,
+    programCode: program?.code || cohort?.programCode || null,
+    quote: row.quote || "",
+    role: row.author_title || "",
+    organization: row.author_org || "",
+    allowMarketingUse: Array.isArray(row.surfaces) && row.surfaces.includes("marketing"),
+    status: statusFromSupabase(row.status),
+    submittedAt: row.created_at,
+    updatedAt: row.updated_at,
+    deletedAt: row.archived_at || null,
+    _source: "supabase",
+  };
+}
+
+/**
+ * Hydrate testimonials from Supabase. Requires cohorts + programs hydrated
+ * first.
+ */
+export async function hydrateTestimonialsFromSupabase({ force = false } = {}) {
+  if (!isSupabaseEnabled()) return;
+  if (testimonialHydratePromise && !force) return testimonialHydratePromise;
+
+  testimonialHydratePromise = (async () => {
+    try {
+      const [rows, profiles, cohorts, programs] = await Promise.all([
+        db.list("testimonials", { order: { column: "created_at", ascending: false } }),
+        db.list("profiles", { includeArchived: false }),
+        Promise.resolve(getAllCohortsForAdmin()),
+        Promise.resolve(getAllProgramsForAdmin()),
+      ]);
+
+      const cohortsByUuid = {};
+      for (const c of cohorts || []) {
+        if (c._supabaseId) cohortsByUuid[c._supabaseId] = c;
+      }
+      const programsByUuid = {};
+      for (const p of programs || []) {
+        if (p._supabaseId) programsByUuid[p._supabaseId] = p;
+      }
+      const profilesByUuid = {};
+      const nextEmailMap = new Map();
+      for (const p of profiles || []) {
+        profilesByUuid[p.id] = { name: p.name, email: p.email };
+        if (p.email) nextEmailMap.set(p.email.toLowerCase(), p.id);
+      }
+      testimonialProfilesByEmail = nextEmailMap;
+
+      const seedIds = new Set(SEED_TESTIMONIALS.map((t) => t.id));
+      const additions = {};
+      for (const row of rows || []) {
+        const overlay = testimonialRowToOverlay(row, { cohortsByUuid, profilesByUuid, programsByUuid });
+        if (!overlay?.id) continue;
+        if (seedIds.has(overlay.id)) {
+          // Seed testimonial: attach Supabase id + deletion state only.
+          additions[overlay.id] = {
+            ...(testimonialOverlays[overlay.id] || {}),
+            _supabaseId: overlay._supabaseId,
+            _source: "supabase",
+            deletedAt: overlay.deletedAt,
+          };
+        } else {
+          additions[overlay.id] = {
+            ...(testimonialOverlays[overlay.id] || {}),
+            ...overlay,
+          };
+        }
+      }
+      testimonialOverlays = { ...testimonialOverlays, ...additions };
+      writeOverlays(testimonialOverlays);
+      testimonialsHydrated = true;
+      emit();
+    } catch (err) {
+      if (!(err instanceof SupabaseNotReady)) {
+        captureError(err, { source: "hydrateTestimonialsFromSupabase" });
+      }
+    }
+  })();
+
+  return testimonialHydratePromise;
+}
+
+// ---------------------------------------------------------------------------
+// Write mirror
+// ---------------------------------------------------------------------------
+
+async function resolveProfileUuidByEmail(email) {
+  if (!email) return null;
+  const key = email.toLowerCase();
+  if (testimonialProfilesByEmail.has(key)) return testimonialProfilesByEmail.get(key);
+  try {
+    const rows = await db.list("profiles", { eq: { email }, limit: 1 });
+    const uuid = rows && rows[0] && rows[0].id;
+    if (uuid) testimonialProfilesByEmail.set(key, uuid);
+    return uuid || null;
+  } catch {
+    return null;
+  }
+}
+
+function resolveCohortUuidBySlug(slug) {
+  if (!slug) return null;
+  const cohort = getAllCohortsForAdmin().find((c) => c.slug === slug);
+  return cohort?._supabaseId || null;
+}
+
+async function mirrorTestimonialToSupabase(testimonial) {
+  if (!isSupabaseEnabled() || !testimonial) return;
+  try {
+    // profile_id is nullable in the schema — if we can't resolve the
+    // participant email, we still mirror the row with profile_id=null
+    // (the quote is the important part).
+    const profileUuid = await resolveProfileUuidByEmail(testimonial.participantEmail);
+    const cohortUuid = resolveCohortUuidBySlug(testimonial.cohortSlug);
+
+    const surfaces = testimonial.allowMarketingUse ? ["marketing"] : [];
+
+    const row = {
+      id: testimonial._supabaseId || undefined,
+      profile_id: profileUuid,
+      cohort_id: cohortUuid,
+      source: "standalone",
+      status: statusToSupabase(testimonial.status),
+      quote: testimonial.quote || "",
+      author_name: testimonial.participantName || "",
+      author_title: testimonial.role || null,
+      author_org: testimonial.organization || null,
+      surfaces,
+    };
+
+    if (!row.id) {
+      const inserted = await db.insert("testimonials", row);
+      if (inserted?.id) {
+        const merged = { ...testimonial, _supabaseId: inserted.id };
+        testimonialOverlays = { ...testimonialOverlays, [testimonial.id]: merged };
+        writeOverlays(testimonialOverlays);
+      }
+    } else {
+      await db.upsert("testimonials", row, { onConflict: "id" });
+    }
+  } catch (err) {
+    if (!(err instanceof SupabaseNotReady)) {
+      captureError(err, { source: "mirrorTestimonialToSupabase", id: testimonial?.id });
+    }
+  }
+}
+
+async function mirrorTestimonialArchiveToSupabase(supabaseId) {
+  if (!isSupabaseEnabled() || !supabaseId) return;
+  try {
+    await db.update("testimonials", supabaseId, {
+      archived_at: new Date().toISOString(),
+    });
+  } catch (err) {
+    captureError(err, { source: "mirrorTestimonialArchiveToSupabase", supabaseId });
+  }
 }
