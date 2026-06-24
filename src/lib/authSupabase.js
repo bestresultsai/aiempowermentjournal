@@ -132,12 +132,25 @@ function shapeProfileForApp(profileRow, authUser) {
     // Onboarding state. Phase 1 puts this in `preferences.onboardingCompletedAt`
     // — Phase 2 may promote it to its own column. For now the location is
     // hidden behind this getter so callers don't need to know.
-    onboardingCompletedAt: profileRow.preferences?.onboardingCompletedAt || null,
+    //
+    // Staff (super/admin/facilitator) never go through participant onboarding,
+    // so we synthesize a completion timestamp for them if it's not already set.
+    // Otherwise OnboardingGate would loop them back into /welcome on every
+    // profile re-fetch.
+    onboardingCompletedAt:
+      profileRow.preferences?.onboardingCompletedAt ||
+      (isStaffCapability(profileRow.capabilities) ? profileRow.created_at || new Date().toISOString() : null),
 
     // Marker so downstream code can tell "this is a real Supabase user"
     // vs a demo user.
     _source: "supabase",
   };
+}
+
+// Staff capabilities skip the participant onboarding wizard entirely.
+function isStaffCapability(caps) {
+  if (!Array.isArray(caps)) return false;
+  return caps.some((c) => c === "super" || c === "admin" || c === "facilitator" || c === "org_admin");
 }
 
 function primaryRoleFromCapabilities(caps) {
