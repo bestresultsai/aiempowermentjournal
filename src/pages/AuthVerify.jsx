@@ -2,28 +2,62 @@ import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { verifyToken } from "../lib/api";
+import { isSupabaseEnabled } from "../lib/supabase";
 import Logo from "../components/Logo";
 import { safeNext } from "../components/AuthGate";
+
+// ---------------------------------------------------------------------------
+// AuthVerify
+//
+// Landing page for magic-link clicks. Two modes:
+//
+//   1. Supabase mode (env vars set): the SDK auto-consumes the
+//      #access_token=... hash on first client init. We just wait for
+//      AuthContext to flip from loading → user present, then navigate.
+//
+//   2. Legacy mode (no env vars): we extract ?token= from the query, post
+//      it to /api/auth/verify, then call login() with the returned token +
+//      user object.
+// ---------------------------------------------------------------------------
 
 export default function AuthVerify() {
   const [searchParams] = useSearchParams();
   const [status, setStatus] = useState("verifying");
   const [errorMsg, setErrorMsg] = useState("");
-  const { login } = useAuth();
+  const { login, user, loading } = useAuth();
   const navigate = useNavigate();
+  const next = safeNext(searchParams.get("next")) || "/home";
 
+  // ---- Supabase mode ------------------------------------------------------
   useEffect(() => {
+    if (!isSupabaseEnabled()) return;
+    // Wait for AuthContext to hydrate. The Supabase client consumes the
+    // #access_token hash automatically on first init; AuthContext picks
+    // up the SIGNED_IN event and sets `user`.
+    if (loading) return;
+    if (user) {
+      setStatus("success");
+      const t = setTimeout(() => navigate(next, { replace: true }), 600);
+      return () => clearTimeout(t);
+    }
+    // No user, no loading — the hash either didn't contain a valid token
+    // or the user has no profile row. Give it ~3s grace then show error.
+    const t = setTimeout(() => {
+      setStatus("error");
+      setErrorMsg("The link didn't sign you in. It may have expired or already been used.");
+    }, 3000);
+    return () => clearTimeout(t);
+  }, [user, loading, next, navigate]);
+
+  // ---- Legacy mode --------------------------------------------------------
+  useEffect(() => {
+    if (isSupabaseEnabled()) return;
     const token = searchParams.get("token");
-    // Same-origin path the user originally tried to visit before being
-    // bounced to /login. We sanitize before redirecting so a hostile
-    // magic-link URL can't open-redirect off-platform.
-    const next = safeNext(searchParams.get("next")) || "/home";
     if (!token) {
       setStatus("error");
       setErrorMsg("No token provided");
       return;
     }
-
     verifyToken(token)
       .then(data => {
         login(data.token, data.user);
@@ -34,6 +68,7 @@ export default function AuthVerify() {
         setStatus("error");
         setErrorMsg(err.message);
       });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (

@@ -1,5 +1,7 @@
 import { isDemoModeActive } from "./demoData";
 import { submitJournalEntryAsParticipant } from "./adminMockData";
+import { isSupabaseEnabled } from "./supabase";
+import { sendSupabaseMagicLink } from "./authSupabase";
 
 const API_BASE = "";
 
@@ -65,11 +67,17 @@ export async function submitJournalEntry(data) {
 }
 
 // `opts.next` is a same-origin path the API should redirect to after the
-// user clicks the magic link. The server should embed it in the verify URL
-// (e.g. /auth/verify?token=…&next=…). For now the client also passes it
-// through the URL so AuthVerify can read it directly without round-tripping
-// through the API.
+// user clicks the magic link.
+//
+// When Supabase is enabled (VITE_SUPABASE_URL + key set), we delegate to
+// Supabase's signInWithOtp. Otherwise we fall back to the legacy
+// /api/auth/send-magic-link endpoint (which is currently a stub — the real
+// implementation never landed before the Supabase swap).
 export async function sendMagicLink(email, opts = {}) {
+  if (isSupabaseEnabled()) {
+    await sendSupabaseMagicLink(email, { next: opts.next || "/home" });
+    return { success: true };
+  }
   return fetchJSON("/api/auth/send-magic-link", {
     method: "POST",
     body: JSON.stringify({ email, next: opts.next || null }),

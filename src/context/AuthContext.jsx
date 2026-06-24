@@ -11,6 +11,13 @@ import {
   deactivateDemoMode,
 } from "../lib/demoData";
 import { identifyUser, resetUser } from "../lib/observability";
+import { isSupabaseEnabled } from "../lib/supabase";
+import {
+  getCurrentSession,
+  loadProfileForAuthUser,
+  subscribeToAuthChanges,
+  signOutSupabase,
+} from "../lib/authSupabase";
 
 const AuthContext = createContext(null);
 
@@ -90,18 +97,78 @@ export function AuthProvider({ children }) {
     }
 
     // 3) Otherwise, real magic-link auth flow.
-    const token = localStorage.getItem("auth_token");
-    if (token) {
-      getMe()
-        .then(setUser)
-        .catch(() => {
-          localStorage.removeItem("auth_token");
-          setUser(null);
+    //
+    // When Supabase is configured (VITE_SUPABASE_URL + publishable key set),
+    // we hydrate from the Supabase session and listen for auth changes.
+    // Otherwise we fall back to the legacy token-in-localStorage path.
+    let unsubscribe = null;
+    let cancelled = false;
+
+    if (isSupabaseEnabled()) {
+      // Initial session check — if the user has a valid Supabase session
+      // (cookie/localStorage from a previous magic-link click), hydrate the
+      // profile from public.profiles and we're signed in.
+      getCurrentSession()
+        .then(async ({ user: authUser }) => {
+          if (cancelled) return;
+          if (authUser) {
+            const profile = await loadProfileForAuthUser(authUser);
+            if (cancelled) return;
+            if (profile) {
+              setUser(profile);
+              identifyUser(profile);
+            } else {
+              // Auth session but no profile row → sign out to clear stale state.
+              await signOutSupabase();
+            }
+          }
         })
-        .finally(() => setLoading(false));
+        .catch(() => { /* swallow — non-fatal */ })
+        .finally(() => { if (!cancelled) setLoading(false); });
+
+      // Live updates: when the user clicks a magic link in another tab, or
+      // signs out elsewhere, this fires and we sync state.
+      unsubscribe = subscribeToAuthChanges(async ({ event, user: authUser }) => {
+        if (cancelled) return;
+        if (event === "SIGNED_OUT" || !authUser) {
+          setUser(null);
+          resetUser();
+          return;
+        }
+        if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED" || event === "INITIAL_SESSION") {
+          try {
+            const profile = await loadProfileForAuthUser(authUser);
+            if (cancelled) return;
+            if (profile) {
+              setUser(profile);
+              identifyUser(profile);
+            }
+          } catch {
+            /* swallow — error already captured */
+          }
+        }
+      });
     } else {
-      setLoading(false);
+      // Legacy fallback (today's prod path): the platform runs without
+      // Supabase env vars, so we use the in-memory token + getMe() stub.
+      const token = localStorage.getItem("auth_token");
+      if (token) {
+        getMe()
+          .then((u) => { if (!cancelled) setUser(u); })
+          .catch(() => {
+            localStorage.removeItem("auth_token");
+            if (!cancelled) setUser(null);
+          })
+          .finally(() => { if (!cancelled) setLoading(false); });
+      } else {
+        setLoading(false);
+      }
     }
+
+    return () => {
+      cancelled = true;
+      if (typeof unsubscribe === "function") unsubscribe();
+    };
   }, []);
 
   function login(token, userData) {
@@ -118,6 +185,9 @@ export function AuthProvider({ children }) {
     setUser(null);
     setIsDemo(false);
     resetUser();
+    // Fire-and-forget the Supabase sign-out so the next page load doesn't
+    // re-hydrate from a stale session. No-ops when Supabase isn't enabled.
+    signOutSupabase().catch(() => { /* ignore */ });
   }
 
   function exitDemo() {
