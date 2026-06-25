@@ -23,7 +23,7 @@ import { shouldUseSeedData } from "./demoData";
 // admins should only see Supabase-sourced + admin-created participants.
 // Seed entries are recognizable by NOT having _source === 'supabase' AND
 // NOT having an addedAt field (admin-created participants always have one).
-function getEffectiveParticipants() {
+export function getEffectiveParticipants() {
   if (shouldUseSeedData()) return ADMIN_MOCK_PARTICIPANTS;
   return ADMIN_MOCK_PARTICIPANTS.filter(
     (p) => p._source === "supabase" || p._supabaseProfileId || p.addedAt,

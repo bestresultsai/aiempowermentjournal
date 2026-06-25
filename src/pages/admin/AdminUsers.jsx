@@ -13,7 +13,7 @@ import {
   useCohortVersion,
 } from "../../lib/cohortAdmin";
 import {
-  ADMIN_MOCK_PARTICIPANTS,
+  getEffectiveParticipants,
   assignParticipantsToCohort,
 } from "../../lib/adminMockData";
 import { downloadCSV } from "../../lib/csvExport";
@@ -69,7 +69,10 @@ export default function AdminUsers() {
   const cohorts = useMemo(() => getAllCohortsForAdmin(), [version]);
   const orgs = useMemo(() => getAllOrganizations(), [version]);
   const facilitators = useMemo(() => getAllFacilitators(), [version]);
-  const participants = ADMIN_MOCK_PARTICIPANTS;
+  // In clean-slate mode (Supabase wired, not demo), this only returns
+  // real admin-created or Supabase-sourced users — hides the demo seed
+  // entries that would otherwise inflate the count to ~25.
+  const participants = useMemo(() => getEffectiveParticipants(), [version]);
 
   // Aggregate every known user into a single directory.
   const allUsers = useMemo(() => {
