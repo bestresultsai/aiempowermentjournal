@@ -40,6 +40,35 @@ function getResend() {
 }
 
 export const handler = async (event) => {
+  // Bullet-proof outer wrapper. Any uncaught throw inside the inner handler
+  // would otherwise surface to the user as a Netlify 502 with no diagnostic.
+  // We log to console (Netlify Function logs) and surface a structured 500
+  // with the real error so the browser Network panel shows what broke.
+  try {
+    return await _innerHandler(event);
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.error("[send-email] uncaught error:", err?.stack || err?.message || err);
+    return {
+      statusCode: 500,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        error: err?.message || "Internal error",
+        stack: process.env.NODE_ENV === "production" ? undefined : err?.stack,
+        envCheck: {
+          hasSupabaseUrl: !!(process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL),
+          hasSupabaseSecret: !!process.env.SUPABASE_SECRET_KEY,
+          hasResendKey: !!process.env.RESEND_API_KEY,
+        },
+      }),
+    };
+  }
+};
+
+async function _innerHandler(event) {
+  // eslint-disable-next-line no-console
+  console.log("[send-email] invoked", { method: event.httpMethod });
+
   if (event.httpMethod !== "POST") {
     return bad(new HttpError(405, "Method not allowed."));
   }
@@ -48,7 +77,11 @@ export const handler = async (event) => {
   let adminClient = null;
 
   try {
+    // eslint-disable-next-line no-console
+    console.log("[send-email] step 1: requireAdmin");
     await requireAdmin(event);
+    // eslint-disable-next-line no-console
+    console.log("[send-email] step 1 OK");
     const payload = parseJson(event);
 
     const template = String(payload.template || "").trim();
