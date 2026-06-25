@@ -14,7 +14,7 @@
 // preview, and test each one without hard-coding anything.
 // ---------------------------------------------------------------------------
 
-const BRAND = {
+export const BRAND = {
   appUrl: "https://platform.bestresults.ai",
   // Resend has bestresults.ai verified at root. DKIM signs with the root key,
   // bounces route through send.bestresults.ai (Resend's standard pattern).
