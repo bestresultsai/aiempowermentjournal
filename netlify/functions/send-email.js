@@ -23,20 +23,36 @@
 //   PUBLIC_SITE_URL      — used in template links
 // ---------------------------------------------------------------------------
 
-import { Resend } from "resend";
+// NOTE: We deliberately avoid `import { Resend } from "resend"` here. The 6.x
+// SDK has been crashing at module load on Netlify Functions (bare 502 with no
+// diagnostic). Calling Resend's REST API directly with fetch is simpler,
+// avoids the SDK dependency entirely, and gives us first-class error
+// surfaces.
 import { getAdminClient, requireAdmin, parseJson, ok, bad, HttpError } from "./_helpers.js";
 import { renderTemplate, BRAND } from "../../src/lib/emailTemplates.js";
 
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
 const RESEND_FROM_EMAIL = process.env.RESEND_FROM_EMAIL || BRAND.sender;
 
-let _resend = null;
-function getResend() {
+// POST to https://api.resend.com/emails — returns { data, error } shape so
+// the rest of the handler can stay unchanged.
+async function resendSend({ from, to, reply_to, subject, html, text }) {
   if (!RESEND_API_KEY) {
     throw new HttpError(500, "RESEND_API_KEY is not configured.");
   }
-  if (!_resend) _resend = new Resend(RESEND_API_KEY);
-  return _resend;
+  const res = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${RESEND_API_KEY}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ from, to, reply_to, subject, html, text }),
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    return { data: null, error: { message: body?.message || `Resend HTTP ${res.status}`, name: body?.name, statusCode: res.status } };
+  }
+  return { data: body, error: null };
 }
 
 export const handler = async (event) => {
@@ -145,9 +161,10 @@ async function _innerHandler(event) {
       console.warn("[send-email] log step error:", err?.message || err);
     }
 
-    // ----- Hand off to Resend -----
-    const resend = getResend();
-    const sent = await resend.emails.send({
+    // ----- Hand off to Resend (direct REST call, no SDK) -----
+    // eslint-disable-next-line no-console
+    console.log("[send-email] step 3: posting to Resend");
+    const sent = await resendSend({
       from: RESEND_FROM_EMAIL,
       to: recipient.email,
       reply_to: payload.replyTo || BRAND.replyTo,
@@ -155,6 +172,8 @@ async function _innerHandler(event) {
       html: rendered.html,
       text: rendered.text,
     });
+    // eslint-disable-next-line no-console
+    console.log("[send-email] step 3 done", { hasError: !!sent?.error });
 
     if (sent?.error) {
       // Update log with failure if we have a log row.
