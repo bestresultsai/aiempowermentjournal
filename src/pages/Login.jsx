@@ -133,17 +133,6 @@ export default function Login() {
             )}
 
             <div className="mt-8 pt-6 border-t border-soft text-center space-y-3">
-              <div>
-                <span className="text-[12.5px] text-ink-muted">
-                  Want to log a journal entry without signing in?{" "}
-                </span>
-                <Link
-                  to="/journal/new"
-                  className="text-[12.5px] font-heading font-semibold text-brand-600 hover:text-brand-700 transition-colors"
-                >
-                  Go to entry form →
-                </Link>
-              </div>
               <div className="text-[11.5px] text-ink-subtle">
                 By signing in you agree to our{" "}
                 <Link to="/terms" className="text-ink-muted hover:text-ink underline underline-offset-2">

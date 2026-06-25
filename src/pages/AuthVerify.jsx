@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import { Loader2, CheckCircle2, XCircle } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { verifyToken } from "../lib/api";
 import { isSupabaseEnabled } from "../lib/supabase";
@@ -18,6 +19,9 @@ import { safeNext } from "../components/AuthGate";
 //   2. Legacy mode (no env vars): we extract ?token= from the query, post
 //      it to /api/auth/verify, then call login() with the returned token +
 //      user object.
+//
+// Styling matches the Login page: warm beige background, white card,
+// brand fonts, Lucide icons. No inline styles, no emojis.
 // ---------------------------------------------------------------------------
 
 export default function AuthVerify() {
@@ -31,17 +35,12 @@ export default function AuthVerify() {
   // ---- Supabase mode ------------------------------------------------------
   useEffect(() => {
     if (!isSupabaseEnabled()) return;
-    // Wait for AuthContext to hydrate. The Supabase client consumes the
-    // #access_token hash automatically on first init; AuthContext picks
-    // up the SIGNED_IN event and sets `user`.
     if (loading) return;
     if (user) {
       setStatus("success");
       const t = setTimeout(() => navigate(next, { replace: true }), 600);
       return () => clearTimeout(t);
     }
-    // No user, no loading — the hash either didn't contain a valid token
-    // or the user has no profile row. Give it ~3s grace then show error.
     const t = setTimeout(() => {
       setStatus("error");
       setErrorMsg("The link didn't sign you in. It may have expired or already been used.");
@@ -59,12 +58,12 @@ export default function AuthVerify() {
       return;
     }
     verifyToken(token)
-      .then(data => {
+      .then((data) => {
         login(data.token, data.user);
         setStatus("success");
         setTimeout(() => navigate(next, { replace: true }), 800);
       })
-      .catch(err => {
+      .catch((err) => {
         setStatus("error");
         setErrorMsg(err.message);
       });
@@ -72,37 +71,60 @@ export default function AuthVerify() {
   }, []);
 
   return (
-    <div style={{
-      minHeight: "100vh", display: "flex", alignItems: "center",
-      justifyContent: "center", background: "#F8FAFC", padding: 20,
-    }}>
-      <div style={{
-        background: "#fff", borderRadius: 16, padding: "40px 32px",
-        border: "1px solid #E2E8F0", maxWidth: 400, width: "100%",
-        textAlign: "center",
-      }}>
-        <Logo size="md" />
-        <div style={{ marginTop: 24 }}>
-          {status === "verifying" && (
-            <>
-              <div style={{ fontSize: 28, marginBottom: 12 }}>🔐</div>
-              <div style={{ fontWeight: 600, color: "#0F172A" }}>Verifying your login...</div>
-            </>
-          )}
-          {status === "success" && (
-            <>
-              <div style={{ fontSize: 28, marginBottom: 12 }}>✅</div>
-              <div style={{ fontWeight: 600, color: "#059669" }}>You're signed in! Redirecting...</div>
-            </>
-          )}
-          {status === "error" && (
-            <>
-              <div style={{ fontSize: 28, marginBottom: 12 }}>❌</div>
-              <div style={{ fontWeight: 600, color: "#DC2626", marginBottom: 8 }}>Login Failed</div>
-              <div style={{ fontSize: 13, color: "#64748B" }}>{errorMsg}</div>
-            </>
-          )}
+    <div className="min-h-screen flex items-center justify-center bg-surface px-4 py-12">
+      <div className="w-full max-w-[420px] bg-surface-card border border-soft rounded-2xl p-8 sm:p-10 text-center shadow-sm animate-fade-in-up">
+        <div className="flex justify-center mb-6">
+          <Logo size="md" />
         </div>
+
+        {status === "verifying" && (
+          <>
+            <div className="w-12 h-12 mx-auto mb-4 rounded-full bg-brand-50 text-brand-600 flex items-center justify-center">
+              <Loader2 className="w-6 h-6 animate-spin" strokeWidth={2.25} />
+            </div>
+            <h1 className="font-heading text-[22px] font-extrabold tracking-tight text-ink leading-tight mb-1.5">
+              Signing you in…
+            </h1>
+            <p className="text-[14px] text-ink-muted leading-relaxed">
+              Hang tight — verifying your magic link.
+            </p>
+          </>
+        )}
+
+        {status === "success" && (
+          <>
+            <div className="w-12 h-12 mx-auto mb-4 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center">
+              <CheckCircle2 className="w-6 h-6" strokeWidth={2.25} />
+            </div>
+            <h1 className="font-heading text-[22px] font-extrabold tracking-tight text-ink leading-tight mb-1.5">
+              You're signed in
+            </h1>
+            <p className="text-[14px] text-ink-muted leading-relaxed">
+              Redirecting you now…
+            </p>
+          </>
+        )}
+
+        {status === "error" && (
+          <>
+            <div className="w-12 h-12 mx-auto mb-4 rounded-full bg-red-50 text-red-600 flex items-center justify-center">
+              <XCircle className="w-6 h-6" strokeWidth={2.25} />
+            </div>
+            <h1 className="font-heading text-[22px] font-extrabold tracking-tight text-ink leading-tight mb-1.5">
+              We couldn't sign you in
+            </h1>
+            <p className="text-[14px] text-ink-muted leading-relaxed mb-6">
+              {errorMsg}
+            </p>
+            <button
+              type="button"
+              onClick={() => navigate("/login", { replace: true })}
+              className="inline-flex items-center justify-center bg-ink text-white font-heading font-bold text-[14px] px-5 py-2.5 rounded-xl hover:bg-ink/90 transition-colors"
+            >
+              Back to sign in
+            </button>
+          </>
+        )}
       </div>
     </div>
   );
