@@ -193,6 +193,17 @@ async function buildParticipantCohortView(realCohort, slug) {
   // object with headshotUrl, or missing. Try to resolve to the richer record.
   let trainer = null;
   const rawFac = realCohort.facilitator;
+  // Diagnostic — surface what shape the facilitator arrived in when the
+  // participant page renders. Lets us see at a glance whether the overlay
+  // is null, an id string, or a hydrated profile object.
+  // eslint-disable-next-line no-console
+  console.info(
+    `[buildParticipantCohortView] cohort "${slug}" facilitator raw shape:`,
+    rawFac === null ? "null" :
+    rawFac === undefined ? "undefined" :
+    typeof rawFac === "string" ? `string:${rawFac}` :
+    { keys: Object.keys(rawFac || {}), name: rawFac?.name, email: rawFac?.email, id: rawFac?.id, _supabaseProfileId: rawFac?._supabaseProfileId },
+  );
   if (rawFac && typeof rawFac === "object" && rawFac.name) {
     trainer = {
       name: rawFac.name,
