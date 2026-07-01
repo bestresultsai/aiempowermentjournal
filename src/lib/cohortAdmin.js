@@ -895,7 +895,43 @@ export async function hydrateCohortsFromSupabase({ force = false } = {}) {
       Object.assign(orgOverlays, orgAdditions);
       safePersist(ORGS_KEY, orgOverlays);
 
-      // Merge facilitator profiles into the facilitator overlay.
+      // Merge facilitator profiles into the facilitator overlay. This is
+      // authoritative: the resulting overlay should mirror what's actually
+      // in Supabase right now (plus any locally-created facilitators that
+      // haven't been mirrored yet). Anything else is stale.
+      //
+      // Purge stale entries first, then layer in the fresh Supabase data:
+      //   - Drop entries with a _supabaseProfileId that no longer exists
+      //     in profilesByUuid — those were deleted / demoted in Supabase.
+      //   - Drop entries with NO _supabaseProfileId AND no createdAt —
+      //     that's demo/seed residue with no legitimate origin.
+      //   - Drop entries with no email — usually the same residue in a
+      //     shape old enough it never had one, and they can't be safely
+      //     deduped against email-carrying rows.
+      //
+      // Result: no more ghost "Jess Lee / Carlos Mendez / Jordan Park"
+      // hangovers from previous seed states, and no more Mike-twice.
+      const liveProfileIds = new Set(
+        Object.values(profilesByUuid)
+          .map((p) => p?._supabaseProfileId)
+          .filter(Boolean),
+      );
+      for (const [id, entry] of Object.entries(facilitatorOverlays)) {
+        const sid = entry?._supabaseProfileId;
+        const hasEmail = !!(entry?.email && String(entry.email).trim());
+        const localOnly = !sid && !!entry?.createdAt;
+        if (sid && !liveProfileIds.has(sid)) {
+          delete facilitatorOverlays[id];
+          continue;
+        }
+        if (!sid && !localOnly) {
+          delete facilitatorOverlays[id];
+          continue;
+        }
+        if (!hasEmail && !localOnly) {
+          delete facilitatorOverlays[id];
+        }
+      }
       const facAdditions = {};
       for (const overlay of Object.values(profilesByUuid)) {
         if (!overlay?.id) continue;
