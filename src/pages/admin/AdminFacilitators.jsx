@@ -6,7 +6,7 @@ import {
 import { useAuth } from "../../context/AuthContext";
 import {
   useCohortVersion,
-  getAllFacilitators,
+  useFacilitatorsFromSupabase,
   getCohortsForFacilitator,
   createFacilitator,
   updateFacilitator,
@@ -25,7 +25,16 @@ import HeadshotUpload from "../../components/HeadshotUpload";
 export default function AdminFacilitators() {
   const { user } = useAuth();
   const version = useCohortVersion();
-  const facilitators = useMemo(() => getAllFacilitators(), [version]);
+  // Read directly from Supabase profiles. Was `getAllFacilitators()` which
+  // pulls from the localStorage overlay — that overlay retained stale
+  // demo residue between deploys and made this list drift out of sync
+  // with the actual users table.
+  const { data: liveFacilitators } = useFacilitatorsFromSupabase();
+  const facilitators = useMemo(
+    () => liveFacilitators || [],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [liveFacilitators, version],
+  );
   const [searchParams, setSearchParams] = useSearchParams();
   const editFromUrl = searchParams.get("edit");
   const [editing, setEditing] = useState(editFromUrl || null);

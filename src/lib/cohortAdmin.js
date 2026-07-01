@@ -11,10 +11,11 @@
 // ---------------------------------------------------------------------------
 
 import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { DEMO_COHORTS, shouldUseSeedData } from "./demoData";
 import { MOCK_SESSIONS } from "./mockCohort";
 import { getProgramForCohort, getSessionsForProgram, getAllProgramsForAdmin } from "./programs";
-import { isSupabaseEnabled } from "./supabase";
+import { initSupabase, isSupabaseEnabled } from "./supabase";
 import { db, SupabaseNotReady } from "./db";
 import { captureError } from "./observability";
 
@@ -215,6 +216,51 @@ function dedupeFacilitatorsByEmail(list) {
 
 export function getFacilitatorById(id) {
   return getAllFacilitators().find((f) => f.id === id) || null;
+}
+
+// ---------------------------------------------------------------------------
+// useFacilitatorsFromSupabase — Supabase-first source for pickers/lists.
+//
+// The overlay-based getAllFacilitators() can retain stale entries when the
+// localStorage cache was populated before a Supabase profile was demoted
+// or deleted. Consumers that need "who exists RIGHT NOW" should use this
+// hook instead — it queries public.profiles directly (facilitator / admin
+// / super capability), so the list is always exactly what's in the DB.
+//
+// Falls back gracefully to the overlay when Supabase isn't wired (demo
+// mode / no env). Returns the same shape as getAllFacilitators() so the
+// picker components don't need to know the difference.
+// ---------------------------------------------------------------------------
+export function useFacilitatorsFromSupabase() {
+  const overlayList = getAllFacilitators();
+  const query = useQuery({
+    queryKey: ["facilitators-supabase"],
+    enabled: isSupabaseEnabled() && !shouldUseSeedData(),
+    staleTime: 60 * 1000,
+    queryFn: async () => {
+      const client = await initSupabase();
+      if (!client) return null;
+      const { data, error } = await client
+        .from("profiles")
+        .select("id, name, email, avatar_url, preferences, time_zone, capabilities")
+        .not("email", "is", null);
+      if (error) throw error;
+      return (data || [])
+        .filter((row) => {
+          const caps = Array.isArray(row.capabilities) ? row.capabilities : [];
+          return (
+            caps.includes("facilitator") ||
+            caps.includes("admin") ||
+            caps.includes("super")
+          );
+        })
+        .map(profileToFacilitator);
+    },
+  });
+  // Prefer the live Supabase list; fall through to the overlay only when
+  // the query hasn't returned yet (initial mount) or Supabase is off.
+  const list = query.data ?? overlayList;
+  return { data: list, isLoading: query.isLoading };
 }
 
 // Return the cohorts a given facilitator is assigned to. Used by the

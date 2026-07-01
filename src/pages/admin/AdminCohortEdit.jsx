@@ -1,15 +1,11 @@
 import { Navigate, useParams } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
-import {
-  canEditCohort,
-  canArchiveCohort,
-  getAccessibleFacilitators,
-} from "../../lib/adminRoles";
-import { DEMO_COHORTS } from "../../lib/demoData";
+import { canEditCohort, canArchiveCohort } from "../../lib/adminRoles";
 import {
   getCohortForAdmin,
   getSessionsForCohort,
   getAllOrganizations,
+  useFacilitatorsFromSupabase,
 } from "../../lib/cohortAdmin";
 import CohortForm from "../../components/admin/CohortForm";
 
@@ -21,6 +17,10 @@ export default function AdminCohortEdit() {
   const { slug } = useParams();
   const { user } = useAuth();
   const cohort = getCohortForAdmin(slug);
+  // Live Supabase facilitator list — replaces the previous
+  // getAccessibleFacilitators(user, DEMO_COHORTS) call which was
+  // literally pulling names out of the seed demo data.
+  const { data: facilitators } = useFacilitatorsFromSupabase();
 
   if (!cohort) {
     return <Navigate to="/admin/cohorts" replace />;
@@ -33,10 +33,7 @@ export default function AdminCohortEdit() {
   // includes the current cohort's org/facilitator so editing without changing
   // them still works even if those have been removed from scope.
   const orgs = ensureIncluded(getAllOrganizations(), cohort.organization);
-  const facilitators = ensureIncluded(
-    getAccessibleFacilitators(user, DEMO_COHORTS),
-    cohort.facilitator,
-  );
+  const facilitatorsWithCurrent = ensureIncluded(facilitators, cohort.facilitator);
 
   // Hydrate the form with the per-cohort session dates if available.
   const initial = { ...cohort, sessions: getSessionsForCohort(slug) };
@@ -47,7 +44,7 @@ export default function AdminCohortEdit() {
         mode="edit"
         initial={initial}
         orgs={orgs}
-        facilitators={facilitators}
+        facilitators={facilitatorsWithCurrent}
         canArchive={canArchiveCohort(user)}
       />
     </div>
@@ -56,6 +53,6 @@ export default function AdminCohortEdit() {
 
 function ensureIncluded(list, item) {
   if (!item) return list;
-  if (list.some((x) => x.id === item.id)) return list;
-  return [item, ...list];
+  if ((list || []).some((x) => x.id === item.id)) return list;
+  return [item, ...(list || [])];
 }
