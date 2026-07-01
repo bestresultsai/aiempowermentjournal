@@ -6,6 +6,18 @@
 [functions]
   node_bundler = "esbuild"
 
+# ---------------------------------------------------------------------------
+# Scheduled Functions — Netlify cron
+# ---------------------------------------------------------------------------
+# scheduled-session-reminders runs every 10 minutes. It scans every active
+# cohort's session_overrides for sessions starting in [23.5h, 24.5h] and
+# [45min, 75min] windows, then fires session-reminder-24h and
+# session-reminder-1h to the roster. The email_sends audit table dedups so
+# each participant + session + template only gets one send.
+# ---------------------------------------------------------------------------
+[functions."scheduled-session-reminders"]
+  schedule = "*/10 * * * *"
+
 [[redirects]]
   from = "/*"
   to = "/index.html"
