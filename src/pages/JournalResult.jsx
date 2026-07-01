@@ -1,7 +1,25 @@
 import { useLocation, Link, Navigate } from "react-router-dom";
+import {
+  Sparkles, Clock, TrendingUp, Calendar as CalendarIcon, DollarSign,
+  ArrowRight, PlusCircle, Lightbulb,
+} from "lucide-react";
 import NavBar from "../components/NavBar";
-import { calcTimeSaved, calcPercentSaved, calcAnnualTimeSaved, calcAnnualValue, formatCurrency, formatHours } from "../lib/calculations";
+import {
+  calcTimeSaved,
+  calcPercentSaved,
+  calcAnnualTimeSaved,
+  calcAnnualValue,
+  formatCurrency,
+  formatHours,
+} from "../lib/calculations";
 
+// ---------------------------------------------------------------------------
+// /journal/result — post-submit confirmation.
+//
+// Rebuilt to match the current Journal.jsx aesthetic (surface-card + brand
+// Tailwind tokens) rather than the legacy inline-style blue gradient. Shows
+// the four impact stats, quality/scope/frequency chips, and any innovation.
+// ---------------------------------------------------------------------------
 export default function JournalResult() {
   const { state } = useLocation();
 
@@ -14,108 +32,150 @@ export default function JournalResult() {
   const annualTime = calcAnnualTimeSaved(hoursWithout, hoursWith, state.frequency);
   const annualValue = calcAnnualValue(hoursWithout, hoursWith, state.frequency);
 
-  const qualColor = state.qualityOutcome === "Better than original" ? "#059669"
-    : state.qualityOutcome === "Equal to original" ? "#2563EB" : "#DC2626";
+  const qualityTone =
+    state.qualityOutcome === "Better than original"
+      ? { bg: "bg-emerald-50", text: "text-emerald-700", border: "border-emerald-200" }
+      : state.qualityOutcome === "Equal to original"
+        ? { bg: "bg-brand-50", text: "text-brand-700", border: "border-brand-100" }
+        : { bg: "bg-rose-50", text: "text-rose-700", border: "border-rose-200" };
 
   return (
-    <>
+    <div className="min-h-screen bg-surface-paper">
       <NavBar />
-      <div style={{ maxWidth: 560, margin: "0 auto", padding: "24px 16px 40px" }}>
-        <div style={{ textAlign: "center", marginBottom: 24 }}>
-          <div style={{ fontSize: 44, marginBottom: 8 }}>🎉</div>
-          <h1 style={{ fontSize: 22, fontWeight: 800, color: "#0F172A", margin: "0 0 6px" }}>
-            Entry Submitted!
-          </h1>
-          <p style={{ fontSize: 14, color: "#64748B" }}>
-            Here's the impact of <strong>{state.projectName}</strong>
-          </p>
-        </div>
-
-        {/* Impact Card */}
-        <div style={{
-          background: "linear-gradient(135deg, #2563EB 0%, #3B82F6 100%)",
-          borderRadius: 16, padding: "24px 20px", color: "#fff", marginBottom: 16,
-        }}>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
-            <div>
-              <div style={{ fontSize: 11, opacity: 0.8, fontWeight: 500, marginBottom: 4 }}>Time Saved</div>
-              <div style={{ fontSize: 28, fontWeight: 800 }}>{timeSaved.toFixed(1)}h</div>
-            </div>
-            <div>
-              <div style={{ fontSize: 11, opacity: 0.8, fontWeight: 500, marginBottom: 4 }}>Efficiency Gain</div>
-              <div style={{ fontSize: 28, fontWeight: 800 }}>{percentSaved.toFixed(0)}%</div>
-            </div>
-            <div>
-              <div style={{ fontSize: 11, opacity: 0.8, fontWeight: 500, marginBottom: 4 }}>Annual Time Saved</div>
-              <div style={{ fontSize: 28, fontWeight: 800 }}>{formatHours(annualTime)}h</div>
-            </div>
-            <div>
-              <div style={{ fontSize: 11, opacity: 0.8, fontWeight: 500, marginBottom: 4 }}>Annual Value</div>
-              <div style={{ fontSize: 28, fontWeight: 800 }}>{formatCurrency(annualValue)}</div>
-            </div>
+      <main className="max-w-2xl mx-auto px-6 lg:px-10 py-10 space-y-6 animate-fade-in-up">
+        {/* Header */}
+        <header className="text-center space-y-3">
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 text-[11px] font-heading font-bold uppercase tracking-wider border border-emerald-200">
+            <Sparkles className="w-3 h-3" strokeWidth={3} />
+            Entry logged
           </div>
-        </div>
+          <h1 className="font-heading text-[30px] lg:text-[36px] font-extrabold tracking-tight text-ink leading-[1.1]">
+            Nice work.
+          </h1>
+          <p className="text-[14px] text-ink-muted">
+            Here's the impact of{" "}
+            <strong className="text-ink">{state.projectName || "your entry"}</strong>.
+          </p>
+        </header>
 
-        {/* Details */}
-        <div style={{
-          background: "#fff", borderRadius: 12, padding: 20,
-          border: "1px solid #E2E8F0", marginBottom: 16,
-        }}>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 14 }}>
-            <span style={{
-              padding: "4px 12px", borderRadius: 6, fontSize: 11, fontWeight: 600,
-              background: "#D1FAE5", color: qualColor,
-            }}>
+        {/* Impact grid — four stats on brand-tinted surface cards. */}
+        <section className="grid grid-cols-2 gap-3">
+          <StatCard
+            icon={Clock}
+            label="Time saved"
+            value={`${timeSaved.toFixed(1)}h`}
+            accent="brand"
+          />
+          <StatCard
+            icon={TrendingUp}
+            label="Efficiency gain"
+            value={`${percentSaved.toFixed(0)}%`}
+            accent="emerald"
+          />
+          <StatCard
+            icon={CalendarIcon}
+            label="Annual time saved"
+            value={`${formatHours(annualTime)}h`}
+            accent="brand"
+          />
+          <StatCard
+            icon={DollarSign}
+            label="Annual value"
+            value={formatCurrency(annualValue)}
+            accent="emerald"
+          />
+        </section>
+
+        {/* Chips + optional innovation callout */}
+        <section className="rounded-2xl bg-surface-card border border-soft p-5 space-y-3">
+          <div className="flex flex-wrap gap-2">
+            <Chip className={`${qualityTone.bg} ${qualityTone.text} ${qualityTone.border}`}>
               Quality: {state.qualityOutcome}
-            </span>
-            <span style={{
-              padding: "4px 12px", borderRadius: 6, fontSize: 11, fontWeight: 600,
-              background: "#EDE9FE", color: "#7C3AED",
-            }}>
+            </Chip>
+            <Chip className="bg-violet-50 text-violet-700 border-violet-200">
               {state.scope}
-            </span>
-            <span style={{
-              padding: "4px 12px", borderRadius: 6, fontSize: 11, fontWeight: 600,
-              background: "#F1F5F9", color: "#64748B",
-            }}>
+            </Chip>
+            <Chip className="bg-surface-soft text-ink-muted border-soft">
               {state.frequency}
-            </span>
+            </Chip>
           </div>
 
           {state.innovationTitle && (
-            <div style={{
-              background: "#FEF3C7", borderRadius: 8, padding: 14,
-              border: "1px solid #FDE68A",
-            }}>
-              <div style={{ fontSize: 12, fontWeight: 700, color: "#B45309", marginBottom: 4 }}>
-                🚀 Innovation: {state.innovationTitle}
+            <div className="rounded-xl bg-amber-50 border border-amber-200 p-4">
+              <div className="inline-flex items-center gap-1.5 text-[12px] font-heading font-bold text-amber-900">
+                <Lightbulb className="w-3.5 h-3.5" strokeWidth={2.5} />
+                Innovation: {state.innovationTitle}
               </div>
               {state.innovationDescription && (
-                <div style={{ fontSize: 12, color: "#92400E" }}>{state.innovationDescription}</div>
+                <p className="text-[12.5px] text-amber-900/80 mt-1 leading-relaxed">
+                  {state.innovationDescription}
+                </p>
               )}
             </div>
           )}
-        </div>
+        </section>
 
         {/* CTAs */}
-        <div style={{ display: "flex", gap: 12 }}>
-          <Link to="/journal" style={{
-            flex: 1, textAlign: "center", textDecoration: "none",
-            background: "#2563EB", color: "#fff", padding: "12px 0",
-            borderRadius: 10, fontWeight: 700, fontSize: 14,
-          }}>
-            Submit Another
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+          <Link
+            to="/journal"
+            className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-ink text-white text-[14px] font-heading font-semibold hover:bg-brand-700 transition-colors duration-200"
+          >
+            <PlusCircle className="w-4 h-4" strokeWidth={2.5} />
+            Log another
           </Link>
-          <Link to="/dashboard" style={{
-            flex: 1, textAlign: "center", textDecoration: "none",
-            background: "#fff", color: "#2563EB", padding: "12px 0",
-            borderRadius: 10, fontWeight: 700, fontSize: 14,
-            border: "2px solid #BFDBFE",
-          }}>
-            View Dashboard
+          <Link
+            to="/dashboard"
+            className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-white border border-soft text-ink text-[14px] font-heading font-semibold hover:border-brand-500 hover:bg-brand-50/40 transition-all duration-200"
+          >
+            View dashboard
+            <ArrowRight className="w-4 h-4" strokeWidth={2.5} />
           </Link>
         </div>
+      </main>
+    </div>
+  );
+}
+
+// StatCard — one of the four impact tiles. Same visual language the rest of
+// the participant app uses for stat cards, so this page stops feeling like
+// a foreign island.
+function StatCard({ icon: Icon, label, value, accent = "brand" }) {
+  const toneMap = {
+    brand: {
+      iconBg: "bg-brand-100 text-brand-700",
+      valueColor: "text-ink",
+    },
+    emerald: {
+      iconBg: "bg-emerald-100 text-emerald-700",
+      valueColor: "text-ink",
+    },
+  };
+  const t = toneMap[accent] || toneMap.brand;
+  return (
+    <div className="rounded-2xl bg-surface-card border border-soft p-4">
+      <div className={`w-9 h-9 rounded-xl ${t.iconBg} flex items-center justify-center mb-2`}>
+        <Icon className="w-4.5 h-4.5" strokeWidth={2.25} />
       </div>
-    </>
+      <div className="text-[11px] font-heading font-bold uppercase tracking-wider text-ink-muted">
+        {label}
+      </div>
+      <div className={`font-heading text-[26px] font-extrabold tracking-tight ${t.valueColor} mt-0.5`}>
+        {value}
+      </div>
+    </div>
+  );
+}
+
+function Chip({ className = "", children }) {
+  return (
+    <span
+      className={
+        "inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11.5px] font-heading font-semibold border " +
+        className
+      }
+    >
+      {children}
+    </span>
   );
 }

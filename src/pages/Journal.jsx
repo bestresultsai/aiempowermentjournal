@@ -12,6 +12,11 @@ import {
   PRODUCTION_METHODS, VOLUME_PER_DAY, FREQUENCIES_SIMPLE,
   SCOPES, QUALITY_OPTIONS,
 } from "../lib/journalConstants";
+
+// Frequencies where "how many of these per day" is a meaningful follow-up.
+// Weekly / monthly / rare tasks: the volume-per-day question is nonsensical,
+// so we hide the field entirely for those.
+const VOLUME_APPLIES_FREQUENCIES = new Set(["multiple-per-day", "daily"]);
 import { LIMITS, clampString, sanitizeUrl, validateAttachment } from "../lib/inputValidation";
 
 // ---------------------------------------------------------------------------
@@ -48,7 +53,16 @@ export default function Journal() {
   const [error, setError] = useState("");
 
   function update(field, value) {
-    setForm((f) => ({ ...f, [field]: value }));
+    setForm((f) => {
+      const next = { ...f, [field]: value };
+      // If the participant picks a frequency where volume-per-day doesn't
+      // apply, drop any stale volumePerDay so a hidden-but-still-set value
+      // can't slip through to the submit payload.
+      if (field === "frequency" && !VOLUME_APPLIES_FREQUENCIES.has(value)) {
+        next.volumePerDay = "";
+      }
+      return next;
+    });
   }
 
   function handleFile(file) {
@@ -89,7 +103,11 @@ export default function Journal() {
       setError("Please choose how you produced this.");
       return;
     }
-    if (!form.volumePerDay) {
+    // Volume-per-day only makes sense when the task recurs on a given day
+    // ("multiple times per day" or "daily"). For weekly / monthly / rare
+    // we skip the field entirely — asking "how many per day" for something
+    // that happens once a month is nonsensical.
+    if (VOLUME_APPLIES_FREQUENCIES.has(form.frequency) && !form.volumePerDay) {
       setError("Pick how many of these you typically produce in a day.");
       return;
     }
@@ -250,15 +268,19 @@ export default function Journal() {
           {/* 4 — Volume per day. Copy is deliberately about the task the
               entry describes, not the entry itself — Mike flagged that the
               old phrasing ("how many times do you do this?") read like it
-              was asking about journaling frequency. */}
-          <Field label="How many of these do you typically produce in a day?" required>
-            <ChoiceGrid
-              options={VOLUME_PER_DAY.map((v) => ({ key: v.key, label: v.label }))}
-              value={form.volumePerDay}
-              onChange={(v) => update("volumePerDay", v)}
-              cols={4}
-            />
-          </Field>
+              was asking about journaling frequency. Also hidden when the
+              frequency is monthly / weekly / rare — asking "how many per
+              day" for something that happens once a week doesn't fit. */}
+          {VOLUME_APPLIES_FREQUENCIES.has(form.frequency) && (
+            <Field label="How many of these do you typically produce in a day?" required>
+              <ChoiceGrid
+                options={VOLUME_PER_DAY.map((v) => ({ key: v.key, label: v.label }))}
+                value={form.volumePerDay}
+                onChange={(v) => update("volumePerDay", v)}
+                cols={4}
+              />
+            </Field>
+          )}
 
           {/* 5 — Hours (kept per "cut nothing" decision) */}
           <Field label="Time saved" required>

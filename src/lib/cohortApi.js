@@ -19,6 +19,7 @@ import {
 } from "./adminMockData";
 import { getProgramByCode } from "./programs";
 import { getCohortForAdmin, getSessionsForCohort, getAllFacilitators } from "./cohortAdmin";
+import { initSupabase, isSupabaseEnabled } from "./supabase";
 
 export const USE_MOCK_DATA = true; // flip to false once Notion DBs + functions are live
 
@@ -51,7 +52,25 @@ async function fetchJSON(url, options = {}) {
 const inMemoryProgress = { ...MOCK_PROGRESS };
 const inMemoryHomework = { ...MOCK_HOMEWORK };
 
-function currentUserKey() {
+// Resolve the current participant's email. Prefers the Supabase auth
+// session (which is what real users hit), falls back to the legacy JWT
+// stored in localStorage (from the pre-Supabase era). Returns "guest"
+// when nothing resolves — which used to happen silently on every
+// homework/session-complete write for signed-in Supabase users, because
+// the legacy auth_token key hasn't been used since Phase 3. That was
+// causing participant writes to skip the mirror path entirely and never
+// reach the admin views.
+async function currentUserKey() {
+  if (isSupabaseEnabled()) {
+    try {
+      const client = await initSupabase();
+      if (client) {
+        const { data } = await client.auth.getSession();
+        const email = data?.session?.user?.email;
+        if (email) return email;
+      }
+    } catch { /* fall through to legacy path */ }
+  }
   try {
     const token = getToken();
     if (!token) return "guest";
@@ -85,7 +104,7 @@ export async function getCohortBySlug(slug) {
     if (!shouldUseSeedData()) {
       const realCohort = getCohortForAdmin(slug);
       if (realCohort) {
-        return buildParticipantCohortView(realCohort, slug);
+        return await buildParticipantCohortView(realCohort, slug);
       }
     }
 
@@ -97,7 +116,7 @@ export async function getCohortBySlug(slug) {
       throw new Error(`Cohort "${slug}" not found.`);
     }
 
-    const key = currentUserKey();
+    const key = await currentUserKey();
 
     // Prefer the unified ADMIN_MOCK_PARTICIPANTS record when one exists for
     // the current email — that way submissions + admin reviews flow both
@@ -155,9 +174,9 @@ export async function getCohortBySlug(slug) {
 // actual name/org/facilitator/sessions instead of the MOCK_COHORT (IAHE +
 // Purple belt seed data).
 // ---------------------------------------------------------------------------
-function buildParticipantCohortView(realCohort, slug) {
+async function buildParticipantCohortView(realCohort, slug) {
   const sessions = getSessionsForCohort(slug) || MOCK_SESSIONS;
-  const key = currentUserKey();
+  const key = await currentUserKey();
   const adminParticipant = getParticipantByEmail(key);
   const completed = adminParticipant?.progress || inMemoryProgress[key] || [];
   const homework = {};
@@ -242,7 +261,7 @@ export async function getSession(slug, order) {
 
 export async function markSessionComplete(slug, order, completed = true) {
   if (USE_MOCK_DATA) {
-    const key = currentUserKey();
+    const key = await currentUserKey();
     // Prefer the unified participant record so admin views reflect progress.
     const updated = markSessionCompleteForParticipant(key, order, completed);
     if (updated) {
@@ -262,7 +281,7 @@ export async function markSessionComplete(slug, order, completed = true) {
 
 export async function submitHomework(slug, order, { response, link }) {
   if (USE_MOCK_DATA) {
-    const key = currentUserKey();
+    const key = await currentUserKey();
     // Route through the unified store when the user matches a known
     // participant — that way admin homework queue + participant submission
     // share one record + reviews flow back to /session/:order.

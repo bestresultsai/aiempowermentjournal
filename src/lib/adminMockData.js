@@ -1893,6 +1893,20 @@ export function setupParticipantRealtime() {
     }, 400);
   }
 
+  // Activity writes (homework, journals, session progress) come from the
+  // participant side. Debounced separately + rehydrate activity so admins
+  // see Bethany's just-submitted homework without a reload.
+  let _activityTimer = null;
+  function scheduleActivityRefresh() {
+    if (_activityTimer) return;
+    _activityTimer = setTimeout(() => {
+      _activityTimer = null;
+      hydrateActivityFromSupabase({ force: true })
+        .then(() => emitParticipantChange())
+        .catch(() => { /* swallow */ });
+    }, 400);
+  }
+
   (async () => {
     try {
       const client = await initSupabase();
@@ -1901,6 +1915,12 @@ export function setupParticipantRealtime() {
         .channel("brai-participants-live")
         .on("postgres_changes", { event: "*", schema: "public", table: "profiles" }, scheduleRefresh)
         .on("postgres_changes", { event: "*", schema: "public", table: "cohort_participants" }, scheduleRefresh)
+        // Participant activity — admin views need this to update when a
+        // participant submits homework, logs a journal entry, or marks a
+        // session complete in another session.
+        .on("postgres_changes", { event: "*", schema: "public", table: "homework_submissions" }, scheduleActivityRefresh)
+        .on("postgres_changes", { event: "*", schema: "public", table: "journal_entries" }, scheduleActivityRefresh)
+        .on("postgres_changes", { event: "*", schema: "public", table: "session_progress" }, scheduleActivityRefresh)
         .subscribe();
     } catch (err) {
       captureError(err, { source: "setupParticipantRealtime" });
