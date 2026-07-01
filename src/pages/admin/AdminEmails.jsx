@@ -261,25 +261,56 @@ export default function AdminEmails() {
                 </div>
                 {sentLog.length === 0 ? (
                   <p className="text-[12.5px] text-ink-muted">
-                    No emails sent yet. Production sends land here too once
-                    the backend swap ships.
+                    No emails sent yet. Real production sends land here as they go out — no manual refresh needed.
                   </p>
                 ) : (
                   <ul className="space-y-1.5">
-                    {sentLog.map((entry) => (
-                      <li
-                        key={entry.id}
-                        className="rounded-lg bg-surface-soft/40 border border-soft px-3 py-2 text-[12.5px]"
-                      >
-                        <div className="font-heading font-semibold text-ink truncate">
-                          {entry.subject}
-                        </div>
-                        <div className="text-[11px] text-ink-muted mt-0.5">
-                          {entry.template} → {entry.to.email} ·{" "}
-                          {new Date(entry.sentAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
-                        </div>
-                      </li>
-                    ))}
+                    {sentLog.map((entry) => {
+                      const isFailed = entry.status === "failed";
+                      const isQueued = entry.status === "queued";
+                      return (
+                        <li
+                          key={entry.id}
+                          className={
+                            "rounded-lg border px-3 py-2 text-[12.5px] " +
+                            (isFailed
+                              ? "border-rose-200 bg-rose-50/60"
+                              : isQueued
+                                ? "border-amber-200 bg-amber-50/60"
+                                : "border-soft bg-surface-soft/40")
+                          }
+                        >
+                          <div className="flex items-center gap-2 min-w-0">
+                            <div className="font-heading font-semibold text-ink truncate flex-1 min-w-0">
+                              {entry.subject}
+                            </div>
+                            {entry.status && entry.status !== "sent" && (
+                              <span
+                                className={
+                                  "text-[10px] font-heading font-bold uppercase tracking-wider px-1.5 py-0.5 rounded " +
+                                  (isFailed
+                                    ? "bg-rose-600 text-white"
+                                    : "bg-amber-600 text-white")
+                                }
+                              >
+                                {entry.status}
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-[11px] text-ink-muted mt-0.5">
+                            {entry.template} → {entry.to.email} ·{" "}
+                            {entry.sentAt
+                              ? new Date(entry.sentAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })
+                              : "pending"}
+                          </div>
+                          {isFailed && entry.error && (
+                            <div className="text-[11px] text-rose-700 mt-1 break-words">
+                              {entry.error}
+                            </div>
+                          )}
+                        </li>
+                      );
+                    })}
                   </ul>
                 )}
               </div>

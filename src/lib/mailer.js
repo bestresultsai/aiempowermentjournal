@@ -145,6 +145,9 @@ export function clearSentLog() {
 
 export function useSentLog() {
   const [version, setVersion] = useState(0);
+  const [supabaseRows, setSupabaseRows] = useState(null);
+
+  // Local-log listeners (drives demo / offline)
   useEffect(() => {
     function onChange() { setVersion((v) => v + 1); }
     window.addEventListener(CHANGE_EVENT, onChange);
@@ -157,10 +160,61 @@ export function useSentLog() {
       window.removeEventListener("storage", onStorage);
     };
   }, []);
-  // Bind to `version` so callers re-render. Using version in the dep array
-  // for the returned value lets React do its thing on each tick.
+
+  // Supabase-backed log — poll every 15s so recently-sent emails appear.
+  // Falls silently to null when Supabase isn't wired; the render path
+  // uses the local log as a fallback in that case.
+  useEffect(() => {
+    if (!isSupabaseEnabled()) return;
+    let cancelled = false;
+    async function pull() {
+      try {
+        const client = await initSupabase();
+        if (!client || cancelled) return;
+        const { data, error } = await client
+          .from("email_sends")
+          .select("id, template, to_email, subject, status, error_message, sent_at, created_at, provider_message_id")
+          .order("created_at", { ascending: false })
+          .limit(25);
+        if (cancelled) return;
+        if (error) {
+          // Log but don't crash — non-fatal for the admin surface
+          // eslint-disable-next-line no-console
+          console.warn("[mailer] email_sends poll failed:", error.message);
+          return;
+        }
+        setSupabaseRows((data || []).map(_normalizeEmailSendRow));
+      } catch { /* ignore */ }
+    }
+    pull();
+    const t = setInterval(pull, 15000);
+    return () => { cancelled = true; clearInterval(t); };
+  }, []);
+
+  // Prefer Supabase log when we have rows. Local log stays as fallback for
+  // demo mode + as a safety net if Supabase is briefly unreachable.
+  if (supabaseRows) return supabaseRows;
   // eslint-disable-next-line react-hooks/exhaustive-deps
   return getSentLog();
+}
+
+// Convert an email_sends row into the shape AdminEmails renders:
+//   { id, template, subject, to: { email }, sentAt, status, error, providerId }
+function _normalizeEmailSendRow(row) {
+  return {
+    id: row.id,
+    template: row.template,
+    subject: row.subject || "(no subject)",
+    to: { email: row.to_email || "" },
+    // Prefer the sent_at timestamp (the moment the provider accepted the
+    // message) with created_at as a fallback for rows that failed before
+    // the provider round-trip.
+    sentAt: row.sent_at || row.created_at,
+    status: row.status || "unknown",
+    error: row.error_message || null,
+    providerId: row.provider_message_id || null,
+    _source: "supabase",
+  };
 }
 
 // ---------------------------------------------------------------------------
