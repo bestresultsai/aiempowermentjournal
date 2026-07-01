@@ -150,14 +150,14 @@ export default function Settings() {
                 icon={User}
                 value={form.name}
                 onChange={(v) => update("name", v)}
-                placeholder="Josue Acuna"
+                placeholder="Full name"
               />
               <Field
                 label="Title"
                 icon={Briefcase}
                 value={form.title}
                 onChange={(v) => update("title", v)}
-                placeholder="Director of AI Strategy"
+                placeholder="Job title"
               />
             </div>
           </Section>

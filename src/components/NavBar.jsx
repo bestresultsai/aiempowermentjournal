@@ -219,9 +219,21 @@ function UserMenu({ user, onLogout, withDivider = true }) {
         onClick={() => setOpen((o) => !o)}
         className="flex items-center gap-2.5 group"
       >
-        <div className="w-11 h-11 rounded-full bg-brand-700 text-white flex items-center justify-center text-[14px] font-heading font-bold transition-transform duration-200 group-hover:scale-105">
-          {initials}
-        </div>
+        {user.headshotUrl ? (
+          // Show the real profile picture when the user has one uploaded
+          // (Settings → Profile → headshot writes to Supabase Storage's
+          // avatars bucket and sets user.headshotUrl). Fall back to the
+          // initials chip only when no picture is set.
+          <img
+            src={user.headshotUrl}
+            alt={user.name || "Profile"}
+            className="w-11 h-11 rounded-full object-cover bg-brand-700 transition-transform duration-200 group-hover:scale-105"
+          />
+        ) : (
+          <div className="w-11 h-11 rounded-full bg-brand-700 text-white flex items-center justify-center text-[14px] font-heading font-bold transition-transform duration-200 group-hover:scale-105">
+            {initials}
+          </div>
+        )}
         <div className="hidden sm:flex flex-col items-start leading-tight">
           <span className="text-[14px] font-heading font-semibold text-ink">
             {user.name?.split(" ")[0]}
