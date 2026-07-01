@@ -1102,6 +1102,51 @@ async function mirrorCohortToSupabase(cohort) {
           }
         } catch { /* swallow — non-fatal, we'll try again next mirror */ }
       }
+
+      // Verify: is this UUID actually in profiles right now? Guards against
+      // phantom stubs from legacy overlays whose _supabaseProfileId points
+      // at a profile that no longer exists. Without this check, the mirror
+      // happily persists an orphan facilitator_id and the participant
+      // FacilitatorCard silently renders blank. If verification fails,
+      // fall back to email lookup one more time; if THAT also fails,
+      // give up on the UUID rather than write garbage.
+      if (facUuid) {
+        try {
+          const client = await initSupabase();
+          if (client) {
+            const { data: check } = await client
+              .from("profiles")
+              .select("id,email")
+              .eq("id", facUuid)
+              .maybeSingle();
+            if (!check?.id) {
+              // eslint-disable-next-line no-console
+              console.warn(
+                `[mirrorCohortToSupabase] rejecting phantom facilitator_id ${facUuid} — ` +
+                `not present in profiles. Retrying via email lookup.`,
+              );
+              facUuid = null;
+              // Retry via email if we have one.
+              if (fac.email) {
+                const { data: byEmail } = await client
+                  .from("profiles")
+                  .select("id")
+                  .ilike("email", fac.email)
+                  .limit(1);
+                if (byEmail?.[0]?.id) {
+                  facUuid = byEmail[0].id;
+                  // Refresh the overlay cache with the correct UUID so the
+                  // phantom doesn't win again next time.
+                  if (fac.id && facilitatorOverlays[fac.id]) {
+                    facilitatorOverlays[fac.id]._supabaseProfileId = facUuid;
+                    safePersist(FACILITATORS_KEY, facilitatorOverlays);
+                  }
+                }
+              }
+            }
+          }
+        } catch { /* swallow — if verification itself throws, keep facUuid as-is */ }
+      }
     }
 
     // Date strings: cohort.sessions[0]?.date is "YYYY-MM-DDTHH:MM" datetime-local.
