@@ -201,8 +201,16 @@ export function useResolvedCohort() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [urlSlug, user, isDemo, pVersion, cVersion, direct.data]);
 
+  // Include pVersion + cVersion in the queryKey so React Query refetches
+  // when async hydration lands (participant activity or cohort mirror).
+  // Without these deps, the participant page captures a pre-hydrate cohort
+  // snapshot (empty submissions, no facilitator, stale session_overrides)
+  // and never re-runs buildParticipantCohortView after activity/cohort
+  // hydration completes on cold boot. That's why session 1 shows
+  // homework-due even though homework_submissions has the row, and
+  // Green Belt shows locked even though session_overrides has manualLockState=unlocked.
   const query = useQuery({
-    queryKey: ["cohort", slug],
+    queryKey: ["cohort", slug, pVersion, cVersion],
     queryFn: () => getCohortBySlug(slug),
     enabled: !!slug,
   });
