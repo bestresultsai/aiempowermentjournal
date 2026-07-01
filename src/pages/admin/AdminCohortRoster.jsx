@@ -11,7 +11,7 @@ import { BELT_COLORS } from "../../lib/mockCohort";
 import { getSessionsCountForCohort } from "../../lib/programs";
 import {
   getParticipantsForCohort, getCohortJournalStats,
-  totalTimeSaved, formatMinutes,
+  totalTimeSaved, formatMinutes, useParticipantVersion,
 } from "../../lib/adminMockData";
 import { getAllCohortsForAdmin, getSessionsForCohort, setSessionRecording } from "../../lib/cohortAdmin";
 import { findAwaitingRecording } from "../../lib/sessionState";
@@ -37,7 +37,15 @@ export default function AdminCohortRoster() {
   const [sortDir, setSortDir] = useState("asc");
 
   // Hooks must run in a stable order — keep them above the scope check.
-  const rosterRaw = cohort ? getParticipantsForCohort(slug) : [];
+  // Bump on every participant write / Realtime push so the roster count
+  // stays honest without a manual reload (task #550 — the "Bethany only
+  // sees 2/4 participants" bug).
+  const pVersion = useParticipantVersion();
+  const rosterRaw = useMemo(
+    () => (cohort ? getParticipantsForCohort(slug) : []),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [cohort, slug, pVersion],
+  );
   // Schedule summary — derives meeting day/time + start/end from session dates.
   const sessions = cohort ? getSessionsForCohort(slug) : [];
   // Per-cohort session count — APFW cohorts have 10, AIEW3 has 8, etc. Fall

@@ -14,6 +14,7 @@ import {
   canAssignRoles,
   canGradeHomework,
 } from "../../lib/adminRoles";
+import { setupParticipantRealtime } from "../../lib/adminMockData";
 import { APP_CONFIG } from "../../lib/appConfig";
 import { useViewAs, VIEW_AS_LABELS } from "../../lib/viewAs";
 import Logo from "../../components/Logo";
@@ -83,6 +84,16 @@ export default function AdminLayout() {
   const [mobileOpen, setMobileOpen] = useState(false);
 
   const roleLabel = getRoleLabel(user?.role);
+
+  // Live participant sync (task #550). While an admin is inside /admin/*,
+  // subscribe to Supabase Realtime on profiles + cohort_participants so
+  // roster + user directory refresh automatically as invites land, other
+  // admins add rows in a second tab, or Supabase migrations tweak fields.
+  // Silent no-op when Supabase isn't wired.
+  useEffect(() => {
+    const teardown = setupParticipantRealtime();
+    return () => teardown?.();
+  }, []);
 
   return (
     <div className="min-h-screen bg-surface-paper flex">

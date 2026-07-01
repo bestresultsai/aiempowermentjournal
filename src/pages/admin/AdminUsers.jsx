@@ -15,6 +15,7 @@ import {
 import {
   getEffectiveParticipants,
   assignParticipantsToCohort,
+  useParticipantVersion,
 } from "../../lib/adminMockData";
 import { downloadCSV } from "../../lib/csvExport";
 import Select from "../../components/Select";
@@ -61,6 +62,10 @@ export default function AdminUsers() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const version = useCohortVersion();
+  // Re-render on any participant mutation (own writes + Realtime pushes
+  // from other tabs / other admins). Cheaper than polling and keeps
+  // "just invited Bethany → she appears in the roster" instantaneous.
+  const pVersion = useParticipantVersion();
 
   if (!canAssignRoles(user)) {
     return <Navigate to="/admin" replace />;
@@ -72,7 +77,11 @@ export default function AdminUsers() {
   // In clean-slate mode (Supabase wired, not demo), this only returns
   // real admin-created or Supabase-sourced users — hides the demo seed
   // entries that would otherwise inflate the count to ~25.
-  const participants = useMemo(() => getEffectiveParticipants(), [version]);
+  const participants = useMemo(
+    () => getEffectiveParticipants(),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [version, pVersion],
+  );
 
   // Aggregate every known user into a single directory.
   const allUsers = useMemo(() => {

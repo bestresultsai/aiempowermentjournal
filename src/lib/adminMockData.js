@@ -11,12 +11,47 @@
 // All cohort slugs match DEMO_COHORTS so the scoping helpers work end-to-end.
 // ---------------------------------------------------------------------------
 
+import { useEffect, useState } from "react";
 import { MOCK_SESSIONS as MOCK_SESSIONS_FOR_HELPERS } from "./mockCohort";
-import { isSupabaseEnabled } from "./supabase";
+import { initSupabase, isSupabaseEnabled } from "./supabase";
 import { db, SupabaseNotReady } from "./db";
 import { captureError } from "./observability";
 import { getAllCohortsForAdmin } from "./cohortAdmin";
 import { shouldUseSeedData } from "./demoData";
+
+// ---------------------------------------------------------------------------
+// Participant pubsub (task #550)
+//
+// A tiny in-memory event bus so every page that displays participants —
+// AdminUsers, AdminCohortRoster, AdminHomeworkQueue, AdminJournalDashboard,
+// AdminDashboard, /leader/cohort — re-renders as soon as a mutation lands
+// or a Realtime event fires from Supabase. Mirrors the pattern in
+// cohortAdmin.js's subscribeCohortChanges/useCohortVersion.
+//
+// Every mutation that touches ADMIN_MOCK_PARTICIPANTS (or its nested
+// journalEntries / submissions / progress arrays) must call
+// emitParticipantChange() so consumers know their data went stale.
+// ---------------------------------------------------------------------------
+const _participantListeners = new Set();
+export function subscribeParticipantChanges(fn) {
+  _participantListeners.add(fn);
+  return () => _participantListeners.delete(fn);
+}
+function emitParticipantChange() {
+  for (const fn of _participantListeners) {
+    try { fn(); } catch { /* swallow — one bad listener shouldn't break the rest */ }
+  }
+}
+
+// React hook: increments on every participant-touching write. Bind it into
+// a useMemo dep array or a bare re-render trigger. Cheap to call from many
+// components at once — listeners are added once per mount and removed on
+// unmount.
+export function useParticipantVersion() {
+  const [v, setV] = useState(0);
+  useEffect(() => subscribeParticipantChanges(() => setV((x) => x + 1)), []);
+  return v;
+}
 
 // Filter the underlying ADMIN_MOCK_PARTICIPANTS array so seed-only entries
 // drop out in clean-slate mode (Supabase wired + not in demo mode). Real
@@ -711,6 +746,7 @@ export function addParticipantsToCohort(cohortSlug, payloads) {
   // Best-effort mirror each new participant.
   for (const p of added) mirrorParticipantToSupabase(p);
 
+  if (added.length) emitParticipantChange();
   return { added, skipped };
 }
 
@@ -801,6 +837,7 @@ export function createStandaloneUser(payload) {
   // becomes the only source — the user can be invited to Supabase later
   // via a server endpoint.
   mirrorParticipantToSupabase(user);
+  emitParticipantChange();
   return { user, errors: [] };
 }
 
@@ -823,6 +860,7 @@ export function assignParticipantsToCohort(participantIds, cohortSlug) {
   }
   persistAddedParticipants(stored);
   for (const p of updated) mirrorParticipantToSupabase(p);
+  if (updated.length) emitParticipantChange();
   return updated;
 }
 
@@ -955,6 +993,7 @@ export function submitHomeworkAsParticipant(email, sessionOrder, { response, lin
   };
   persistStoredReviews(stored);
   mirrorHomeworkToSupabase(p, order, p.submissions[order]);
+  emitParticipantChange();
   return p.submissions[order];
 }
 
@@ -986,6 +1025,7 @@ export function submitJournalEntryAsParticipant(email, payload) {
   p.journalEntries = [newEntry, ...p.journalEntries];
   p.lastJournalDaysAgo = 0;
   mirrorJournalEntryToSupabase(p, newEntry);
+  emitParticipantChange();
   return newEntry;
 }
 
@@ -998,6 +1038,7 @@ export function markSessionCompleteForParticipant(email, sessionOrder, completed
   if (completed) set.add(ord); else set.delete(ord);
   p.progress = [...set].sort((a, b) => a - b);
   mirrorSessionProgressToSupabase(p, ord, completed);
+  emitParticipantChange();
   return p.progress;
 }
 
@@ -1014,6 +1055,7 @@ export function markHomeworkReviewed(participantId, sessionOrder, feedback) {
   stored[`${participantId}::${sessionOrder}`] = { reviewedAt, feedback };
   persistStoredReviews(stored);
   mirrorHomeworkToSupabase(p, sessionOrder, p.submissions[sessionOrder]);
+  emitParticipantChange();
   return p.submissions[sessionOrder];
 }
 
@@ -1029,6 +1071,7 @@ export function unmarkHomeworkReviewed(participantId, sessionOrder) {
   delete stored[`${participantId}::${sessionOrder}`];
   persistStoredReviews(stored);
   mirrorHomeworkToSupabase(p, sessionOrder, sub);
+  emitParticipantChange();
   return sub;
 }
 
@@ -1791,6 +1834,7 @@ export async function hydrateParticipantsFromSupabase({ force = false } = {}) {
       }
 
       participantsHydrated = true;
+      emitParticipantChange();
     } catch (err) {
       if (!(err instanceof SupabaseNotReady)) {
         captureError(err, { source: "hydrateParticipantsFromSupabase" });
@@ -1799,6 +1843,84 @@ export async function hydrateParticipantsFromSupabase({ force = false } = {}) {
   })();
 
   return participantHydratePromise;
+}
+
+// ---------------------------------------------------------------------------
+// refreshParticipantsFromSupabase — force a re-hydrate + notify subscribers.
+//
+// Called after invite-participant, or on Realtime events, to pick up fresh
+// rows without a full page reload. Safe to call redundantly; the underlying
+// hydrate() short-circuits on the participantHydratePromise cache when not
+// forced, so callers who really want a fresh pull must pass force=true.
+// ---------------------------------------------------------------------------
+export async function refreshParticipantsFromSupabase() {
+  if (!isSupabaseEnabled()) return;
+  // Force a fresh Postgres read (bypasses the module-scoped cache).
+  participantHydratePromise = null;
+  await hydrateParticipantsFromSupabase({ force: true });
+  // hydrateParticipantsFromSupabase already emits at the end, but we emit
+  // again in case a caller wants to attach a subscriber right before the
+  // await resolves — the second emit is cheap.
+  emitParticipantChange();
+}
+
+// ---------------------------------------------------------------------------
+// setupParticipantRealtime — subscribe to Supabase Realtime channels on the
+// profiles + cohort_participants tables and rehydrate on any change.
+//
+// Returns an unsubscribe function. Idempotent — calling twice returns the
+// same channel handle. Intended to be mounted once at the app level (e.g.
+// from AdminLayout). Silent no-op when Supabase isn't wired.
+//
+// This is what makes the roster feel "live" — as soon as another admin
+// invites a participant in a different tab, this admin's roster grows a
+// row on its own, no reload required.
+// ---------------------------------------------------------------------------
+let _realtimeChannel = null;
+let _realtimeUnsubscribe = null;
+let _realtimeRefreshTimer = null;
+export function setupParticipantRealtime() {
+  if (_realtimeUnsubscribe) return _realtimeUnsubscribe;
+  if (!isSupabaseEnabled()) return () => {};
+
+  // Debounce a burst of writes into one rehydrate — e.g. a bulk-invite of
+  // 20 participants would otherwise fire 20 back-to-back Postgres reads.
+  function scheduleRefresh() {
+    if (_realtimeRefreshTimer) return;
+    _realtimeRefreshTimer = setTimeout(() => {
+      _realtimeRefreshTimer = null;
+      refreshParticipantsFromSupabase().catch(() => { /* swallow */ });
+    }, 400);
+  }
+
+  (async () => {
+    try {
+      const client = await initSupabase();
+      if (!client || _realtimeChannel) return;
+      _realtimeChannel = client
+        .channel("brai-participants-live")
+        .on("postgres_changes", { event: "*", schema: "public", table: "profiles" }, scheduleRefresh)
+        .on("postgres_changes", { event: "*", schema: "public", table: "cohort_participants" }, scheduleRefresh)
+        .subscribe();
+    } catch (err) {
+      captureError(err, { source: "setupParticipantRealtime" });
+    }
+  })();
+
+  _realtimeUnsubscribe = () => {
+    if (_realtimeRefreshTimer) {
+      clearTimeout(_realtimeRefreshTimer);
+      _realtimeRefreshTimer = null;
+    }
+    if (_realtimeChannel) {
+      try {
+        _realtimeChannel.unsubscribe();
+      } catch { /* ignore */ }
+      _realtimeChannel = null;
+    }
+    _realtimeUnsubscribe = null;
+  };
+  return _realtimeUnsubscribe;
 }
 
 // ---------------------------------------------------------------------------
@@ -2151,6 +2273,14 @@ async function _inviteViaFunction(participant) {
           capabilities: result.profile.capabilities || [],
         });
       }
+      // Broadcast so any admin page currently displaying the roster picks
+      // up the freshly-invited participant without a manual reload. Also
+      // trigger a background rehydrate so we catch any fields the server
+      // set that weren't echoed back in the response body (e.g. capabilities
+      // rewrites, cohort role defaults). Fire-and-forget — we already have
+      // enough on `participant` for the immediate render.
+      emitParticipantChange();
+      refreshParticipantsFromSupabase().catch(() => { /* swallow */ });
     }
     return result;
   } catch (err) {
