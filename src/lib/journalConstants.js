@@ -88,12 +88,15 @@ export function getVolumeBucket(key) {
 // the bucket key + a "perWeek" multiplier so leverage math is a simple
 // multiplication (volume.midpoint × frequency.perWeek × hoursSaved).
 export const FREQUENCIES_SIMPLE = [
-  { key: "multiple-per-day", label: "Multiple times per day", perWeek: 5 * 4 },
-  { key: "daily",            label: "Daily",                  perWeek: 5 },
-  { key: "weekly",           label: "Weekly",                 perWeek: 1 },
-  { key: "monthly",          label: "Monthly",                perWeek: 0.25 },
-  { key: "rare",             label: "Rare / as needed",       perWeek: 0.05 },
+  { key: "daily",   label: "Daily",            perWeek: 5 },
+  { key: "weekly",  label: "Weekly",           perWeek: 1 },
+  { key: "monthly", label: "Monthly",          perWeek: 0.25 },
+  { key: "rare",    label: "Rare / as needed", perWeek: 0.05 },
 ];
+// Legacy key "multiple-per-day" is no longer offered in the UI. If it ever
+// appears on an old entry, getFrequencyBucket returns null and downstream
+// leverage math drops the entry from the perWeek aggregation rather than
+// crashing.
 
 export function getFrequencyBucket(key) {
   return FREQUENCIES_SIMPLE.find((f) => f.key === key) || null;

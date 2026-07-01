@@ -16,7 +16,7 @@ import {
 // Frequencies where "how many of these per day" is a meaningful follow-up.
 // Weekly / monthly / rare tasks: the volume-per-day question is nonsensical,
 // so we hide the field entirely for those.
-const VOLUME_APPLIES_FREQUENCIES = new Set(["multiple-per-day", "daily"]);
+const VOLUME_APPLIES_FREQUENCIES = new Set(["daily"]);
 import { LIMITS, clampString, sanitizeUrl, validateAttachment } from "../lib/inputValidation";
 
 // ---------------------------------------------------------------------------
