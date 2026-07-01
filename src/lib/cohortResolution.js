@@ -24,6 +24,7 @@ import { useAuth } from "../context/AuthContext";
 import { DEMO_JOURNAL_ENTRIES, DEMO_COHORTS, isMultiCohortDemo, shouldUseSeedData } from "./demoData";
 import { getParticipantByEmail, useParticipantVersion } from "./adminMockData";
 import { getCohortForAdmin, useCohortVersion } from "./cohortAdmin";
+import { initSupabase, isSupabaseEnabled } from "./supabase";
 
 export const STORAGE_KEY = "brai_last_cohort_slug";
 
@@ -100,6 +101,50 @@ export function getUserCohorts(user) {
 }
 
 // ---------------------------------------------------------------------------
+// useUserCohortsDirect — Supabase-first fallback for cohort membership.
+//
+// The in-memory ADMIN_MOCK_PARTICIPANTS layer can miss the mark for real
+// Supabase-authed users in a few subtle ways: their profile is hydrated
+// but the cohort_participants link row landed after the client's cohort
+// map was built, a stale localStorage overlay lists cohortSlug=null, etc.
+// This hook does what we actually mean: fetch the user's cohort links
+// straight from Supabase and translate them into { slug, name, ... }.
+//
+// Returns { data: cohorts[], isLoading }. Empty array = truly not in any
+// cohort. Runs only when Supabase is enabled and the user has a userId.
+// ---------------------------------------------------------------------------
+function useUserCohortsDirect(user) {
+  const query = useQuery({
+    queryKey: ["user-cohorts-direct", user?.userId || null],
+    enabled: !!user?.userId && isSupabaseEnabled(),
+    // Keep it cheap — cohort membership doesn't churn.
+    staleTime: 60 * 1000,
+    queryFn: async () => {
+      const client = await initSupabase();
+      if (!client) return [];
+      const { data, error } = await client
+        .from("cohort_participants")
+        .select("cohorts(slug, name, program_id, org_id)")
+        .eq("profile_id", user.userId)
+        .is("removed_at", null);
+      if (error) throw error;
+      const rows = Array.isArray(data) ? data : [];
+      return rows
+        .map((r) => r?.cohorts)
+        .filter((c) => c && c.slug)
+        .map((c) => ({
+          slug: c.slug,
+          name: c.name || c.slug,
+          programCode: null, // resolved downstream via getCohortForAdmin
+          methodName: MOCK_COHORT.methodName,
+          organization: null,
+        }));
+    },
+  });
+  return { data: query.data || [], isLoading: query.isLoading };
+}
+
+// ---------------------------------------------------------------------------
 // useResolvedCohort — the central hook every Journey/Journal page uses.
 //
 // Returns: { cohort, slug, isLoading, error, resolvedFrom }
@@ -107,7 +152,8 @@ export function getUserCohorts(user) {
 //     "url"     — from /cohort/:slug
 //     "demo"    — demo mode active
 //     "memory"  — last-visited localStorage
-//     "user"    — user's first assigned cohort
+//     "user"    — user's first assigned cohort (in-memory)
+//     "direct"  — Supabase direct query (fallback when in-memory misses)
 //     "none"    — no slug could be resolved
 // ---------------------------------------------------------------------------
 export function useResolvedCohort() {
@@ -121,6 +167,9 @@ export function useResolvedCohort() {
   // loading from Supabase.
   const pVersion = useParticipantVersion();
   const cVersion = useCohortVersion();
+  // Direct Supabase fallback query. Runs in parallel with the in-memory
+  // path. If the in-memory lookup is stale/missing, this catches it.
+  const direct = useUserCohortsDirect(user);
 
   const { slug, resolvedFrom } = useMemo(() => {
     if (urlSlug)                            return { slug: urlSlug, resolvedFrom: "url" };
@@ -132,9 +181,13 @@ export function useResolvedCohort() {
     const userCohorts = getUserCohorts(user);
     if (userCohorts.length > 0)             return { slug: userCohorts[0].slug, resolvedFrom: "user" };
 
+    // Fallback — the in-memory participant record didn't yield a cohort
+    // (missing / cohortSlug=null / stale). Use the direct Supabase query.
+    if (direct.data.length > 0)             return { slug: direct.data[0].slug, resolvedFrom: "direct" };
+
     return { slug: null, resolvedFrom: "none" };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [urlSlug, user, isDemo, pVersion, cVersion]);
+  }, [urlSlug, user, isDemo, pVersion, cVersion, direct.data]);
 
   const query = useQuery({
     queryKey: ["cohort", slug],
