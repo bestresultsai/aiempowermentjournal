@@ -153,13 +153,64 @@ function baseFacilitators() {
 
 // Full list = base (from cohort assignments) merged with overlay edits +
 // user-created facilitators that don't have a cohort yet.
+//
+// Two cleanup passes on top of that:
+//   1. When Supabase is wired, drop legacy overlays that never bound to
+//      a real profile — those are stale localStorage entries from prior
+//      test sessions that would otherwise appear in the picker with
+//      names that don't match anyone in the current users list.
+//   2. Dedupe by email. Mike could show up twice — once from an old
+//      overlay with a legacy id (`fac-<timestamp>`) and once from the
+//      current Supabase hydrate (`fac-<uuid>`) — because Map keys are
+//      the id, not the email. Prefer the Supabase-backed entry but
+//      keep the richer profile fields (headshot, zoom link) from
+//      whichever side has them.
 export function getAllFacilitators() {
   const base = baseFacilitators();
   const merged = new Map(base.map((f) => [f.id, f]));
   for (const [id, overlay] of Object.entries(facilitatorOverlays)) {
     merged.set(id, { ...(merged.get(id) || {}), ...overlay });
   }
-  return [...merged.values()];
+  let list = [...merged.values()];
+
+  // Filter stale overlays in clean-slate mode. A locally admin-created
+  // facilitator has `createdAt`; a Supabase-hydrated one has
+  // `_supabaseProfileId`. Anything else is orphaned demo residue.
+  if (!shouldUseSeedData()) {
+    list = list.filter((f) => f._supabaseProfileId || f.createdAt);
+  }
+
+  return dedupeFacilitatorsByEmail(list);
+}
+
+function dedupeFacilitatorsByEmail(list) {
+  const byEmail = new Map();
+  for (const f of list) {
+    const email = (f.email || "").toLowerCase();
+    // No email? Keep as-is, keyed by id so we still see it in the picker.
+    if (!email) {
+      byEmail.set(f.id || Math.random(), f);
+      continue;
+    }
+    const existing = byEmail.get(email);
+    if (!existing) {
+      byEmail.set(email, f);
+      continue;
+    }
+    // Collision — prefer the Supabase-backed identity, but preserve
+    // richer profile fields (headshotUrl, defaultZoomLink, title) from
+    // whichever side has them.
+    const supBacked = f._supabaseProfileId ? f : existing;
+    const other = supBacked === f ? existing : f;
+    byEmail.set(email, {
+      ...other,
+      ...supBacked,
+      headshotUrl: supBacked.headshotUrl || other.headshotUrl || null,
+      defaultZoomLink: supBacked.defaultZoomLink || other.defaultZoomLink || null,
+      title: supBacked.title || other.title || "",
+    });
+  }
+  return [...byEmail.values()];
 }
 
 export function getFacilitatorById(id) {
