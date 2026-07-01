@@ -127,6 +127,42 @@ export async function requireAdmin(event) {
   return { authUser, profile };
 }
 
+// requireAuthenticated — like requireAdmin but only asserts a valid Supabase
+// session, not any specific capability. Used for user-lifecycle transactional
+// emails (onboarding-confirmed, homework-reviewed, new-homework-submitted,
+// belt-earned) that a participant fires from their own session as part of
+// completing an action. Callers should independently verify the recipient
+// makes sense for the caller (e.g. self-email, or their own facilitator).
+export async function requireAuthenticated(event) {
+  const auth = event?.headers?.authorization || event?.headers?.Authorization;
+  if (!auth || !auth.toLowerCase().startsWith("bearer ")) {
+    throw new HttpError(401, "Missing Authorization Bearer token.");
+  }
+  const jwt = auth.slice("bearer ".length).trim();
+  if (!jwt) throw new HttpError(401, "Empty Bearer token.");
+
+  const client = getUserClient(jwt);
+  const { data, error } = await client.auth.getUser(jwt);
+  if (error || !data?.user) {
+    throw new HttpError(401, "Invalid or expired token.");
+  }
+  const authUser = data.user;
+
+  const admin = getAdminClient();
+  const { data: profile, error: profileErr } = await admin
+    .from("profiles")
+    .select("id, email, capabilities, org_id")
+    .eq("id", authUser.id)
+    .maybeSingle();
+  if (profileErr) {
+    throw new HttpError(500, "Failed to load profile for auth check.", profileErr.message);
+  }
+  if (!profile) {
+    throw new HttpError(403, "No profile for caller.");
+  }
+  return { authUser, profile };
+}
+
 // ---------------------------------------------------------------------------
 // Body parser — safely parse the function event body as JSON.
 // ---------------------------------------------------------------------------

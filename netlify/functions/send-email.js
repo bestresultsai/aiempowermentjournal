@@ -28,7 +28,19 @@
 // diagnostic). Calling Resend's REST API directly with fetch is simpler,
 // avoids the SDK dependency entirely, and gives us first-class error
 // surfaces.
-import { getAdminClient, requireAdmin, parseJson, ok, bad, HttpError } from "./_helpers.js";
+import { getAdminClient, requireAdmin, requireAuthenticated, parseJson, ok, bad, HttpError } from "./_helpers.js";
+
+// Templates any authenticated user can trigger as part of their own
+// lifecycle — as long as the recipient is themselves (or their assigned
+// facilitator, for new-homework-submitted). Any template NOT in this set
+// still requires admin/super capabilities to prevent abuse.
+const USER_LIFECYCLE_TEMPLATES = new Set([
+  "onboarding-confirmed",
+  "homework-reviewed",
+  "new-homework-submitted",
+  "belt-earned",
+  "program-complete",
+]);
 import { renderTemplate, BRAND } from "../../src/lib/emailTemplates.js";
 
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
@@ -93,13 +105,7 @@ async function _innerHandler(event) {
   let adminClient = null;
 
   try {
-    // eslint-disable-next-line no-console
-    console.log("[send-email] step 1: requireAdmin");
-    await requireAdmin(event);
-    // eslint-disable-next-line no-console
-    console.log("[send-email] step 1 OK");
     const payload = parseJson(event);
-
     const template = String(payload.template || "").trim();
     if (!template) throw new HttpError(400, "template id is required.");
 
@@ -108,6 +114,31 @@ async function _innerHandler(event) {
         ? { email: payload.to }
         : payload.to || {};
     if (!recipient.email) throw new HttpError(400, "to.email is required.");
+
+    // Two-tier auth: user-lifecycle templates just need a valid session
+    // provided the caller is emailing themselves. Anything else still
+    // requires admin. Blocks a participant from spamming other users'
+    // inboxes while still letting the WelcomeWizard fire an
+    // onboarding-confirmed email from a plain-participant session.
+    // eslint-disable-next-line no-console
+    console.log("[send-email] step 1: auth check for template", template);
+    if (USER_LIFECYCLE_TEMPLATES.has(template)) {
+      const { profile } = await requireAuthenticated(event);
+      const caps = Array.isArray(profile.capabilities) ? profile.capabilities : [];
+      const isAdmin = caps.includes("admin") || caps.includes("super");
+      const selfEmail = (profile.email || "").toLowerCase();
+      const toEmail = (recipient.email || "").toLowerCase();
+      if (!isAdmin && selfEmail !== toEmail) {
+        throw new HttpError(
+          403,
+          "Non-admin callers can only send lifecycle emails to themselves.",
+        );
+      }
+    } else {
+      await requireAdmin(event);
+    }
+    // eslint-disable-next-line no-console
+    console.log("[send-email] step 1 OK");
 
     let rendered;
     try {

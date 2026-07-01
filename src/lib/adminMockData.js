@@ -16,8 +16,9 @@ import { MOCK_SESSIONS as MOCK_SESSIONS_FOR_HELPERS } from "./mockCohort";
 import { initSupabase, isSupabaseEnabled } from "./supabase";
 import { db, SupabaseNotReady } from "./db";
 import { captureError } from "./observability";
-import { getAllCohortsForAdmin } from "./cohortAdmin";
+import { getAllCohortsForAdmin, getSessionsForCohort } from "./cohortAdmin";
 import { shouldUseSeedData } from "./demoData";
+import { sendEmail } from "./mailer";
 
 // ---------------------------------------------------------------------------
 // Participant pubsub (task #550)
@@ -1056,7 +1057,34 @@ export function markHomeworkReviewed(participantId, sessionOrder, feedback) {
   persistStoredReviews(stored);
   mirrorHomeworkToSupabase(p, sessionOrder, p.submissions[sessionOrder]);
   emitParticipantChange();
+  // Notify the participant that their homework was reviewed. Fire-and-forget
+  // — a bounce from Resend shouldn't roll back the review write.
+  _fireHomeworkReviewedEmail(p, sessionOrder, feedback).catch((err) =>
+    captureError(err, { source: "markHomeworkReviewed.email" }),
+  );
   return p.submissions[sessionOrder];
+}
+
+async function _fireHomeworkReviewedEmail(participant, sessionOrder, feedback) {
+  if (!participant?.email || !participant?.cohortSlug) return;
+  const cohort = getAllCohortsForAdmin().find((c) => c.slug === participant.cohortSlug);
+  if (!cohort) return;
+  const sessions = getSessionsForCohort(participant.cohortSlug) || [];
+  const session = sessions.find((s) => s.order === Number(sessionOrder));
+  if (!session) return;
+  const firstName =
+    (participant.name || "").trim().split(/\s+/)[0] || "there";
+  await sendEmail({
+    template: "homework-reviewed",
+    to: { name: participant.name || participant.email, email: participant.email },
+    data: {
+      participant: { firstName, email: participant.email, name: participant.name || "" },
+      session: { order: session.order, title: session.title, belt: session.belt },
+      facilitator: cohort.facilitator || cohort.trainer || null,
+      feedback: (feedback || "").trim(),
+      cohortSlug: participant.cohortSlug,
+    },
+  });
 }
 
 // Reverse — used by the toggle in the homework UI for demo control.

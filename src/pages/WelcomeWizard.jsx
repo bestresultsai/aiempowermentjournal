@@ -5,8 +5,10 @@ import { useAuth } from "../context/AuthContext";
 import { saveOnboarding } from "../lib/onboardingApi";
 import { deriveFullNameFromEmail } from "../lib/userDisplay";
 import { getParticipantByEmail } from "../lib/adminMockData";
-import { getCohortForAdmin } from "../lib/cohortAdmin";
+import { getCohortForAdmin, getSessionsForCohort } from "../lib/cohortAdmin";
 import { getProgramByCode } from "../lib/programs";
+import { sendEmail } from "../lib/mailer";
+import { captureError } from "../lib/observability";
 import Logo from "../components/Logo";
 import StepperHeader from "../components/onboarding/StepperHeader";
 import StepWelcome from "../components/onboarding/StepWelcome";
@@ -125,11 +127,55 @@ export default function WelcomeWizard() {
     try {
       const { profile } = await saveOnboarding(form);
       completeOnboarding(profile);
+      // Fire the "onboarding-confirmed" email. Best-effort — the user is
+      // already through the wizard, and we don't want a send failure to
+      // block them entering /home. Errors go to Sentry.
+      fireOnboardingConfirmedEmail(user, profile).catch((err) =>
+        captureError(err, { source: "WelcomeWizard.onboardingConfirmedEmail" }),
+      );
       navigate("/home", { replace: true });
     } catch (e) {
       setError(e.message || "Something went wrong. Please try again.");
       setSubmitting(false);
     }
+  }
+
+  // Build the onboarding-confirmed payload from the user's cohort context
+  // and fire it through the shared mailer. Skipped when we can't resolve a
+  // cohort (staff onboarding, admin dry-runs, etc.).
+  async function fireOnboardingConfirmedEmail(u, savedProfile) {
+    if (!u?.email) return;
+    const participant = getParticipantByEmail(u.email);
+    const cohortSlug = participant?.cohortSlug;
+    if (!cohortSlug) return;
+    const cohort = getCohortForAdmin(cohortSlug);
+    if (!cohort) return;
+    const sessions = getSessionsForCohort(cohortSlug) || [];
+    const firstSession = sessions.find((s) => s.order === 1) || sessions[0] || null;
+    const firstName =
+      (savedProfile?.name || u.name || "").trim().split(/\s+/)[0] || "there";
+    await sendEmail({
+      template: "onboarding-confirmed",
+      to: { name: savedProfile?.name || u.name || u.email, email: u.email },
+      data: {
+        participant: { firstName, email: u.email, name: savedProfile?.name || u.name || "" },
+        cohort: {
+          name: cohort.name,
+          slug: cohort.slug,
+          programCode: cohort.programCode,
+        },
+        facilitator: cohort.facilitator || cohort.trainer || null,
+        firstSession: firstSession
+          ? {
+              order: firstSession.order,
+              title: firstSession.title,
+              belt: firstSession.belt,
+              date: firstSession.date,
+            }
+          : null,
+        cohortSlug,
+      },
+    });
   }
 
   // Step 1's greeting prefers whatever's currently in the form (which already
