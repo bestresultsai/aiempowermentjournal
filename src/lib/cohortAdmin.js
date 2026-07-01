@@ -1110,6 +1110,28 @@ async function mirrorCohortToSupabase(cohort) {
       facilitator_id: facUuid,
     };
 
+    // Diagnostic: if a facilitator was picked client-side but none of the
+    // three resolution tiers found a UUID, we're about to write
+    // facilitator_id: null and the participant view will render no card.
+    // Surface it loudly so we catch it at write time instead of finding
+    // out from a blank card later. Fires to devtools console + Sentry.
+    if (fac && !facUuid) {
+      const msg =
+        `[mirrorCohortToSupabase] Could not resolve facilitator_id for cohort "${cohort.slug}". ` +
+        `Client had facilitator { id:${fac.id}, email:${fac.email}, name:${fac.name}, _supabaseProfileId:${fac._supabaseProfileId || "MISSING"} } ` +
+        `but no matching profiles row. Writing facilitator_id=NULL.`;
+      // eslint-disable-next-line no-console
+      console.warn(msg);
+      try {
+        captureError(new Error(msg), {
+          source: "mirrorCohortToSupabase.facilitator-unresolved",
+          slug: cohort.slug,
+          facEmail: fac.email,
+          facId: fac.id,
+        });
+      } catch { /* ignore */ }
+    }
+
     const conflictKey = row.id ? "id" : "program_id,slug";
     await db.upsert("cohorts", row, { onConflict: conflictKey });
   } catch (err) {
