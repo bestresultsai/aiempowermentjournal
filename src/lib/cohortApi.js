@@ -193,17 +193,6 @@ async function buildParticipantCohortView(realCohort, slug) {
   // object with headshotUrl, or missing. Try to resolve to the richer record.
   let trainer = null;
   const rawFac = realCohort.facilitator;
-  // Diagnostic — surface what shape the facilitator arrived in when the
-  // participant page renders. Lets us see at a glance whether the overlay
-  // is null, an id string, or a hydrated profile object.
-  // eslint-disable-next-line no-console
-  console.info(
-    `[buildParticipantCohortView] cohort "${slug}" facilitator raw shape:`,
-    rawFac === null ? "null" :
-    rawFac === undefined ? "undefined" :
-    typeof rawFac === "string" ? `string:${rawFac}` :
-    { keys: Object.keys(rawFac || {}), name: rawFac?.name, email: rawFac?.email, id: rawFac?.id, _supabaseProfileId: rawFac?._supabaseProfileId },
-  );
   if (rawFac && typeof rawFac === "object" && rawFac.name) {
     trainer = {
       name: rawFac.name,
@@ -241,36 +230,21 @@ async function buildParticipantCohortView(realCohort, slug) {
       const client = await initSupabase();
       if (client) {
         // 1. Find the cohort row and its facilitator_id.
-        const { data: cohortRows, error: cohortErr } = await client
+        const { data: cohortRows } = await client
           .from("cohorts")
           .select("facilitator_id")
           .eq("slug", slug)
           .limit(1);
         const facUuid = cohortRows?.[0]?.facilitator_id || null;
-        // Diagnostic — surface the actual UUID string so we can spot
-        // truncation/corruption between write and read.
-        // eslint-disable-next-line no-console
-        console.info(
-          `[buildParticipantCohortView] Supabase-direct lookup for cohort "${slug}":`,
-          {
-            cohortErr,
-            facUuid,
-            facUuidLength: facUuid ? facUuid.length : 0,
-            facUuidIsValid: !!facUuid && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(facUuid),
-          },
-        );
         if (facUuid) {
-          // 2. Fetch the profile.
-          const { data: profileRow, error: profErr } = await client
+          // 2. Fetch the profile. Use maybeSingle() instead of single() so
+          // an orphan facilitator_id (points at a profile that no longer
+          // exists) doesn't throw — we just get null and skip the card.
+          const { data: profileRow } = await client
             .from("profiles")
             .select("id,name,email,avatar_url,preferences")
             .eq("id", facUuid)
-            .single();
-          // eslint-disable-next-line no-console
-          console.info(
-            `[buildParticipantCohortView] profile lookup for facUuid ${facUuid}:`,
-            { profErr, gotName: profileRow?.name || null },
-          );
+            .maybeSingle();
           if (profileRow?.name) {
             trainer = {
               name: profileRow.name,
