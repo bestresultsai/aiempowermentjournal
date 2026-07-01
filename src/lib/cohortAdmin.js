@@ -1042,11 +1042,28 @@ export async function hydrateCohortsFromSupabase({ force = false } = {}) {
  * block or throw; local overlay is the source of truth.
  */
 async function mirrorCohortToSupabase(cohort) {
-  if (!isSupabaseEnabled() || !cohort?.slug) return;
+  if (!isSupabaseEnabled() || !cohort?.slug) {
+    // eslint-disable-next-line no-console
+    console.warn("[mirrorCohortToSupabase] bailed early:", {
+      supabaseEnabled: isSupabaseEnabled(),
+      slug: cohort?.slug || "(none)",
+    });
+    return;
+  }
   try {
     // Resolve program code → Supabase program UUID.
     const program = getAllProgramsForAdmin().find((p) => p.code === cohort.programCode);
-    if (!program?._supabaseId) return; // can't mirror without a valid FK
+    if (!program?._supabaseId) {
+      // eslint-disable-next-line no-console
+      console.warn(
+        `[mirrorCohortToSupabase] cohort "${cohort.slug}" NOT written to Supabase — ` +
+        `program "${cohort.programCode}" has no _supabaseId (program not hydrated yet, ` +
+        `or programs table is missing this program). Facilitator + everything else stays local only.`,
+      );
+      return; // can't mirror without a valid FK
+    }
+    // eslint-disable-next-line no-console
+    console.info(`[mirrorCohortToSupabase] writing cohort "${cohort.slug}" to Supabase…`);
 
     // Resolve org legacy id → Supabase org UUID via the orgOverlays lookup.
     const orgOverlay = cohort.organization?.id ? orgOverlays[cohort.organization.id] : null;
