@@ -972,6 +972,10 @@ export function submitHomeworkAsParticipant(email, sessionOrder, { response, lin
   const order = String(sessionOrder);
   if (!p.submissions) p.submissions = {};
   const existing = p.submissions[order] || {};
+  // Track whether this is a NEW submission vs an edit — we only want to
+  // ping the facilitator the first time. Subsequent edits stay silent so
+  // participants can revise without spamming the review queue's inbox.
+  const isFirstSubmission = !existing.submittedAt;
   // Preserve any existing reviewedAt + feedback so an edit doesn't blow away
   // the facilitator's response. Updating only the user-editable fields.
   p.submissions[order] = {
@@ -995,6 +999,11 @@ export function submitHomeworkAsParticipant(email, sessionOrder, { response, lin
   persistStoredReviews(stored);
   mirrorHomeworkToSupabase(p, order, p.submissions[order]);
   emitParticipantChange();
+  if (isFirstSubmission) {
+    _fireNewHomeworkSubmittedEmail(p, order).catch((err) =>
+      captureError(err, { source: "submitHomeworkAsParticipant.email" }),
+    );
+  }
   return p.submissions[order];
 }
 
@@ -1035,11 +1044,23 @@ export function markSessionCompleteForParticipant(email, sessionOrder, completed
   const p = getParticipantByEmail(email);
   if (!p) return null;
   const ord = Number(sessionOrder);
+  const alreadyDone = (p.progress || []).includes(ord);
   const set = new Set(p.progress || []);
   if (completed) set.add(ord); else set.delete(ord);
   p.progress = [...set].sort((a, b) => a - b);
   mirrorSessionProgressToSupabase(p, ord, completed);
   emitParticipantChange();
+  // Only fire the belt-earned + program-complete emails on the transition
+  // from incomplete → complete, not when a participant untoggles/retoggles
+  // (which would spam their inbox).
+  if (completed && !alreadyDone) {
+    _fireBeltEarnedEmail(p, ord).catch((err) =>
+      captureError(err, { source: "markSessionCompleteForParticipant.beltEarned" }),
+    );
+    _fireProgramCompleteEmailIfLast(p).catch((err) =>
+      captureError(err, { source: "markSessionCompleteForParticipant.programComplete" }),
+    );
+  }
   return p.progress;
 }
 
@@ -1082,6 +1103,81 @@ async function _fireHomeworkReviewedEmail(participant, sessionOrder, feedback) {
       session: { order: session.order, title: session.title, belt: session.belt },
       facilitator: cohort.facilitator || cohort.trainer || null,
       feedback: (feedback || "").trim(),
+      cohortSlug: participant.cohortSlug,
+    },
+  });
+}
+
+// Notify the facilitator that a fresh homework submission is waiting for
+// review. Runs from the participant session, so the send-email Function has
+// to accept the participant's token — see the `new-homework-submitted`
+// branch in netlify/functions/send-email.js which checks the recipient is
+// the cohort's actual facilitator before allowing the send.
+async function _fireNewHomeworkSubmittedEmail(participant, sessionOrder) {
+  if (!participant?.email || !participant?.cohortSlug) return;
+  const cohort = getAllCohortsForAdmin().find((c) => c.slug === participant.cohortSlug);
+  if (!cohort) return;
+  const facilitator = cohort.facilitator || cohort.trainer;
+  if (!facilitator?.email) return;
+  const sessions = getSessionsForCohort(participant.cohortSlug) || [];
+  const session = sessions.find((s) => s.order === Number(sessionOrder));
+  if (!session) return;
+  await sendEmail({
+    template: "new-homework-submitted",
+    to: { name: facilitator.name || facilitator.email, email: facilitator.email },
+    data: {
+      facilitator,
+      participant: { name: participant.name || participant.email, email: participant.email },
+      session: { order: session.order, title: session.title, belt: session.belt },
+      cohort: { name: cohort.name, slug: cohort.slug },
+      count: 1,
+      cohortSlug: participant.cohortSlug,
+    },
+  });
+}
+
+// Belt earned — fires on every fresh session completion (each session in
+// AIEW3/APFW is its own belt boundary). Kept to the participant themselves
+// so the send-email USER_LIFECYCLE_TEMPLATES self-send rule covers it.
+async function _fireBeltEarnedEmail(participant, sessionOrder) {
+  if (!participant?.email || !participant?.cohortSlug) return;
+  const sessions = getSessionsForCohort(participant.cohortSlug) || [];
+  const session = sessions.find((s) => s.order === Number(sessionOrder));
+  if (!session?.belt) return; // no belt = don't send (some seed rows have no belt)
+  const firstName =
+    (participant.name || "").trim().split(/\s+/)[0] || "there";
+  await sendEmail({
+    template: "belt-earned",
+    to: { name: participant.name || participant.email, email: participant.email },
+    data: {
+      participant: { firstName, email: participant.email, name: participant.name || "" },
+      session: { order: session.order, title: session.title, belt: session.belt },
+      cohortSlug: participant.cohortSlug,
+    },
+  });
+}
+
+// Program complete — fires only when the freshly-completed session was the
+// last one in the participant's cohort's program. Uses program.sessionsCount
+// as the source of truth so APFW (10 sessions) and AIEW3 (8 sessions) both
+// trigger at the right moment.
+async function _fireProgramCompleteEmailIfLast(participant) {
+  if (!participant?.email || !participant?.cohortSlug) return;
+  const cohort = getAllCohortsForAdmin().find((c) => c.slug === participant.cohortSlug);
+  if (!cohort) return;
+  const sessions = getSessionsForCohort(participant.cohortSlug) || [];
+  const total = sessions.length;
+  if (!total) return;
+  const completedCount = (participant.progress || []).length;
+  if (completedCount < total) return; // not there yet
+  const firstName =
+    (participant.name || "").trim().split(/\s+/)[0] || "there";
+  await sendEmail({
+    template: "program-complete",
+    to: { name: participant.name || participant.email, email: participant.email },
+    data: {
+      participant: { firstName, email: participant.email, name: participant.name || "" },
+      cohort: { name: cohort.name, slug: cohort.slug, programCode: cohort.programCode },
       cohortSlug: participant.cohortSlug,
     },
   });

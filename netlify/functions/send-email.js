@@ -116,10 +116,11 @@ async function _innerHandler(event) {
     if (!recipient.email) throw new HttpError(400, "to.email is required.");
 
     // Two-tier auth: user-lifecycle templates just need a valid session
-    // provided the caller is emailing themselves. Anything else still
-    // requires admin. Blocks a participant from spamming other users'
-    // inboxes while still letting the WelcomeWizard fire an
-    // onboarding-confirmed email from a plain-participant session.
+    // and constrain who the recipient can be. Anything else still requires
+    // admin. Prevents a participant from spamming arbitrary inboxes while
+    // still letting the WelcomeWizard fire onboarding-confirmed from a
+    // plain-participant session, and letting submitHomework ping the
+    // facilitator (new-homework-submitted).
     // eslint-disable-next-line no-console
     console.log("[send-email] step 1: auth check for template", template);
     if (USER_LIFECYCLE_TEMPLATES.has(template)) {
@@ -128,10 +129,29 @@ async function _innerHandler(event) {
       const isAdmin = caps.includes("admin") || caps.includes("super");
       const selfEmail = (profile.email || "").toLowerCase();
       const toEmail = (recipient.email || "").toLowerCase();
-      if (!isAdmin && selfEmail !== toEmail) {
+      const isSelf = selfEmail === toEmail;
+      // For new-homework-submitted, the recipient must be a facilitator
+      // (or admin/super) — verify against profiles.capabilities before
+      // letting the send through. Any other user-lifecycle template
+      // stays self-only.
+      let recipientAllowed = isAdmin || isSelf;
+      if (!recipientAllowed && template === "new-homework-submitted") {
+        const admin2 = getAdminClient();
+        const { data: toProfile } = await admin2
+          .from("profiles")
+          .select("capabilities")
+          .eq("email", recipient.email)
+          .maybeSingle();
+        const recCaps = Array.isArray(toProfile?.capabilities) ? toProfile.capabilities : [];
+        recipientAllowed =
+          recCaps.includes("facilitator") ||
+          recCaps.includes("admin") ||
+          recCaps.includes("super");
+      }
+      if (!recipientAllowed) {
         throw new HttpError(
           403,
-          "Non-admin callers can only send lifecycle emails to themselves.",
+          "Non-admin callers can only send lifecycle emails to themselves or their facilitator.",
         );
       }
     } else {
