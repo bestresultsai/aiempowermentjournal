@@ -44,10 +44,36 @@ export default function Login() {
         /* ignore */
       }
     } catch (err) {
-      setErrorMsg(err.message);
+      setErrorMsg(humanizeAuthError(err));
       setStatus("error");
     }
   }
+
+// Turn a raw Supabase auth error into a friendly one-line message. Supabase
+// sometimes returns a 504 with an empty JSON body, which used to render as
+// literal "{}" in the UI. This function normalizes all the shapes we've seen
+// (timeout, rate limit, network, unknown) into human copy.
+function humanizeAuthError(err) {
+  const status = err?.status ?? err?.statusCode ?? null;
+  const rawMsg = typeof err?.message === "string" ? err.message.trim() : "";
+  const looksEmpty = !rawMsg || rawMsg === "{}" || rawMsg === "null" || rawMsg === "undefined";
+
+  // Supabase Auth's SMTP relay is slow — this is the "empty {}" case that shows
+  // up most often for us right now.
+  if (status === 504 || /timeout|deadline/i.test(rawMsg)) {
+    return "Our email service is a little slow right now. Please try again in a moment.";
+  }
+  if (status === 429 || /rate.?limit/i.test(rawMsg)) {
+    return "Too many attempts. Wait a minute before trying again.";
+  }
+  if (status === 400 && /(invalid|not.?found|user.?not.?found)/i.test(rawMsg)) {
+    return "We couldn't find an account for that email. Ask your BestResults.AI admin to invite you.";
+  }
+  if (looksEmpty) {
+    return "Something went wrong sending your link. Please try again in a moment.";
+  }
+  return rawMsg;
+}
 
   return (
     <div className="min-h-screen bg-surface-paper flex flex-col">
