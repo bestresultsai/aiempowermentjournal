@@ -1,20 +1,17 @@
 // ---------------------------------------------------------------------------
 // Onboarding API client.
 //
-// Phase 1 (now): the wizard saves to localStorage so demo mode + real users
-// alike can complete onboarding without a backend round-trip. The shape of
-// the payload mirrors what the Notion `Users` DB will eventually accept.
+// When Supabase is wired (production): saveOnboarding updates the participant's
+// profile row directly — sets preferences.onboardingCompletedAt so the gate
+// stops redirecting them to /welcome on subsequent sign-ins, plus writes the
+// profile fields the wizard collected. This is what makes onboarding "sticky"
+// across devices and sessions.
 //
-// Phase 2 (TODO when Notion writes ship):
-//   POST /api/users/me/onboarding
-//   body: { name, title, linkedin, whyAi, mainGoal, headshotUrl }
-//   →    { ok: true, user: { ..., onboardingCompletedAt: ISO } }
-//
-// The frontend should stay agnostic of which phase is live — flip
-// `USE_MOCK_DATA` and the rest of the app keeps working.
+// When Supabase is not wired (localhost demo): falls through to a localStorage
+// stub so /welcome still works for design QA.
 // ---------------------------------------------------------------------------
 
-export const USE_MOCK_DATA = true;
+import { initSupabase, isSupabaseEnabled } from "./supabase";
 
 const STORAGE_KEY = "brai_onboarding_payload";
 
@@ -52,37 +49,61 @@ function sanitize(payload) {
 
 export async function saveOnboarding(payload) {
   const clean = sanitize(payload);
+  const completedAt = new Date().toISOString();
 
-  if (USE_MOCK_DATA) {
-    // Persist locally so a refresh keeps the user "onboarded" (the AuthContext
-    // doesn't currently rehydrate from this — it just trusts in-memory state —
-    // but persisting here keeps the wizard idempotent during demos).
-    try {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify({
-        ...clean,
-        onboardingCompletedAt: new Date().toISOString(),
-      }));
-    } catch {
-      /* ignore — storage quota / private mode */
+  // Always stash in localStorage too — cheap safety net for offline / demo.
+  try {
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify({
+      ...clean,
+      onboardingCompletedAt: completedAt,
+    }));
+  } catch { /* ignore */ }
+
+  // Supabase path — the real production write. Merges the wizard payload
+  // into the participant's profile row so OnboardingGate stops redirecting
+  // them on subsequent sign-ins, from any device.
+  if (isSupabaseEnabled()) {
+    const client = await initSupabase();
+    if (client) {
+      const { data: sessionData } = await client.auth.getSession();
+      const authUser = sessionData?.session?.user;
+      if (authUser?.id) {
+        // Read current preferences so we can merge (don't clobber other keys).
+        const { data: existing } = await client
+          .from("profiles")
+          .select("preferences")
+          .eq("id", authUser.id)
+          .maybeSingle();
+        const nextPrefs = {
+          ...(existing?.preferences || {}),
+          onboardingCompletedAt: completedAt,
+          title: clean.title,
+          linkedin: clean.linkedin,
+          whyAi: clean.whyAi,
+          mainGoal: clean.mainGoal,
+          location: clean.location,
+        };
+        const update = {
+          preferences: nextPrefs,
+          time_zone: clean.defaultTimeZone || undefined,
+        };
+        if (clean.name) update.name = clean.name;
+        if (clean.headshotUrl) update.avatar_url = clean.headshotUrl;
+        const { error } = await client
+          .from("profiles")
+          .update(update)
+          .eq("id", authUser.id);
+        if (error) {
+          throw new Error(error.message || "Failed to save onboarding to Supabase.");
+        }
+        return { ok: true, profile: { ...clean, onboardingCompletedAt: completedAt } };
+      }
     }
-    // Tiny artificial latency so the Saving… state actually renders.
-    await new Promise((r) => setTimeout(r, 500));
-    return { ok: true, profile: clean };
   }
 
-  // Live path. Wire this up once /api/users/me/onboarding exists.
-  const token = getToken();
-  const res = await fetch("/api/users/me/onboarding", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-    body: JSON.stringify(clean),
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Failed to save onboarding");
-  return data;
+  // Demo / no-Supabase fallback — same shape, in-memory only.
+  await new Promise((r) => setTimeout(r, 300));
+  return { ok: true, profile: { ...clean, onboardingCompletedAt: completedAt } };
 }
 
 // Optional: read any previously-saved payload (useful for debugging /welcome).
