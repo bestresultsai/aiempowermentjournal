@@ -614,6 +614,12 @@ export function setSessionOverride(slug, sessionOrder, patch) {
   };
   safePersist(COHORTS_KEY, cohortOverlays);
   emit();
+  // Persist to Supabase too — otherwise the override only lives in the
+  // acting admin's localStorage and any other admin's / participant's
+  // session hydrates from Postgres and never sees the change. This was
+  // the "I picked Open early on Yellow Belt but the participant still
+  // sees it locked, and even I lose the change on reload" bug.
+  mirrorCohortToSupabase(cohortOverlays[slug]);
   return overlaySessions.find((s) => s.order === Number(sessionOrder));
 }
 
@@ -659,6 +665,14 @@ function applySessionPatch(session, patch = {}) {
   if ("videoUrl" in patch) {
     const v = (patch.videoUrl || "").trim();
     next.videoUrl = v || null;
+  }
+  // Manual availability override — "locked", "unlocked", or null (default
+  // 3-day-before-date rule). Without this branch the LockControl saved
+  // silently and the override was dropped, so participants never saw the
+  // change.
+  if ("manualLockState" in patch) {
+    const v = patch.manualLockState;
+    next.manualLockState = v === "locked" || v === "unlocked" ? v : null;
   }
   return next;
 }
