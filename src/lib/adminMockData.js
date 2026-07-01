@@ -2123,7 +2123,12 @@ async function _inviteViaFunction(participant) {
         title: participant.title || null,
         organization: participant.organization || null,
         isCohortLead: !!participant.isCohortLead,
-        sendMagicLink: false,
+        // Adding a participant IS inviting them — auto-send the branded
+        // magic link email so they can sign in on their next visit. Was
+        // false in Phase 3 so we could stage users without spamming;
+        // now that we're onboarding real cohorts we always want the
+        // invite email to fire.
+        sendMagicLink: true,
       }),
     });
     if (!res.ok) {
