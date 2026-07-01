@@ -29,6 +29,74 @@
 
 import { getAdminClient, requireAdmin, parseJson, ok, bad, HttpError } from "./_helpers.js";
 
+// ---------------------------------------------------------------------------
+// Branded invite email — inlined here to avoid pulling in the whole
+// emailTemplates.js file at cold-start (its bundle is heavier and we only
+// need this one template server-side). If we ever add more admin-triggered
+// emails we should promote this into a shared function.
+// ---------------------------------------------------------------------------
+
+const SITE_URL = "https://platform.bestresults.ai";
+const LOGO_URL = `${SITE_URL}/brand/horizontal-color-no-tagline.svg`;
+
+function firstName(name) {
+  return String(name || "there").trim().split(/\s+/)[0];
+}
+function escapeHtml(s) {
+  return String(s || "").replace(/[&<>"']/g, (c) => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+  }[c]));
+}
+
+function renderInviteEmail({ name, magicLink }) {
+  const first = escapeHtml(firstName(name));
+  const link = escapeHtml(magicLink);
+  return `<!doctype html>
+<html lang="en"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width"/><title>You're invited to BestResults.AI</title></head>
+<body style="margin:0;padding:0;background:#F7F4EF;font-family:Inter,system-ui,sans-serif;color:#1B1F23;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#F7F4EF;padding:32px 16px;">
+    <tr><td align="center">
+      <table role="presentation" width="560" cellpadding="0" cellspacing="0" border="0" style="background:#FFFFFF;border:1px solid #E5E1DA;border-radius:16px;overflow:hidden;">
+        <tr><td style="padding:24px 28px;border-bottom:1px solid #E5E1DA;">
+          <a href="${SITE_URL}" style="text-decoration:none;display:inline-block;">
+            <img src="${LOGO_URL}" alt="BestResults.AI" width="200" style="display:block;height:auto;border:0;outline:none;max-width:200px;"/>
+          </a>
+        </td></tr>
+        <tr><td style="padding:28px;line-height:1.6;font-size:15px;color:#1B1F23;">
+          <p style="margin:0 0 14px;">Hi ${first},</p>
+          <p style="margin:0 0 14px;">You've been invited to the <strong>BestResults.AI Platform</strong> — our cohort training hub for AI Empowerment. Click below to sign in. No password needed.</p>
+          <p style="margin:20px 0;">
+            <a href="${link}" style="display:inline-block;background:#1B1F23;color:#FFFFFF;text-decoration:none;padding:12px 20px;border-radius:10px;font-weight:700;font-size:14px;">Sign in to BestResults.AI</a>
+          </p>
+          <p style="margin:0 0 14px;font-size:13px;color:#6B7280;">If the button doesn't work, paste this URL into your browser:<br/>
+            <a href="${link}" style="color:#2563EB;word-break:break-all;">${link}</a>
+          </p>
+          <p style="margin:24px 0 0;font-size:13px;color:#6B7280;">This link expires in one hour and can only be used once. If you weren't expecting this invitation, you can safely ignore it.</p>
+        </td></tr>
+        <tr><td style="padding:20px 28px;background:#F7F4EF;border-top:1px solid #E5E1DA;font-size:12px;color:#6B7280;line-height:1.5;">
+          You're receiving this because someone at BestResults.AI added you to a cohort.<br/>
+          Questions? Reply to this email or write to <a href="mailto:hello@bestresults.ai" style="color:#2563EB;">hello@bestresults.ai</a>.
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body></html>`;
+}
+
+function renderInviteText({ name, magicLink }) {
+  return `Hi ${firstName(name)},
+
+You've been invited to the BestResults.AI Platform — our cohort training hub for AI Empowerment. Click below to sign in. No password needed.
+
+${magicLink}
+
+This link expires in one hour and can only be used once. If you weren't expecting this invitation, you can safely ignore it.
+
+Questions? Reply to this email or write to hello@bestresults.ai.
+
+—BRAI Team`;
+}
+
 export const handler = async (event) => {
   if (event.httpMethod !== "POST") {
     return bad(new HttpError(405, "Method not allowed."));
@@ -138,8 +206,9 @@ export const handler = async (event) => {
       cohortLink = link;
     }
 
-    // ----- Step 5: magic link (optional) -----
+    // ----- Step 5: magic link + branded invite email (optional) -----
     let magicLink = null;
+    let emailSent = false;
     if (sendMagicLink) {
       try {
         const { data: link, error: linkErr } = await admin.auth.admin.generateLink({
@@ -150,20 +219,66 @@ export const handler = async (event) => {
           },
         });
         if (linkErr) {
-          // Not fatal — the participant can still get a link via the login page.
-          // eslint-disable-next-line no-console
           console.warn("[invite-participant] generateLink failed:", linkErr.message);
         } else {
           magicLink = link?.properties?.action_link || null;
         }
       } catch (err) {
-        // Same: non-fatal.
-        // eslint-disable-next-line no-console
         console.warn("[invite-participant] generateLink threw:", err?.message || err);
+      }
+
+      // Actually email the participant — send-email lives in a different
+      // function, so we inline the Resend REST call here. Non-fatal: if the
+      // send fails we still return the magicLink so the admin can copy it.
+      if (magicLink && process.env.RESEND_API_KEY) {
+        try {
+          const inviteSubject = `You've been invited to BestResults.AI`;
+          const html = renderInviteEmail({ name, magicLink });
+          const text = renderInviteText({ name, magicLink });
+          const resendRes = await fetch("https://api.resend.com/emails", {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              from: "BestResults.AI <hello@bestresults.ai>",
+              to: email,
+              reply_to: "hello@bestresults.ai",
+              subject: inviteSubject,
+              html,
+              text,
+            }),
+          });
+          const resendBody = await resendRes.json().catch(() => ({}));
+          if (resendRes.ok) {
+            emailSent = true;
+            // Log to email_sends audit table. Best-effort — a failure here
+            // doesn't affect the response.
+            try {
+              await admin.from("email_sends").insert({
+                template: "cohort-invite",
+                to_email: email,
+                to_profile_id: authUserId,
+                cohort_id: cohortLink?.cohort_id || null,
+                subject: inviteSubject,
+                provider: "resend",
+                provider_message_id: resendBody?.id || null,
+                status: "sent",
+                sent_at: new Date().toISOString(),
+                payload: { name, cohortSlug: cohortSlug || null },
+              });
+            } catch { /* swallow — audit best-effort */ }
+          } else {
+            console.warn("[invite-participant] Resend rejected:", resendBody);
+          }
+        } catch (err) {
+          console.warn("[invite-participant] email send threw:", err?.message || err);
+        }
       }
     }
 
-    return ok({ profile, cohortLink, magicLink });
+    return ok({ profile, cohortLink, magicLink, emailSent });
   } catch (err) {
     return bad(err);
   }
