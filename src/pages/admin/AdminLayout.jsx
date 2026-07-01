@@ -151,7 +151,7 @@ export default function AdminLayout() {
             Back to app
           </Link>
           <button
-            onClick={() => { logout(); window.location.href = "/"; }}
+            onClick={async () => { await logout(); window.location.href = "/"; }}
             className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-[13px] font-heading font-semibold text-white/70 hover:text-white hover:bg-white/5 transition-colors"
           >
             <LogOut className="w-4 h-4" strokeWidth={2.5} />
@@ -393,7 +393,7 @@ function AdminUserMenu({ user, roleLabel, onLogout }) {
           <div className="border-t border-soft" />
           <button
             type="button"
-            onClick={() => { setOpen(false); onLogout(); window.location.href = "/"; }}
+            onClick={async () => { setOpen(false); await onLogout(); window.location.href = "/"; }}
             className="w-full px-4 py-2.5 text-left text-[13.5px] font-heading font-medium text-ink hover:bg-surface-soft transition-colors inline-flex items-center gap-2.5"
           >
             <LogOut className="w-4 h-4 text-ink-muted" strokeWidth={2} />

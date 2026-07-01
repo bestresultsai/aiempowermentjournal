@@ -35,8 +35,12 @@ export default function NavBar() {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
-  function handleLogout() {
-    logout();
+  async function handleLogout() {
+    // Await logout so Supabase's signOut has definitively cleared the
+    // local session before we route to Login. Without the await, the
+    // token-refresh listener sees a still-valid session on the Login
+    // mount and silently re-authenticates.
+    await logout();
     navigate("/");
   }
 

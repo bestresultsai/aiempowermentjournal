@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect } from "react";
+import { createContext, useContext, useRef, useState, useEffect } from "react";
 import { getMe } from "../lib/api";
 import {
   DEMO_USER,
@@ -25,6 +25,13 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isDemo, setIsDemo] = useState(false);
+  // Ref flag flipped during logout so any auth-state-change event that
+  // fires while Supabase's async signOut is still in flight can't
+  // re-populate the user. Without this, the "auto sign-in immediately
+  // after Sign out" bug happens: the local session is still valid at
+  // the instant we navigate to /login, the token-refresh listener sees
+  // it, and setUser gets called with the old profile.
+  const signingOutRef = useRef(false);
 
   useEffect(() => {
     // 1) If the URL has `?demo=...`, activate demo mode (persisted in localStorage).
@@ -135,10 +142,15 @@ export function AuthProvider({ children }) {
           resetUser();
           return;
         }
+        // Ignore SIGN_IN / TOKEN_REFRESHED / INITIAL_SESSION while a
+        // logout is in progress — otherwise the still-valid Supabase
+        // session (signOut hasn't finished yet) re-populates the user
+        // the instant we navigate to /login.
+        if (signingOutRef.current) return;
         if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED" || event === "INITIAL_SESSION") {
           try {
             const profile = await loadProfileForAuthUser(authUser);
-            if (cancelled) return;
+            if (cancelled || signingOutRef.current) return;
             if (profile) {
               setUser(profile);
               identifyUser(profile);
@@ -179,15 +191,25 @@ export function AuthProvider({ children }) {
     identifyUser(userData);
   }
 
-  function logout() {
+  async function logout() {
+    // Flip the guard BEFORE anything else so the auth listener treats
+    // any subsequent SIGN_IN / TOKEN_REFRESHED as noise.
+    signingOutRef.current = true;
     localStorage.removeItem("auth_token");
     deactivateDemoMode();
     setUser(null);
     setIsDemo(false);
     resetUser();
-    // Fire-and-forget the Supabase sign-out so the next page load doesn't
-    // re-hydrate from a stale session. No-ops when Supabase isn't enabled.
-    signOutSupabase().catch(() => { /* ignore */ });
+    try {
+      // AWAIT the Supabase sign-out so the session in localStorage is
+      // definitively gone before the caller navigates away. Without this
+      // await the fire-and-forget signOut could still be in flight when
+      // Login mounts, the token refresh listener would see a live session,
+      // and it would silently re-authenticate the user — the exact "auto
+      // sign-in right after Sign out" bug users reported.
+      await signOutSupabase();
+    } catch { /* ignore — best-effort */ }
+    signingOutRef.current = false;
   }
 
   function exitDemo() {
