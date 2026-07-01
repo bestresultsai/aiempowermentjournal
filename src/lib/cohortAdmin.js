@@ -657,8 +657,35 @@ export function updateCohort(slug, payload, { orgs, facilitators, program } = {}
   if (err) throw new Error(err);
 
   const cohort = buildCohort({ ...payload, slug }, { orgs, facilitators, program });
+  // Preserve per-session override fields that buildCohort doesn't know about
+  // — manualLockState, customSummary, customMaterials, facilitatorNotes,
+  // customHomework, videoUrl. buildCohort rebuilds sessions from MOCK_SESSIONS
+  // + payload dates/zoom, which would silently wipe overrides that were
+  // written via setSessionOverride. Merge per-order so the cohort-level
+  // Save doesn't clobber per-session admin edits.
+  const prev = cohortOverlays[slug] || {};
+  const prevSessions = Array.isArray(prev.sessions) ? prev.sessions : [];
+  const PRESERVED_KEYS = [
+    "manualLockState",
+    "customSummary",
+    "customMaterials",
+    "facilitatorNotes",
+    "customHomework",
+    "videoUrl",
+  ];
+  cohort.sessions = (cohort.sessions || []).map((s) => {
+    const prevMatch = prevSessions.find((p) => p.order === s.order);
+    if (!prevMatch) return s;
+    const merged = { ...s };
+    for (const key of PRESERVED_KEYS) {
+      if (prevMatch[key] != null && merged[key] == null) {
+        merged[key] = prevMatch[key];
+      }
+    }
+    return merged;
+  });
   cohortOverlays[slug] = {
-    ...(cohortOverlays[slug] || {}),
+    ...prev,
     ...cohort,
     updatedAt: new Date().toISOString(),
   };
