@@ -217,6 +217,47 @@ async function buildParticipantCohortView(realCohort, slug) {
     }
   }
 
+  // Deeper Supabase-direct fallback. If in-memory resolution didn't give us
+  // a facilitator, query the cohort row + profile directly. Handles the
+  // stale-overlay case (participant loaded before facilitator profile was
+  // hydrated, so getAllFacilitators() didn't have them yet) and the
+  // fresh-session case (in-memory maps are cold, but the DB row has a
+  // valid facilitator_id). Mirrors the participant-by-email direct-query
+  // pattern used elsewhere. Silent on failure — we just fall through to
+  // no card, which is better than a mock leak.
+  if (!trainer && isSupabaseEnabled()) {
+    try {
+      const client = await initSupabase();
+      if (client) {
+        // 1. Find the cohort row and its facilitator_id.
+        const { data: cohortRows } = await client
+          .from("cohorts")
+          .select("facilitator_id")
+          .eq("slug", slug)
+          .limit(1);
+        const facUuid = cohortRows?.[0]?.facilitator_id || null;
+        if (facUuid) {
+          // 2. Fetch the profile.
+          const { data: profileRow } = await client
+            .from("profiles")
+            .select("id,name,email,avatar_url,preferences")
+            .eq("id", facUuid)
+            .single();
+          if (profileRow?.name) {
+            trainer = {
+              name: profileRow.name,
+              title: profileRow.preferences?.title || "Facilitator, BestResults.AI",
+              email: profileRow.email || "",
+              headshotUrl: profileRow.avatar_url || null,
+              coachingHeadline: "Feeling stuck?",
+              calendlyUrl: profileRow.preferences?.calendlyUrl || "",
+            };
+          }
+        }
+      }
+    } catch { /* swallow — non-fatal, card just won't render */ }
+  }
+
   const program = getProgramByCode(realCohort.programCode);
   const totalSessions = program?.sessionsCount || sessions.length || MOCK_SESSIONS.length;
 

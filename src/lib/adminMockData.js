@@ -2243,6 +2243,13 @@ export async function hydrateActivityFromSupabase({ force = false } = {}) {
       }
 
       activityHydrated = true;
+      // Broadcast so consumers that already captured a pre-hydrate snapshot
+      // (e.g. useCohortEntries reading p.journalEntries) re-run their memos.
+      // Without this, participants who loaded /home before activity landed
+      // would see an empty journal + homework-due until a mutation somewhere
+      // else bumped the version — exactly the /home vs /cohort/:slug split
+      // Josue hit for josueacuna@me.com.
+      emitParticipantChange();
     } catch (err) {
       if (!(err instanceof SupabaseNotReady)) {
         captureError(err, { source: "hydrateActivityFromSupabase" });
