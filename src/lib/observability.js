@@ -65,6 +65,12 @@ export function initObservability() {
           // in Login.jsx).
           "AuthRetryableFetchError",
           "AuthApiError: fetch failed",
+          // Safari's phrasing for a network fetch that failed. Same class
+          // of transient upstream issue — user retry / hydration re-run
+          // covers it. Not worth a Sentry alert every time someone briefly
+          // loses connectivity or Supabase burps.
+          "TypeError: Load failed",
+          "DbError:",
         ],
         integrations: [Sentry.browserTracingIntegration()],
       });
@@ -99,9 +105,21 @@ export function initObservability() {
 // ---------------------------------------------------------------------------
 
 export function captureError(error, context) {
+  // Sentry emits "Object captured as exception with keys: …" when it gets
+  // a bare object (e.g. a Supabase error {code, details, hint, message}
+  // that db.js hands us on network failures). Wrap those into a real
+  // Error so the stacktrace + name land correctly and Sentry stops
+  // creating a second issue for the wrapper warning.
+  const normalized = toError(error);
+  const extras = { ...(context || {}) };
+  if (error && typeof error === "object" && !(error instanceof Error)) {
+    // Preserve the original shape as extra data so debugging still has
+    // the code/details/hint fields.
+    extras.__serialized__ = safeSerialize(error);
+  }
   if (sentryReady) {
     try {
-      Sentry.captureException(error, { extra: context || {} });
+      Sentry.captureException(normalized, { extra: extras });
       return;
     } catch {
       /* fall through to console */
@@ -109,7 +127,28 @@ export function captureError(error, context) {
   }
   // Always log so we don't silently drop errors when the SDK is off.
   // eslint-disable-next-line no-console
-  console.error("[observability]", error, context || "");
+  console.error("[observability]", normalized, extras || "");
+}
+
+function toError(value) {
+  if (value instanceof Error) return value;
+  if (value == null) return new Error("Unknown error (null captured)");
+  if (typeof value === "string") return new Error(value);
+  // Plain object — try to make a useful Error out of the message field.
+  const msg =
+    (value && (value.message || value.error || value.description)) ||
+    "Non-Error value captured";
+  const err = new Error(String(msg));
+  if (value.name) err.name = String(value.name);
+  return err;
+}
+
+function safeSerialize(obj) {
+  try {
+    return JSON.parse(JSON.stringify(obj));
+  } catch {
+    return { note: "unserializable" };
+  }
 }
 
 // ---------------------------------------------------------------------------
