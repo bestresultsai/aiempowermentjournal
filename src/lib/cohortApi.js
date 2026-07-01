@@ -231,7 +231,12 @@ async function buildParticipantCohortView(realCohort, slug) {
     programCode: realCohort.programCode || "AIEW3",
     programName: program?.name || "AI Empowerment Workshop Series 3.0",
     organization: realCohort.organization || null,
-    trainer: trainer || MOCK_COHORT.trainer,
+    // No fallback to MOCK_COHORT.trainer — that path leaked Mike Burkesmith
+    // as the "Your Facilitator" card for any real cohort whose facilitator
+    // reference couldn't resolve (missing, deleted, or an id that no longer
+    // matches a profile). Return null instead; FacilitatorCard renders
+    // nothing when name is missing, which is the correct behavior.
+    trainer: trainer || null,
     // Time / schedule fields — pull from the cohort overlay where present.
     meetingDay: realCohort.meetingDay || null,
     meetingTime: realCohort.meetingTime || null,

@@ -90,7 +90,7 @@ export default function StepProfile({ form, update, email, namePrefilled }) {
           icon={User}
           value={form.name}
           onChange={(v) => update("name", v)}
-          placeholder="Josue Acuna"
+          placeholder="Full name"
           required
           hint={
             namePrefilled
@@ -103,7 +103,7 @@ export default function StepProfile({ form, update, email, namePrefilled }) {
           icon={Briefcase}
           value={form.title}
           onChange={(v) => update("title", v)}
-          placeholder="Director of AI Strategy"
+          placeholder="Job title"
         />
       </div>
 
@@ -161,7 +161,7 @@ export default function StepProfile({ form, update, email, namePrefilled }) {
           label="City"
           value={form.city || ""}
           onChange={(v) => update("city", v)}
-          placeholder="Austin"
+          placeholder="City"
         />
 
         {/* Derived time zone — read-only with edit affordance. */}

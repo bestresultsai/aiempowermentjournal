@@ -29,7 +29,7 @@ export default function StepGoals({ form, update }) {
           label="Your why"
           value={form.whyAi}
           onChange={(v) => update("whyAi", v)}
-          placeholder="I keep watching my team lose hours to repetitive work that AI could handle. I want to be the person who shows them how — without overhyping it."
+          placeholder="A few sentences on what draws you to AI right now."
           rows={4}
           required
         />
@@ -44,7 +44,7 @@ export default function StepGoals({ form, update }) {
           label="Your goal"
           value={form.mainGoal}
           onChange={(v) => update("mainGoal", v)}
-          placeholder="Ship one AI-assisted internal tool that saves my team at least 5 hours a week by the end of the cohort."
+          placeholder="One specific outcome you want by the end of the cohort."
           rows={3}
           required
         />
