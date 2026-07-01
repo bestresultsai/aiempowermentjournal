@@ -241,19 +241,36 @@ async function buildParticipantCohortView(realCohort, slug) {
       const client = await initSupabase();
       if (client) {
         // 1. Find the cohort row and its facilitator_id.
-        const { data: cohortRows } = await client
+        const { data: cohortRows, error: cohortErr } = await client
           .from("cohorts")
           .select("facilitator_id")
           .eq("slug", slug)
           .limit(1);
         const facUuid = cohortRows?.[0]?.facilitator_id || null;
+        // Diagnostic — surface the actual UUID string so we can spot
+        // truncation/corruption between write and read.
+        // eslint-disable-next-line no-console
+        console.info(
+          `[buildParticipantCohortView] Supabase-direct lookup for cohort "${slug}":`,
+          {
+            cohortErr,
+            facUuid,
+            facUuidLength: facUuid ? facUuid.length : 0,
+            facUuidIsValid: !!facUuid && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(facUuid),
+          },
+        );
         if (facUuid) {
           // 2. Fetch the profile.
-          const { data: profileRow } = await client
+          const { data: profileRow, error: profErr } = await client
             .from("profiles")
             .select("id,name,email,avatar_url,preferences")
             .eq("id", facUuid)
             .single();
+          // eslint-disable-next-line no-console
+          console.info(
+            `[buildParticipantCohortView] profile lookup for facUuid ${facUuid}:`,
+            { profErr, gotName: profileRow?.name || null },
+          );
           if (profileRow?.name) {
             trainer = {
               name: profileRow.name,
