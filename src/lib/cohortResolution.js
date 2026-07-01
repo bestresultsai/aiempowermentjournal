@@ -22,7 +22,7 @@ import { getCohortBySlug } from "./cohortApi";
 import { getEntries } from "./api";
 import { useAuth } from "../context/AuthContext";
 import { DEMO_JOURNAL_ENTRIES, DEMO_COHORTS, isMultiCohortDemo, shouldUseSeedData } from "./demoData";
-import { getParticipantByEmail, useParticipantVersion } from "./adminMockData";
+import { getParticipantByEmail, useParticipantVersion, getEffectiveParticipants } from "./adminMockData";
 import { getCohortForAdmin, useCohortVersion } from "./cohortAdmin";
 import { initSupabase, isSupabaseEnabled } from "./supabase";
 
@@ -237,6 +237,11 @@ export function useCohortEntries(cohort) {
   const journalCohortName = cohort?.journalCohortName || cohort?.name;
   const useSupabase = isSupabaseEnabled() && !isDemo;
 
+  // Re-render when participant hydration lands (activity attach) — otherwise
+  // the memoized aggregation below would capture the empty pre-hydrate list
+  // and the participant would keep seeing "no entries" until a hard refresh.
+  const pVersion = useParticipantVersion();
+
   const query = useQuery({
     queryKey: ["cohort-entries", journalCohortName],
     queryFn: () => getEntries({ cohort: journalCohortName }),
@@ -247,8 +252,37 @@ export function useCohortEntries(cohort) {
     enabled: !!journalCohortName && !isDemo && !useSupabase,
   });
 
+  // Supabase mode: fan out from getEffectiveParticipants(), which carries
+  // each participant's journalEntries[] hydrated from public.journal_entries
+  // by hydrateActivityFromSupabase(). Filter to the current cohort slug,
+  // and stamp participantName + participantEmail on each entry so downstream
+  // consumers (JournalDashboard, CohortStats, Leaderboard) can group by user.
+  //
+  // Was returning a hardcoded `[]` here — that's why participants who logged
+  // an entry saw an empty state even though the write landed in Supabase and
+  // the admin side showed the row. #576 follow-up.
+  const supabaseEntries = useMemo(() => {
+    if (!useSupabase || !cohort?.slug) return [];
+    const out = [];
+    for (const p of getEffectiveParticipants()) {
+      if (p.cohortSlug !== cohort.slug) continue;
+      for (const e of p.journalEntries || []) {
+        out.push({
+          ...e,
+          participantName: p.name || "",
+          participantEmail: p.email || "",
+          cohort: journalCohortName || cohort.slug,
+        });
+      }
+    }
+    // Newest first.
+    out.sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
+    return out;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [useSupabase, cohort?.slug, journalCohortName, pVersion]);
+
   return {
-    entries: isDemo ? DEMO_JOURNAL_ENTRIES : useSupabase ? [] : (query.data || []),
+    entries: isDemo ? DEMO_JOURNAL_ENTRIES : useSupabase ? supabaseEntries : (query.data || []),
     isLoading: !isDemo && !useSupabase && query.isLoading,
     error: !isDemo && !useSupabase ? query.error : null,
   };
