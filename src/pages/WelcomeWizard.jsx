@@ -1,9 +1,12 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, ArrowRight, Check, Loader2 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { saveOnboarding } from "../lib/onboardingApi";
 import { deriveFullNameFromEmail } from "../lib/userDisplay";
+import { getParticipantByEmail } from "../lib/adminMockData";
+import { getCohortForAdmin } from "../lib/cohortAdmin";
+import { getProgramByCode } from "../lib/programs";
 import Logo from "../components/Logo";
 import StepperHeader from "../components/onboarding/StepperHeader";
 import StepWelcome from "../components/onboarding/StepWelcome";
@@ -33,6 +36,25 @@ export default function WelcomeWizard() {
   // local part ("jane.smith@x.com" → "Jane Smith"). The user can confirm or
   // correct on Step 2; we never advance without an explicit name.
   const guessedName = deriveFullNameFromEmail(user?.email);
+
+  // Resolve the current participant's cohort/program so the Welcome step
+  // shows program-specific copy ("AI Empowerment Workshop Series 3.0 — eight
+  // weekly sessions") instead of the generic hardcoded string.
+  const cohortCopy = useMemo(() => {
+    if (!user?.email) return { programName: null, sessionsCount: null };
+    try {
+      const p = getParticipantByEmail(user.email);
+      if (!p?.cohortSlug) return { programName: null, sessionsCount: null };
+      const c = getCohortForAdmin(p.cohortSlug);
+      const program = c?.programCode ? getProgramByCode(c.programCode) : null;
+      return {
+        programName: program?.name || null,
+        sessionsCount: program?.sessionsCount || null,
+      };
+    } catch {
+      return { programName: null, sessionsCount: null };
+    }
+  }, [user?.email]);
 
   const [step, setStep] = useState(1);
   const [submitting, setSubmitting] = useState(false);
@@ -134,7 +156,13 @@ export default function WelcomeWizard() {
 
           {/* Active step content */}
           <div key={step} className="animate-fade-in-up">
-            {step === 1 && <StepWelcome firstName={firstName} />}
+            {step === 1 && (
+              <StepWelcome
+                firstName={firstName}
+                programName={cohortCopy.programName}
+                sessionsCount={cohortCopy.sessionsCount}
+              />
+            )}
             {step === 2 && (
               <StepProfile
                 form={form}

@@ -21,7 +21,9 @@ import { MOCK_COHORT } from "./mockCohort";
 import { getCohortBySlug } from "./cohortApi";
 import { getEntries } from "./api";
 import { useAuth } from "../context/AuthContext";
-import { DEMO_JOURNAL_ENTRIES, DEMO_COHORTS, isMultiCohortDemo } from "./demoData";
+import { DEMO_JOURNAL_ENTRIES, DEMO_COHORTS, isMultiCohortDemo, shouldUseSeedData } from "./demoData";
+import { getParticipantByEmail } from "./adminMockData";
+import { getCohortForAdmin } from "./cohortAdmin";
 
 export const STORAGE_KEY = "brai_last_cohort_slug";
 
@@ -61,7 +63,31 @@ export function getUserCohorts(user) {
     }));
   }
 
-  // Default: a single mock cohort (whatever MOCK_COHORT is configured as).
+  // Real (Supabase) user — resolve via the participant record we hydrated
+  // on boot. The participant record carries their real cohortSlug set by
+  // invite-participant. This is what makes Lee see his actual cohort
+  // ("AIEW3 — TestOrganization Cohort") instead of the seed IAHE mock.
+  if (!shouldUseSeedData() && user.email) {
+    const p = getParticipantByEmail(user.email);
+    if (p?.cohortSlug) {
+      const c = getCohortForAdmin(p.cohortSlug);
+      if (c) {
+        return [{
+          slug: c.slug,
+          name: c.name,
+          programCode: c.programCode,
+          methodName: MOCK_COHORT.methodName, // program.methodName resolved downstream
+          organization: c.organization || null,
+        }];
+      }
+    }
+    // Signed-in Supabase user but no participant record / no cohort. Return
+    // empty so downstream doesn't fall through to the mock. CohortLanding
+    // handles the empty state gracefully.
+    return [];
+  }
+
+  // Legacy demo / no-Supabase mode: single mock cohort.
   return [
     {
       slug: MOCK_COHORT.slug,

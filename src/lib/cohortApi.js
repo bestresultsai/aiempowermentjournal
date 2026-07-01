@@ -11,13 +11,14 @@ import {
   MOCK_HOMEWORK,
   isSessionUnlocked,
 } from "./mockCohort";
-import { DEMO_COHORTS } from "./demoData";
+import { DEMO_COHORTS, isDemoModeActive, shouldUseSeedData } from "./demoData";
 import {
   getParticipantByEmail,
   submitHomeworkAsParticipant,
   markSessionCompleteForParticipant,
 } from "./adminMockData";
 import { getProgramByCode } from "./programs";
+import { getCohortForAdmin, getSessionsForCohort, getAllFacilitators } from "./cohortAdmin";
 
 export const USE_MOCK_DATA = true; // flip to false once Notion DBs + functions are live
 
@@ -76,12 +77,24 @@ function decorateSessions(sessions, completed, homeworkByOrder) {
 
 export async function getCohortBySlug(slug) {
   if (USE_MOCK_DATA) {
+    // ----- Real (Supabase) cohort path -----
+    // If the slug matches a cohort in the admin overlay store (i.e. a real
+    // Supabase-hydrated cohort), build a participant-facing view of it. This
+    // used to fall through to MOCK_COHORT and show "IAHE" + Purple belt to
+    // every real participant regardless of their actual cohort.
+    if (!shouldUseSeedData()) {
+      const realCohort = getCohortForAdmin(slug);
+      if (realCohort) {
+        return buildParticipantCohortView(realCohort, slug);
+      }
+    }
+
     // Multi-cohort demo: every demo cohort slug serves MOCK_COHORT's content
     // with the demo cohort's identity overlaid (name, slug, organization).
     const demoCohort = DEMO_COHORTS.find((c) => c.slug === slug);
     const isKnownSlug = slug === MOCK_COHORT.slug || !!demoCohort;
     if (!isKnownSlug) {
-      throw new Error(`Cohort "${slug}" not found (mock mode).`);
+      throw new Error(`Cohort "${slug}" not found.`);
     }
 
     const key = currentUserKey();
@@ -134,6 +147,90 @@ export async function getCohortBySlug(slug) {
     };
   }
   return fetchJSON(`/api/cohort/${encodeURIComponent(slug)}`);
+}
+
+// ---------------------------------------------------------------------------
+// Build a participant-facing cohort view from a real (Supabase-hydrated)
+// admin cohort record. This is what real users see on /journey — the cohort's
+// actual name/org/facilitator/sessions instead of the MOCK_COHORT (IAHE +
+// Purple belt seed data).
+// ---------------------------------------------------------------------------
+function buildParticipantCohortView(realCohort, slug) {
+  const sessions = getSessionsForCohort(slug) || MOCK_SESSIONS;
+  const key = currentUserKey();
+  const adminParticipant = getParticipantByEmail(key);
+  const completed = adminParticipant?.progress || inMemoryProgress[key] || [];
+  const homework = {};
+  if (adminParticipant) {
+    for (const [orderStr, sub] of Object.entries(adminParticipant.submissions || {})) {
+      if (!sub.submittedAt) continue;
+      homework[Number(orderStr)] = sub;
+    }
+  } else {
+    Object.assign(homework, inMemoryHomework[key] || {});
+  }
+
+  // Facilitator lookup — realCohort.facilitator can be an id string, an
+  // object with headshotUrl, or missing. Try to resolve to the richer record.
+  let trainer = null;
+  const rawFac = realCohort.facilitator;
+  if (rawFac && typeof rawFac === "object" && rawFac.name) {
+    trainer = {
+      name: rawFac.name,
+      title: rawFac.title || "Facilitator, BestResults.AI",
+      email: rawFac.email || "",
+      headshotUrl: rawFac.headshotUrl || null,
+      coachingHeadline: "Feeling stuck?",
+      calendlyUrl: rawFac.calendlyUrl || rawFac.calendly || "",
+    };
+  } else if (rawFac) {
+    const facId = typeof rawFac === "string" ? rawFac : rawFac.id;
+    const facRecord = (getAllFacilitators() || []).find((f) => f.id === facId);
+    if (facRecord) {
+      trainer = {
+        name: facRecord.name,
+        title: facRecord.title || "Facilitator, BestResults.AI",
+        email: facRecord.email || "",
+        headshotUrl: facRecord.headshotUrl || null,
+        coachingHeadline: "Feeling stuck?",
+        calendlyUrl: facRecord.calendlyUrl || "",
+      };
+    }
+  }
+
+  const program = getProgramByCode(realCohort.programCode);
+  const totalSessions = program?.sessionsCount || sessions.length || MOCK_SESSIONS.length;
+
+  return {
+    id: realCohort.id || `cohort-${realCohort.slug}`,
+    slug: realCohort.slug,
+    name: realCohort.name,
+    // The Journal Entries store filters by this string in the demo path.
+    // For real cohorts, we mirror the cohort name so filtering stays consistent.
+    journalCohortName: realCohort.name,
+    methodName: program?.methodName || "AI Empowerment Method",
+    programCode: realCohort.programCode || "AIEW3",
+    programName: program?.name || "AI Empowerment Workshop Series 3.0",
+    organization: realCohort.organization || null,
+    trainer: trainer || MOCK_COHORT.trainer,
+    // Time / schedule fields — pull from the cohort overlay where present.
+    meetingDay: realCohort.meetingDay || null,
+    meetingTime: realCohort.meetingTime || null,
+    timeZone: realCohort.timeZone || null,
+    startDate: realCohort.startDate || null,
+    endDate: realCohort.endDate || null,
+    sessions: decorateSessions(sessions, completed, homework),
+    progress: {
+      completed: completed.length,
+      total: totalSessions,
+      percent: totalSessions ? Math.round((completed.length / totalSessions) * 100) : 0,
+    },
+    homeworkProgress: {
+      submitted: Object.keys(homework).length,
+      total: totalSessions,
+    },
+    _source: "supabase",
+  };
 }
 
 export async function getSession(slug, order) {

@@ -5,7 +5,28 @@ import { Sparkles, Trophy, Users, Target } from "lucide-react";
 // to advance into the profile step.
 // ---------------------------------------------------------------------------
 
-export default function StepWelcome({ firstName }) {
+// Small helper — turn a number into a word for the intro sentence.
+// Only handles 1–20 (enough for any program we ship); anything larger falls
+// back to the digits, which reads fine at that size.
+const NUMBER_WORDS = [
+  "zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine",
+  "ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen",
+  "seventeen", "eighteen", "nineteen", "twenty",
+];
+function toWord(n) {
+  if (!Number.isFinite(n)) return null;
+  return NUMBER_WORDS[n] || String(n);
+}
+
+export default function StepWelcome({ firstName, programName, sessionsCount }) {
+  // Program name — fall back to a generic phrasing when the wizard boots
+  // before the cohort has resolved (or when a user has no cohort yet).
+  const journeyName = programName || "AI Empowerment Journey";
+  // Session count — 8 for AIEW3, 10 for APFW, or a fallback string when it
+  // can't be resolved. Written as a word so the copy reads naturally.
+  const sessionsPhrase = sessionsCount
+    ? `${toWord(sessionsCount)} weekly sessions`
+    : "weekly sessions";
   return (
     <div className="space-y-8">
       <div className="space-y-3">
@@ -17,10 +38,10 @@ export default function StepWelcome({ firstName }) {
           {firstName ? `Welcome, ${firstName}.` : "Welcome to BRAI."}
         </h1>
         <p className="text-[15px] text-ink-muted leading-relaxed max-w-xl">
-          You're about to start the AI Empowerment Journey — eight weekly sessions
-          plus a weekly journal habit that turns AI from buzzword into your
-          team's everyday tool. Before we drop you into your cohort, let's set
-          you up properly.
+          You're about to start the <strong className="text-ink">{journeyName}</strong> — {sessionsPhrase} plus a
+          weekly journal habit that turns AI from buzzword into your team's
+          everyday tool. Before we drop you into your cohort, let's set you
+          up properly.
         </p>
       </div>
 
