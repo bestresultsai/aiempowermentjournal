@@ -193,6 +193,17 @@ async function buildParticipantCohortView(realCohort, slug) {
   // object with headshotUrl, or missing. Try to resolve to the richer record.
   let trainer = null;
   const rawFac = realCohort.facilitator;
+  // Temp diagnostic — verify what shape facilitator arrives in now that the
+  // DB is confirmed correct (facilitator_id = Mike's real UUID). If shape is
+  // still null here, hydration isn't populating the overlay.
+  // eslint-disable-next-line no-console
+  console.info(
+    `[FAC DIAG] cohort "${slug}" rawFac shape:`,
+    rawFac === null ? "null" :
+    rawFac === undefined ? "undefined" :
+    typeof rawFac === "string" ? `string:${rawFac}` :
+    { name: rawFac?.name, email: rawFac?.email, id: rawFac?.id, _supabaseProfileId: rawFac?._supabaseProfileId, keys: Object.keys(rawFac || {}) },
+  );
   if (rawFac && typeof rawFac === "object" && rawFac.name) {
     trainer = {
       name: rawFac.name,
