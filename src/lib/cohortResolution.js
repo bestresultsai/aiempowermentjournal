@@ -22,8 +22,8 @@ import { getCohortBySlug } from "./cohortApi";
 import { getEntries } from "./api";
 import { useAuth } from "../context/AuthContext";
 import { DEMO_JOURNAL_ENTRIES, DEMO_COHORTS, isMultiCohortDemo, shouldUseSeedData } from "./demoData";
-import { getParticipantByEmail } from "./adminMockData";
-import { getCohortForAdmin } from "./cohortAdmin";
+import { getParticipantByEmail, useParticipantVersion } from "./adminMockData";
+import { getCohortForAdmin, useCohortVersion } from "./cohortAdmin";
 
 export const STORAGE_KEY = "brai_last_cohort_slug";
 
@@ -113,6 +113,14 @@ export function getUserCohorts(user) {
 export function useResolvedCohort() {
   const { slug: urlSlug } = useParams();
   const { user, isDemo } = useAuth();
+  // Bump when participant hydration lands or a cohort mutation fires.
+  // Without these deps the memo captured the initial (empty) state of
+  // ADMIN_MOCK_PARTICIPANTS and never recomputed, so participants who
+  // logged in before hydration completed saw "You're not in a cohort"
+  // permanently — even after their profile + cohort link finished
+  // loading from Supabase.
+  const pVersion = useParticipantVersion();
+  const cVersion = useCohortVersion();
 
   const { slug, resolvedFrom } = useMemo(() => {
     if (urlSlug)                            return { slug: urlSlug, resolvedFrom: "url" };
@@ -125,7 +133,8 @@ export function useResolvedCohort() {
     if (userCohorts.length > 0)             return { slug: userCohorts[0].slug, resolvedFrom: "user" };
 
     return { slug: null, resolvedFrom: "none" };
-  }, [urlSlug, user, isDemo]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [urlSlug, user, isDemo, pVersion, cVersion]);
 
   const query = useQuery({
     queryKey: ["cohort", slug],
