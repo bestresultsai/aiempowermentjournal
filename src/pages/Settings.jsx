@@ -192,7 +192,7 @@ export default function Settings() {
               icon={Building2}
               value={form.organization}
               onChange={(v) => update("organization", v)}
-              placeholder="Iowa Methodist Healthcare"
+              placeholder="Company"
             />
           </Section>
 
