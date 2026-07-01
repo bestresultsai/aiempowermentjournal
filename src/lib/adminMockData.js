@@ -114,11 +114,16 @@ function entry({
 export const ADMIN_MOCK_PARTICIPANTS = [
   // -------- IAHE Cohort (4 participants) --------
   {
+    // ⚠ SEED IDENTITY — DO NOT USE A REAL EMAIL HERE.
+    // This row exists so the demo/pitch flow (?demo=1) has a fully-populated
+    // participant to render. Using a real user's email causes hydration to
+    // adopt this seed identity for that user and leak fake activity into
+    // production. Kept fictional on purpose — see docs/mock-data-audit.md.
     id: "user-iahe-1",
-    name: "Josue Acuna",
-    email: "josueacuna@me.com",
+    name: "Demo Participant One",
+    email: "demo.participant.one@iahe.example",
     title: "Director of AI Strategy",
-    organization: "BestResults.AI",
+    organization: "IAHE (demo)",
     location: { country: "US", state: "TX", city: "Austin" },
     defaultTimeZone: "America/Chicago",
     cohortSlug: COHORT_IAHE,
@@ -1854,6 +1859,19 @@ let participantsHydrated = false;
 let participantHydratePromise = null;
 let _supabaseProfileByEmail = new Map();  // email (lc) → { id, capabilities }
 
+// Any preferences.* value that matches one of these exact strings verbatim
+// is a demo-seed value that leaked into Supabase in a prior test session.
+// Scrub at read time so the UI never shows it, even if a database migration
+// hasn't caught up yet. Update this set whenever you change a seed string.
+const _SEED_PREFERENCE_STRINGS = new Set([
+  "I want healthcare educators to redirect 10+ hours a week away from busywork and toward the things only humans can do.",
+  "Ship our internal AI Empowerment platform and onboard the first 30 IAHE participants before the end of Q2.",
+]);
+function _scrubSeedString(value) {
+  if (!value) return "";
+  return _SEED_PREFERENCE_STRINGS.has(String(value).trim()) ? "" : value;
+}
+
 function profileRowToParticipant(row, { cohortBySupabaseId, cohortLinkRow }) {
   if (!row) return null;
   const cohort = cohortLinkRow?.cohort_id ? cohortBySupabaseId[cohortLinkRow.cohort_id] : null;
@@ -1879,8 +1897,8 @@ function profileRowToParticipant(row, { cohortBySupabaseId, cohortLinkRow }) {
     cohortSlug: cohort?.slug || null,
     belt: cohortLinkRow?.belt || null,
     productionTier: cohortLinkRow?.production_tier || null,
-    whyAi: row.preferences?.whyAi || "",
-    mainGoal: row.preferences?.mainGoal || "",
+    whyAi: _scrubSeedString(row.preferences?.whyAi) || "",
+    mainGoal: _scrubSeedString(row.preferences?.mainGoal) || "",
     // Activity data (progress / submissions / journalEntries) lands in
     // Round B when journal_entries + homework_submissions + session_progress
     // migrate. For now they stay empty for Supabase-only participants.
