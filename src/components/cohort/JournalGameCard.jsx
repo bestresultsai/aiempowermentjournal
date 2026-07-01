@@ -196,7 +196,7 @@ export default function JournalGameCard({ entries = [], currentUserEmail, badges
       )}
 
       <Link
-        to="/journal"
+        to="/journal/new"
         className="group self-start inline-flex items-center gap-2 px-4 py-2.5 bg-ink text-white rounded-xl text-[14px] font-heading font-semibold hover:bg-brand-700 transition-all duration-200 mt-auto"
       >
         New Journal Entry

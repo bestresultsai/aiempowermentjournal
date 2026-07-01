@@ -242,7 +242,7 @@ function QuickActions({ cohortSlug }) {
       }}
     >
       <Link
-        to="/journal"
+        to="/journal/new"
         style={{
           background: "#2563EB",
           color: "#fff",
