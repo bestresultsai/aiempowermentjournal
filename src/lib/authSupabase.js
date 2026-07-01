@@ -102,6 +102,24 @@ export async function loadProfileForAuthUser(authUser) {
 }
 
 /**
+ * Best-effort read of the client-side onboarding stash so users who completed
+ * the wizard on this device but whose DB write silently didn't stick (RLS,
+ * race, connectivity) don't get thrown back into the wizard on the next
+ * session. Mirrors STORAGE_KEY in src/lib/onboardingApi.js.
+ */
+function readLocalOnboardingTimestamp() {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem("brai_onboarding_payload");
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return parsed?.onboardingCompletedAt || null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Map a profiles row + auth.users record into the user object shape the rest
  * of the app expects. This is the single translation layer between the new
  * Supabase schema and the legacy in-memory user shape used by every page.
@@ -137,9 +155,18 @@ function shapeProfileForApp(profileRow, authUser) {
     // so we synthesize a completion timestamp for them if it's not already set.
     // Otherwise OnboardingGate would loop them back into /welcome on every
     // profile re-fetch.
+    //
+    // Participants get a localStorage fallback: if we can't find the timestamp
+    // in the profile row but we DO see it in the client-side stash from a
+    // prior wizard completion on this device, we honor it. This guards
+    // against the "session timed out → thrown back into WelcomeWizard" bug
+    // Mike reported, which happens when the DB update from saveOnboarding
+    // silently didn't persist (RLS 0-row update, transient error).
     onboardingCompletedAt:
       profileRow.preferences?.onboardingCompletedAt ||
-      (isStaffCapability(profileRow.capabilities) ? profileRow.created_at || new Date().toISOString() : null),
+      (isStaffCapability(profileRow.capabilities)
+        ? profileRow.created_at || new Date().toISOString()
+        : readLocalOnboardingTimestamp()),
 
     // Marker so downstream code can tell "this is a real Supabase user"
     // vs a demo user.

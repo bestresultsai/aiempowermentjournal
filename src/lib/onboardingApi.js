@@ -89,12 +89,24 @@ export async function saveOnboarding(payload) {
         };
         if (clean.name) update.name = clean.name;
         if (clean.headshotUrl) update.avatar_url = clean.headshotUrl;
-        const { error } = await client
+        // Chain .select() so we can detect the "no rows matched" case that
+        // Postgres treats as a silent success (e.g. RLS blocked the update).
+        // Without this check, saveOnboarding would resolve OK, the user would
+        // continue into the app, and then on the next session TOKEN_REFRESHED
+        // the profile fetch would return the pre-update state and OnboardingGate
+        // would loop them back into /welcome — the exact bug Mike reported.
+        const { data: updated, error } = await client
           .from("profiles")
           .update(update)
-          .eq("id", authUser.id);
+          .eq("id", authUser.id)
+          .select("id");
         if (error) {
           throw new Error(error.message || "Failed to save onboarding to Supabase.");
+        }
+        if (!updated || updated.length === 0) {
+          throw new Error(
+            "Onboarding didn't save (no profile row updated). Please refresh and try again.",
+          );
         }
         return { ok: true, profile: { ...clean, onboardingCompletedAt: completedAt } };
       }

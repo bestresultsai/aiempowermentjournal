@@ -90,7 +90,7 @@ export default function Journal() {
       return;
     }
     if (!form.volumePerDay) {
-      setError("On a typical day, how many times do you do this?");
+      setError("Pick how many of these you typically produce in a day.");
       return;
     }
     if (!form.hoursWithoutAI || !form.hoursWithAI) {
@@ -247,8 +247,11 @@ export default function Journal() {
             />
           </Field>
 
-          {/* 4 — Volume per day */}
-          <Field label="On a typical day, how many times do you do this?" required>
+          {/* 4 — Volume per day. Copy is deliberately about the task the
+              entry describes, not the entry itself — Mike flagged that the
+              old phrasing ("how many times do you do this?") read like it
+              was asking about journaling frequency. */}
+          <Field label="How many of these do you typically produce in a day?" required>
             <ChoiceGrid
               options={VOLUME_PER_DAY.map((v) => ({ key: v.key, label: v.label }))}
               value={form.volumePerDay}

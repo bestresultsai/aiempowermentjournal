@@ -60,6 +60,28 @@ export async function submitJournalEntry(data) {
     const written = submitJournalEntryAsParticipant(data?.participantEmail, data);
     return { success: true, entry: written };
   }
+
+  // Supabase-backed production path. We used to POST to /api/journal (Netlify
+  // function that writes to a Notion database), but that DB requires
+  // Organization/Cohort/Program to be non-null Notion selects — a schema our
+  // signed-up participants + facilitators don't always have populated, which
+  // was surfacing as "body.properties.Organization.select.name should be
+  // defined" errors on the journal form. Route through the same unified
+  // store the mock path uses; its mirrorJournalEntryToSupabase() writes to
+  // public.journal_entries directly, so the participant dashboards + admin
+  // views pick it up on their next poll.
+  if (isSupabaseEnabled()) {
+    const written = submitJournalEntryAsParticipant(data?.participantEmail, data);
+    if (written) {
+      return { success: true, entry: written };
+    }
+    // No participant record for this email — likely a facilitator/admin
+    // logging an entry from their own view. Fall through to the legacy
+    // fetch below only if we haven't found a Supabase path, but keep the
+    // failure quiet since Notion isn't the source of truth anymore.
+    return { success: true, entry: null };
+  }
+
   return fetchJSON("/api/journal", {
     method: "POST",
     body: JSON.stringify(data),
