@@ -113,6 +113,18 @@ export function getUserCohorts(user) {
 // Returns { data: cohorts[], isLoading }. Empty array = truly not in any
 // cohort. Runs only when Supabase is enabled and the user has a userId.
 // ---------------------------------------------------------------------------
+// Shared hook — the in-memory list, then the Supabase direct query if
+// the in-memory list is empty. Any consumer that needs to know "what
+// cohorts is this user in" should use this hook instead of calling the
+// synchronous getUserCohorts() function directly. Fixes the split-brain
+// where /home resolved a cohort but /settings still said "not in one."
+export function useUserCohorts(user) {
+  const direct = useUserCohortsDirect(user);
+  const inMemory = getUserCohorts(user);
+  if (inMemory.length > 0) return inMemory;
+  return direct.data;
+}
+
 function useUserCohortsDirect(user) {
   const query = useQuery({
     queryKey: ["user-cohorts-direct", user?.userId || null],
@@ -212,21 +224,32 @@ export function useResolvedCohort() {
 // ---------------------------------------------------------------------------
 // useCohortEntries — fetch journal entries scoped to a cohort.
 //
-// Demo mode short-circuits the network — uses canned DEMO_JOURNAL_ENTRIES.
+// Demo mode: canned DEMO_JOURNAL_ENTRIES.
+// Supabase mode: pull from public.journal_entries via the participant
+//   activity hydrator (that path already runs and populates each
+//   participant record's journalEntries[]). CohortLanding aggregates it
+//   from getEffectiveParticipants downstream.
+// Legacy Notion mode: hit /api/entries — used to be the default; now only
+//   reached when Supabase is disabled AND we're not in demo mode.
 // ---------------------------------------------------------------------------
 export function useCohortEntries(cohort) {
   const { isDemo } = useAuth();
   const journalCohortName = cohort?.journalCohortName || cohort?.name;
+  const useSupabase = isSupabaseEnabled() && !isDemo;
 
   const query = useQuery({
     queryKey: ["cohort-entries", journalCohortName],
     queryFn: () => getEntries({ cohort: journalCohortName }),
-    enabled: !!journalCohortName && !isDemo,
+    // Skip the /api/entries → Notion call entirely when Supabase is wired.
+    // That endpoint runs a filter against a hard-coded Notion "Cohort"
+    // select dropdown and rejects any option not literally in that list —
+    // producing the "cohort not found" red banner Josue was seeing.
+    enabled: !!journalCohortName && !isDemo && !useSupabase,
   });
 
   return {
-    entries: isDemo ? DEMO_JOURNAL_ENTRIES : (query.data || []),
-    isLoading: !isDemo && query.isLoading,
-    error: !isDemo ? query.error : null,
+    entries: isDemo ? DEMO_JOURNAL_ENTRIES : useSupabase ? [] : (query.data || []),
+    isLoading: !isDemo && !useSupabase && query.isLoading,
+    error: !isDemo && !useSupabase ? query.error : null,
   };
 }

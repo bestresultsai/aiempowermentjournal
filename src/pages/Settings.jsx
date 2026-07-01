@@ -7,7 +7,7 @@ import {
 import NavBar from "../components/NavBar";
 import Select from "../components/Select";
 import { useAuth } from "../context/AuthContext";
-import { getUserCohorts } from "../lib/cohortResolution";
+import { useUserCohorts } from "../lib/cohortResolution";
 import { groupTimeZones } from "../lib/timeZones";
 import { useGoogleCalendarConnection } from "../lib/googleCalendar";
 import { hasCapability } from "../lib/adminRoles";
@@ -66,7 +66,11 @@ export default function Settings() {
     setTimeout(() => setSaveState("idle"), 2400);
   }
 
-  const cohorts = getUserCohorts(user);
+  // Shared hook — falls back to the Supabase direct query when the
+  // in-memory participant record misses. Was calling the plain
+  // getUserCohorts(user), which is why Settings said "not in a cohort"
+  // while /home successfully resolved the same user's cohort.
+  const cohorts = useUserCohorts(user);
   const initials = (form.name || user?.name || "?")
     .split(" ").filter(Boolean).slice(0, 2)
     .map((w) => w[0]).join("").toUpperCase();
