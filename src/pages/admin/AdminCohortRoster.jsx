@@ -14,7 +14,11 @@ import {
   totalTimeSaved, formatMinutes, useParticipantVersion,
 } from "../../lib/adminMockData";
 import { getAllCohortsForAdmin, getSessionsForCohort, setSessionRecording } from "../../lib/cohortAdmin";
-import { findAwaitingRecording } from "../../lib/sessionState";
+import {
+  findAwaitingRecording,
+  getSessionState,
+  SESSION_STATE_META,
+} from "../../lib/sessionState";
 import { sanitizeUrl, clampString, LIMITS } from "../../lib/inputValidation";
 import { downloadCSV } from "../../lib/csvExport";
 
@@ -792,6 +796,29 @@ function SessionsCustomizationCard({ cohortSlug, sessions }) {
             !!s.facilitatorNotes ||
             !!s.customHomework ||
             !!s.videoUrl;
+          // Lifecycle state — completed / awaiting recording / live / upcoming.
+          // getSessionState already respects a manual "locked" override, so
+          // when a session is force-locked it reads as LOCKED here too.
+          const state = getSessionState(s);
+          const stateMeta = SESSION_STATE_META[state] || null;
+          // Availability — for the OTHER lock states ("unlocked" force-open,
+          // or the default 3-day-before rule). Only render a lock pill when
+          // the state is genuinely different from the norm.
+          const lockPill =
+            s.manualLockState === "locked"
+              ? { label: "Locked", cls: "bg-rose-50 text-rose-700 border border-rose-200" }
+              : s.manualLockState === "unlocked"
+                ? { label: "Open early", cls: "bg-emerald-50 text-emerald-700 border border-emerald-200" }
+                : null;
+          // Date — short weekday + month + day. Falls back to a dash if the
+          // session was never scheduled (shouldn't happen for real cohorts).
+          const dateStr = s.date
+            ? new Date(s.date).toLocaleDateString("en-US", {
+                weekday: "short",
+                month: "short",
+                day: "numeric",
+              })
+            : "Date TBD";
           return (
             <li key={s.order}>
               <Link
@@ -813,9 +840,32 @@ function SessionsCustomizationCard({ cohortSlug, sessions }) {
                     {s.title}
                   </div>
                   <div className="text-[11px] text-ink-muted mt-0.5 inline-flex items-center gap-2 flex-wrap">
+                    <CalendarIcon className="w-3 h-3" strokeWidth={2.5} />
+                    <span>{dateStr}</span>
+                    <span className="w-1 h-1 rounded-full bg-ink-subtle" />
                     <span>{s.belt || "—"} belt</span>
+                    {/* Lifecycle status */}
+                    {stateMeta && (
+                      <span
+                        className={
+                          "inline-flex items-center gap-1 px-1.5 py-0 rounded-md text-[9.5px] font-heading font-bold uppercase border border-transparent " +
+                          stateMeta.pillBg +
+                          " " +
+                          stateMeta.pillText
+                        }
+                      >
+                        {stateMeta.short}
+                      </span>
+                    )}
+                    {/* Manual lock override — only when non-default */}
+                    {lockPill && (
+                      <span className={"inline-flex items-center gap-1 px-1.5 py-0 rounded-md text-[9.5px] font-heading font-bold uppercase " + lockPill.cls}>
+                        {lockPill.label}
+                      </span>
+                    )}
+                    {/* Custom content indicator */}
                     {hasOverride && (
-                      <span className="inline-flex items-center gap-1 px-1.5 py-0 rounded-md bg-emerald-50 text-emerald-700 text-[9.5px] font-heading font-bold uppercase">
+                      <span className="inline-flex items-center gap-1 px-1.5 py-0 rounded-md bg-brand-50 text-brand-700 text-[9.5px] font-heading font-bold uppercase border border-brand-100">
                         Customized
                       </span>
                     )}
