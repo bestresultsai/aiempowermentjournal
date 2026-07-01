@@ -52,12 +52,19 @@ export function initObservability() {
         // Session replay: capture only on error in production, always in dev.
         replaysSessionSampleRate: 0,
         replaysOnErrorSampleRate: ENVIRONMENT === "production" ? 1.0 : 0,
-        // Don't capture noise from extensions / cross-origin iframes.
+        // Don't capture noise from extensions / cross-origin iframes, or from
+        // upstream flakiness that manifests as retryable client-side errors.
         ignoreErrors: [
           "ResizeObserver loop limit exceeded",
           "ResizeObserver loop completed with undelivered notifications",
           "Non-Error promise rejection captured",
           "Network request failed",
+          // Supabase Auth throws this when its SMTP relay times out. It's
+          // upstream flakiness, not something we can fix in the app, and the
+          // user already sees a friendly retry prompt (see humanizeAuthError
+          // in Login.jsx).
+          "AuthRetryableFetchError",
+          "AuthApiError: fetch failed",
         ],
         integrations: [Sentry.browserTracingIntegration()],
       });
