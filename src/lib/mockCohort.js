@@ -143,7 +143,35 @@ export const MOCK_PROGRESS = {};
 export const MOCK_HOMEWORK = {};
 // Shape: MOCK_HOMEWORK["user@x.com"] = { 1: { response, link, submittedAt }, ... }
 
+// How many days before a session's date participants can open it.
+// Change here + they update everywhere: session detail, cohort landing,
+// and the participant-facing "unlocks on <date>" copy.
+export const UNLOCK_LEAD_DAYS = 3;
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
+// Is the session materials/content available to the participant?
+//
+//   1. If a facilitator/admin has manually locked or unlocked it via the
+//      per-cohort override (session.manualLockState), that wins.
+//   2. Otherwise the session unlocks UNLOCK_LEAD_DAYS days before its
+//      scheduled date. Before that, materials are hidden and the row
+//      shows an "Unlocks <date>" note.
 export function isSessionUnlocked(session, today = new Date()) {
   if (!session?.date) return true;
-  return new Date(session.date) <= today;
+  if (session?.manualLockState === "locked") return false;
+  if (session?.manualLockState === "unlocked") return true;
+  const start = new Date(session.date).getTime();
+  if (Number.isNaN(start)) return true;
+  const unlockAt = start - UNLOCK_LEAD_DAYS * MS_PER_DAY;
+  return today.getTime() >= unlockAt;
+}
+
+// The exact date at which a session unlocks under the default rule.
+// Returns null when the session has no scheduled date. Used by the
+// participant UI to show "Unlocks Mar 24" copy on locked rows.
+export function getSessionUnlockDate(session) {
+  if (!session?.date) return null;
+  const start = new Date(session.date).getTime();
+  if (Number.isNaN(start)) return null;
+  return new Date(start - UNLOCK_LEAD_DAYS * MS_PER_DAY);
 }

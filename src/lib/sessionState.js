@@ -71,10 +71,14 @@ export const SESSION_STATE_META = {
 };
 
 // Compute the state for a single session.
-//   session: { date, durationMinutes, videoUrl }
+//   session: { date, durationMinutes, videoUrl, manualLockState? }
 //   options.now: optional override for testing
 export function getSessionState(session, { now = Date.now() } = {}) {
   if (!session?.date) return SESSION_STATES.UPCOMING;
+  // Facilitator manual lock wins over any date-based state. This is the
+  // "postpone / hide this session" escape hatch we surface on the
+  // per-cohort session edit page.
+  if (session.manualLockState === "locked") return SESSION_STATES.LOCKED;
   const start = new Date(session.date).getTime();
   if (Number.isNaN(start)) return SESSION_STATES.UPCOMING;
   const durationMs = (Number(session.durationMinutes) || 75) * 60 * 1000;

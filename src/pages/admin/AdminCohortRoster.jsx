@@ -170,7 +170,11 @@ export default function AdminCohortRoster() {
       {/* Facilitator + Meeting schedule — at the top so anyone landing on
           this page immediately knows WHO runs the cohort and WHEN it meets. */}
       <section className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        <FacilitatorCard facilitator={cohort.facilitator || cohort.trainer} />
+        <FacilitatorCard
+          facilitator={cohort.facilitator || cohort.trainer}
+          cohortSlug={slug}
+          canEdit={canEditCohort(user, cohort)}
+        />
         <MeetingScheduleCard schedule={schedule} timeZone={cohort.timeZone} />
       </section>
 
@@ -365,7 +369,7 @@ function CohortJournalStat({ icon: Icon, label, value, sub }) {
 // FacilitatorCard — surfaces who runs this cohort. Matches the "leader card"
 // visual rhythm so the two side-by-side cards feel intentional.
 // ---------------------------------------------------------------------------
-function FacilitatorCard({ facilitator }) {
+function FacilitatorCard({ facilitator, cohortSlug, canEdit }) {
   if (!facilitator) {
     return (
       <div className="rounded-2xl bg-surface-card border border-dashed border-soft p-4 flex items-center gap-3">
@@ -377,9 +381,18 @@ function FacilitatorCard({ facilitator }) {
             Facilitator
           </div>
           <div className="text-[12.5px] text-ink-muted mt-0.5">
-            None assigned. Edit the cohort to set a facilitator.
+            None assigned yet.
           </div>
         </div>
+        {canEdit && cohortSlug && (
+          <Link
+            to={`/admin/cohorts/${cohortSlug}/edit`}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white border border-soft text-[12px] font-heading font-semibold text-ink hover:bg-surface-soft hover:border-brand-500 transition-all duration-200 shrink-0"
+          >
+            <UserPlus className="w-3.5 h-3.5" strokeWidth={2.5} />
+            Assign
+          </Link>
+        )}
       </div>
     );
   }
@@ -409,15 +422,27 @@ function FacilitatorCard({ facilitator }) {
           <div className="text-[11.5px] text-ink-muted">{facilitator.title}</div>
         )}
       </div>
-      {facilitator.email && (
-        <a
-          href={`mailto:${facilitator.email}`}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white border border-brand-100 text-[12px] font-heading font-semibold text-brand-700 hover:bg-brand-50 transition-colors shrink-0"
-        >
-          <Mail className="w-3.5 h-3.5" strokeWidth={2.5} />
-          Email
-        </a>
-      )}
+      <div className="flex items-center gap-1.5 shrink-0">
+        {facilitator.email && (
+          <a
+            href={`mailto:${facilitator.email}`}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white border border-brand-100 text-[12px] font-heading font-semibold text-brand-700 hover:bg-brand-50 transition-colors"
+          >
+            <Mail className="w-3.5 h-3.5" strokeWidth={2.5} />
+            Email
+          </a>
+        )}
+        {canEdit && cohortSlug && (
+          <Link
+            to={`/admin/cohorts/${cohortSlug}/edit`}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white border border-soft text-[12px] font-heading font-semibold text-ink hover:bg-surface-soft hover:border-brand-500 transition-all duration-200"
+            title="Change the facilitator for this cohort"
+          >
+            <Pencil className="w-3.5 h-3.5" strokeWidth={2.5} />
+            Change
+          </Link>
+        )}
+      </div>
     </div>
   );
 }

@@ -857,11 +857,22 @@ export async function hydrateCohortsFromSupabase({ force = false } = {}) {
             archivedAt: overlay.archivedAt,
           };
         } else {
-          // Supabase-only cohort: full hydration.
-          cohortAdditions[overlay.slug] = {
-            ...(cohortOverlays[overlay.slug] || {}),
-            ...overlay,
-          };
+          // Supabase-only cohort: hydrate from DB, but never let null
+          // Supabase columns clobber locally-set fields. This guards the
+          // facilitator/organization/programCode round-trip: when the
+          // mirror couldn't resolve facilitator_id at write time (fresh
+          // session, no hydrated facilitator overlay yet), the DB row
+          // has facilitator_id=null, and a naive spread erased the
+          // client-side cohort.facilitator that createCohort set.
+          const localOverlay = cohortOverlays[overlay.slug] || {};
+          const merged = { ...localOverlay, ...overlay };
+          const preserveIfNull = ["facilitator", "organization", "programCode", "zoomLink", "timeZone"];
+          for (const key of preserveIfNull) {
+            if (merged[key] == null && localOverlay[key] != null) {
+              merged[key] = localOverlay[key];
+            }
+          }
+          cohortAdditions[overlay.slug] = merged;
         }
       }
       Object.assign(cohortOverlays, cohortAdditions);
@@ -895,8 +906,39 @@ async function mirrorCohortToSupabase(cohort) {
     const orgUuid = orgOverlay?._supabaseId || null;
 
     // Resolve facilitator legacy id → Supabase profile UUID.
-    const facOverlay = cohort.facilitator?.id ? facilitatorOverlays[cohort.facilitator.id] : null;
-    const facUuid = facOverlay?._supabaseProfileId || null;
+    //
+    // Three-tier lookup:
+    //   1) overlay._supabaseProfileId (set when we already hydrated the fac)
+    //   2) the facilitator record already carries _supabaseProfileId
+    //   3) email lookup via a fresh db.list('profiles') filter
+    //
+    // Without #3, an admin creating a cohort in a fresh session (before
+    // hydrate has attached IDs) would silently save facilitator_id=null.
+    // On the next hydrate the empty facilitator_id would clobber the
+    // client-side cohort.facilitator field — the "test cohort has no
+    // facilitator" bug Mike reported.
+    let facUuid = null;
+    const fac = cohort.facilitator || null;
+    if (fac) {
+      const overlay = fac.id ? facilitatorOverlays[fac.id] : null;
+      facUuid = overlay?._supabaseProfileId || fac._supabaseProfileId || null;
+      if (!facUuid && fac.email) {
+        try {
+          const rows = await db.list("profiles", { includeArchived: false });
+          const match = (rows || []).find(
+            (r) => (r.email || "").toLowerCase() === fac.email.toLowerCase(),
+          );
+          if (match?.id) {
+            facUuid = match.id;
+            // Cache on the local overlay so subsequent writes short-circuit.
+            if (fac.id && facilitatorOverlays[fac.id]) {
+              facilitatorOverlays[fac.id]._supabaseProfileId = match.id;
+              safePersist(FACILITATORS_KEY, facilitatorOverlays);
+            }
+          }
+        } catch { /* swallow — non-fatal, we'll try again next mirror */ }
+      }
+    }
 
     // Date strings: cohort.sessions[0]?.date is "YYYY-MM-DDTHH:MM" datetime-local.
     // Postgres `date` column wants YYYY-MM-DD only. Best-effort coerce.

@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import { Check, Lock, ChevronRight, ArrowRight, CheckCircle2 } from "lucide-react";
-import { BELT_COLORS } from "../../lib/mockCohort";
+import { BELT_COLORS, getSessionUnlockDate } from "../../lib/mockCohort";
 
 // A single row in the cohort's curriculum list.
 // Belt color + session NUMBER always shown on the left badge (never replaced).
@@ -114,6 +114,20 @@ export default function SessionRow({ session, cohortSlug, emphasized, meetingTim
 }
 
 function LockedRow({ session, belt, beltLabel, fmtDate }) {
+  // Communicate WHEN this belt opens so participants aren't left guessing.
+  // Default rule: unlocks 3 days before the session date. If a facilitator
+  // has manually locked it, we say so instead.
+  const unlockAt = session.manualLockState !== "locked"
+    ? getSessionUnlockDate(session)
+    : null;
+  const unlockLabel = unlockAt
+    ? unlockAt.toLocaleDateString("en-US", { month: "short", day: "numeric" })
+    : null;
+  const noteText = session.manualLockState === "locked"
+    ? "Your facilitator has this belt on hold."
+    : unlockLabel
+      ? `Belts unlock 3 days before their session — this one opens ${unlockLabel}.`
+      : "Belts unlock 3 days before their scheduled session.";
   return (
     <article className="flex items-center gap-5 bg-surface-card/60 border border-soft rounded-2xl p-5 cursor-not-allowed opacity-70">
       {/* LEFT — number always present, just dimmed */}
@@ -137,6 +151,7 @@ function LockedRow({ session, belt, beltLabel, fmtDate }) {
         </div>
         <h3 className="font-heading text-[16px] font-bold text-ink-muted">{session.title}</h3>
         <p className="text-[13px] text-ink-subtle mt-1 line-clamp-1">{session.summary}</p>
+        <p className="text-[12px] text-ink-muted mt-1.5 italic">{noteText}</p>
       </div>
       <Lock className="w-4 h-4 text-ink-subtle shrink-0" strokeWidth={2} />
     </article>

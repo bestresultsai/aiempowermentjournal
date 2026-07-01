@@ -6,6 +6,9 @@ import {
   RotateCcw,
   Save,
   Video,
+  Lock,
+  Unlock,
+  Clock,
 } from "lucide-react";
 import {
   getAllCohortsForAdmin,
@@ -67,6 +70,11 @@ export default function AdminCohortSessionEdit() {
   const [facilitatorNotes, setFacilitatorNotes] = useState(session?.facilitatorNotes || "");
   const [customHomework, setCustomHomework] = useState(session?.customHomework || "");
   const [videoUrl, setVideoUrl] = useState(session?.videoUrl || "");
+  // Manual lock override — one of null (follow the 3-day-before rule),
+  // "locked" (hide for participants regardless of date), or "unlocked"
+  // (open early). Persisted through setSessionOverride like any other
+  // per-cohort override.
+  const [manualLockState, setManualLockState] = useState(session?.manualLockState || null);
   const [saving, setSaving] = useState(false);
 
   if (!cohort || !session) {
@@ -83,6 +91,7 @@ export default function AdminCohortSessionEdit() {
       facilitatorNotes,
       customHomework,
       videoUrl,
+      manualLockState,
     });
     setSaving(false);
     navigate(`/admin/cohorts/${slug}`);
@@ -214,6 +223,12 @@ export default function AdminCohortSessionEdit() {
             onChange={setVideoUrl}
             onReset={() => clearOverride("videoUrl")}
             iconLeft={<Video className="w-4 h-4" strokeWidth={2} />}
+          />
+
+          <LockControl
+            value={manualLockState}
+            onChange={setManualLockState}
+            sessionDate={session.date}
           />
 
           {/* Actions */}
@@ -367,5 +382,120 @@ function DefaultBlock({ label, value }) {
         {value || <span className="text-ink-muted italic">—</span>}
       </div>
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// LockControl — three-way toggle for a session's availability.
+//
+// Default (null): the session follows the 3-day-before-date rule.
+// Force-locked:   participants can't see it, regardless of date.
+// Force-unlocked: participants can open it early.
+//
+// The three-day rule is explained inline so facilitators know exactly what
+// "default" means without having to look it up.
+// ---------------------------------------------------------------------------
+function LockControl({ value, onChange, sessionDate }) {
+  // Show the "auto-unlocks on <date>" hint when default and there's a date
+  // to compute from. Reads a little more concrete than a rule-in-the-abstract.
+  const autoUnlockDate =
+    sessionDate
+      ? new Date(new Date(sessionDate).getTime() - 3 * 24 * 60 * 60 * 1000)
+      : null;
+  const autoUnlockLabel = autoUnlockDate && !Number.isNaN(autoUnlockDate.getTime())
+    ? autoUnlockDate.toLocaleDateString("en-US", { month: "short", day: "numeric" })
+    : null;
+
+  return (
+    <div className="rounded-2xl bg-surface-card border border-soft p-4">
+      <div className="flex items-start justify-between gap-3 mb-2">
+        <div className="min-w-0">
+          <div className="font-heading font-bold text-ink text-[13.5px] inline-flex items-center gap-1.5">
+            <Lock className="w-3.5 h-3.5 text-ink-muted" strokeWidth={2.5} />
+            Session availability
+          </div>
+          <div className="text-[11.5px] text-ink-muted mt-0.5">
+            By default, participants can open a session 3 days before its
+            scheduled date. Override that here.
+          </div>
+        </div>
+        {value && (
+          <button
+            type="button"
+            onClick={() => onChange(null)}
+            className="shrink-0 inline-flex items-center gap-1 text-[11.5px] font-heading font-semibold text-ink-muted hover:text-rose-700"
+          >
+            <RotateCcw className="w-3 h-3" strokeWidth={2.5} />
+            Use default
+          </button>
+        )}
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mt-2">
+        <LockOption
+          active={value == null}
+          onClick={() => onChange(null)}
+          icon={<Clock className="w-3.5 h-3.5" strokeWidth={2.5} />}
+          label="Default"
+          sub={autoUnlockLabel ? `Unlocks ${autoUnlockLabel}` : "3 days before"}
+          tone="ink"
+        />
+        <LockOption
+          active={value === "unlocked"}
+          onClick={() => onChange("unlocked")}
+          icon={<Unlock className="w-3.5 h-3.5" strokeWidth={2.5} />}
+          label="Open early"
+          sub="Available to all now"
+          tone="emerald"
+        />
+        <LockOption
+          active={value === "locked"}
+          onClick={() => onChange("locked")}
+          icon={<Lock className="w-3.5 h-3.5" strokeWidth={2.5} />}
+          label="Locked"
+          sub="Hidden from participants"
+          tone="rose"
+        />
+      </div>
+    </div>
+  );
+}
+
+function LockOption({ active, onClick, icon, label, sub, tone }) {
+  const toneMap = {
+    ink: {
+      activeBg: "bg-ink text-white border-ink",
+      idleBg: "bg-white border-soft hover:border-ink",
+    },
+    emerald: {
+      activeBg: "bg-emerald-600 text-white border-emerald-600",
+      idleBg: "bg-white border-soft hover:border-emerald-500",
+    },
+    rose: {
+      activeBg: "bg-rose-600 text-white border-rose-600",
+      idleBg: "bg-white border-soft hover:border-rose-500",
+    },
+  };
+  const t = toneMap[tone] || toneMap.ink;
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={
+        "text-left px-3 py-2 rounded-xl border transition-colors " +
+        (active ? t.activeBg : t.idleBg + " text-ink")
+      }
+    >
+      <div className="inline-flex items-center gap-1.5 font-heading font-bold text-[12.5px]">
+        {icon}
+        {label}
+      </div>
+      <div
+        className={
+          "text-[11px] mt-0.5 " + (active ? "text-white/85" : "text-ink-muted")
+        }
+      >
+        {sub}
+      </div>
+    </button>
   );
 }
