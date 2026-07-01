@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { ADMIN_MOCK_PARTICIPANTS, getHomeworkRows } from "./adminMockData";
+import { getEffectiveParticipants, getHomeworkRows } from "./adminMockData";
 import { getAccessibleCohorts } from "./adminRoles";
 import { getAllCohortsForAdmin } from "./cohortAdmin";
 import { getFeedbacksInScope } from "./feedbacks";
@@ -139,7 +139,11 @@ function deriveNotifications(cohortSlugs) {
   }
 
   // --- 3. New journal entries in scope ---
-  for (const p of ADMIN_MOCK_PARTICIPANTS) {
+  // Use getEffectiveParticipants() — in clean-slate mode this returns
+  // only Supabase-hydrated / admin-created participants and hides the
+  // seed rows. Was iterating raw ADMIN_MOCK_PARTICIPANTS, which surfaced
+  // fake seed journal entries as real notifications in production.
+  for (const p of getEffectiveParticipants()) {
     if (!slugSet.has(p.cohortSlug)) continue;
     for (const e of p.journalEntries || []) {
       if (daysAgo(e.date) > JOURNAL_RECENT_DAYS) continue;

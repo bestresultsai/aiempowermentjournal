@@ -113,4 +113,70 @@ Empty objects — no risk.
       `MOCK_COHORT` from the production bundle via a build-time flag
       that strips them.
 
-Last updated: after task #574.
+---
+
+## Round 2 sweep (task #576)
+
+Grepped every direct import of DEMO_COHORTS / MOCK_COHORT /
+ADMIN_MOCK_PARTICIPANTS across 29 files. Categorized each:
+
+**Safe (definitions or explicit demo/gated paths):**
+
+- `src/lib/demoData.js` — source
+- `src/lib/mockCohort.js` — source
+- `src/lib/adminMockData.js` — source
+- `src/lib/programs.js` — hydrator, no risk
+- `src/lib/notifications.js` — ✅ **fixed this round** (was iterating
+  raw ADMIN_MOCK_PARTICIPANTS; swapped to getEffectiveParticipants
+  so seed rows are hidden in clean-slate mode)
+- `src/lib/cohortAdmin.js` — DEMO_COHORTS use gated by shouldUseSeedData
+- `src/lib/cohortResolution.js` — MOCK_COHORT + DEMO_COHORTS gated
+- `src/lib/cohortApi.js` — DEMO_COHORTS gated by shouldUseSeedData
+- `src/context/AuthContext.jsx` — demo user path only
+- `src/components/ViewAsUserPicker.jsx` — dev/QA tool
+- `src/pages/admin/AdminCohortEdit.jsx` — fixed #574
+- `src/pages/admin/AdminCohortNew.jsx` — fixed #574
+- `src/pages/admin/AdminFacilitators.jsx` — fixed #574
+- `src/pages/admin/AdminCohortRoster.jsx`, `AdminParticipantDetail.jsx`,
+  `AdminDashboard.jsx`, `AdminJournalDashboard.jsx`, `AdminPermissions.jsx`,
+  `AdminParticipants.jsx`, `AdminHomeworkQueue.jsx`, `AdminCohorts.jsx`,
+  `CohortLeaderDashboard.jsx`, `OrgAdminHome.jsx`, `FacilitatorHome.jsx`,
+  `CohortForm.jsx`, `SubmissionDetail.jsx`, `PipelineView.jsx`,
+  `useScopeFilters.js` — all import mock symbols but only reach them via
+  getAllCohortsForAdmin / getEffectiveParticipants / getAccessibleCohorts
+  (which are gated). Confirmed safe.
+
+**Fixed this round:**
+
+- 🟢 `src/lib/adminMockData.js` `hydrateParticipantsFromSupabase` — no
+  longer adopts seed rows by email match in clean-slate mode. Instead
+  removes any seed collision and pushes the fresh Supabase-derived
+  participant. Prior approach zeroed activity fields; this is safer
+  because it eliminates the entire class of "adopted seed" leakage.
+- 🟢 `src/lib/notifications.js` — see above.
+- 🟢 `src/dashboards/IndividualDashboard.jsx` — was falling back to
+  MOCK_COHORT.name / MOCK_COHORT.slug when a real user had no journal
+  entries. Now skips the cohort fetch until a real entry gives us a
+  real name, so a fresh user sees an empty state instead of seed
+  cohort data.
+
+**Kept as intentional demo fallback:**
+
+- `src/pages/cohort/CohortLanding.jsx` MOCK_COHORT fallback — only
+  fires when `viewAsMode === "participant"` AND the admin has no real
+  cohort. That's the admin's own "view-as participant preview"
+  affordance; showing the demo cohort here is the desired behavior
+  and doesn't leak to real end users.
+
+## Still-open follow-ups
+
+- Add `useOrgsFromSupabase()` hook + rewire /admin/orgs and the org
+  picker in CohortForm.
+- Add `useParticipantsFromSupabase()` hook for cases where consumers
+  need the guaranteed-fresh list rather than the in-memory overlay.
+- Consider a build-time flag to strip DEMO_* / MOCK_* out of the
+  production bundle entirely, once every consumer is Supabase-live.
+- Sanitize seed emails in ADMIN_MOCK_PARTICIPANTS so the demo/staging
+  build never has real user emails in the fixtures.
+
+Last updated: after task #576.

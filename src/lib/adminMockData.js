@@ -1929,7 +1929,24 @@ export async function hydrateParticipantsFromSupabase({ force = false } = {}) {
       }
       _supabaseProfileByEmail = nextByEmail;
 
-      // Merge into ADMIN_MOCK_PARTICIPANTS by email match.
+      // Merge Supabase profiles into ADMIN_MOCK_PARTICIPANTS.
+      //
+      // Two modes:
+      //
+      //   Demo/seed mode (shouldUseSeedData → true):
+      //     Adopt seed rows by email match so a demo user with a seeded
+      //     activity history keeps that history for the pitch. Push
+      //     net-new Supabase profiles as-is.
+      //
+      //   Clean-slate mode (real deploy, no ?demo=):
+      //     DO NOT adopt seed rows. Even matching by email is dangerous
+      //     because the seed uses real staff emails and carries fake
+      //     progress + submissions. Instead we remove any seed collision
+      //     from the local array and push the fresh Supabase-derived
+      //     participant. That way what a real user sees is exactly what
+      //     the DB says — no residual seed identity, activity, or
+      //     capabilities.
+      const cleanSlate = !shouldUseSeedData();
       for (const row of profiles || []) {
         if (!row.email) continue;
         const lc = row.email.toLowerCase();
@@ -1940,40 +1957,30 @@ export async function hydrateParticipantsFromSupabase({ force = false } = {}) {
         });
         if (!supParticipant) continue;
 
+        if (cleanSlate) {
+          const idx = ADMIN_MOCK_PARTICIPANTS.findIndex(
+            (p) => (p.email || "").toLowerCase() === lc,
+          );
+          if (idx >= 0) {
+            // Remove the seed collision entirely, then push the fresh row.
+            ADMIN_MOCK_PARTICIPANTS.splice(idx, 1);
+          }
+          ADMIN_MOCK_PARTICIPANTS.push(supParticipant);
+          continue;
+        }
+
+        // Demo mode — legacy adoption path.
         const existing = ADMIN_MOCK_PARTICIPANTS.find(
           (p) => (p.email || "").toLowerCase() === lc,
         );
         if (existing) {
-          // Attach Supabase IDs + capabilities.
           existing._supabaseProfileId = supParticipant._supabaseProfileId;
           existing._supabaseCohortLinkId = supParticipant._supabaseCohortLinkId;
           existing._source = "supabase";
           if (supParticipant.capabilities?.length && !existing.capabilities?.length) {
             existing.capabilities = supParticipant.capabilities;
           }
-          // Clean-slate mode: zero out any seed activity that was on this
-          // record. The seed hard-codes real emails (josueacuna@me.com,
-          // marcus.w@iahe.org, etc.) with fake progress/submissions/
-          // journal entries. If we let those survive email adoption, a
-          // real user logs in as a participant and sees a fabricated
-          // history of "you completed sessions 1–4 and submitted homework."
-          // The Round B activity hydrator (hydrateActivityFromSupabase)
-          // will refill these from the actual Supabase tables — so if
-          // Josue really has submissions in the DB, they still show up.
-          if (!shouldUseSeedData()) {
-            existing.progress = [];
-            existing.submissions = {};
-            existing.journalEntries = [];
-            existing.lastJournalDaysAgo = 999;
-            // Also refresh the identity fields from Supabase — the seed's
-            // hardcoded name / title / org are stale for a real user.
-            if (supParticipant.name) existing.name = supParticipant.name;
-            if (supParticipant.title) existing.title = supParticipant.title;
-            if (supParticipant.headshotUrl) existing.headshotUrl = supParticipant.headshotUrl;
-            existing.cohortSlug = supParticipant.cohortSlug;
-          }
         } else {
-          // Net-new Supabase participant.
           ADMIN_MOCK_PARTICIPANTS.push(supParticipant);
         }
       }

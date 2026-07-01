@@ -10,6 +10,8 @@ import { useQuery } from "@tanstack/react-query";
 
 // Mock-mode: every cohort name maps to the same prototype cohort.
 // Live mode: look up the cohort slug from Notion by name (Cohort.Slug).
+// (Not currently reachable — the fetch below is gated to `!!primarySlug`
+// and we only set primarySlug from real user entries now.)
 function cohortNameToSlug(_name) {
   return MOCK_COHORT.slug;
 }
@@ -32,9 +34,12 @@ export default function IndividualDashboard({ entries, allEntries, cohorts, emai
   const metrics = calcAggregateMetrics(displayEntries);
 
   // Resolve the first cohort's slug → fetch live progress info for the card.
-  // If the user has no cohort in their entries, fall back to MOCK_COHORT for the prototype.
-  const primaryCohortName = myCohortNames[0] || MOCK_COHORT.name;
-  const primarySlug = cohortNameToSlug(primaryCohortName);
+  // Was falling back to MOCK_COHORT.name when the user had no entries yet
+  // — which meant a fresh user with an empty journal saw seed cohort data
+  // (IAHE / Purple Belt) instead of an empty state. Now we simply skip
+  // the fetch until a real entry gives us a real cohort name.
+  const primaryCohortName = myCohortNames[0] || null;
+  const primarySlug = primaryCohortName ? cohortNameToSlug(primaryCohortName) : null;
   const { data: cohortData } = useQuery({
     queryKey: ["cohort", primarySlug],
     queryFn: () => getCohortBySlug(primarySlug),
