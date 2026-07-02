@@ -36,6 +36,22 @@ export default function NextLiveSessionCard({ cohort }) {
   const belt = next.belt && BELT_COLORS[next.belt] ? BELT_COLORS[next.belt] : null;
   const countdown = formatCountdown(next.dateObj, today);
   const isLiveNow = today >= next.dateObj && today.getTime() <= next.dateObj.getTime() + 90 * 60 * 1000;
+  // Zoom link resolution — session-level override wins, cohort default is
+  // the fallback. Facilitator's personal default only applies for legacy
+  // rows that never got a cohort-level link set.
+  const zoomLink =
+    next.zoomLink ||
+    cohort.zoomLink ||
+    cohort.facilitator?.defaultZoomLink ||
+    cohort.trainer?.defaultZoomLink ||
+    "";
+  // The Join button is only useful in the meeting window. Enable it from
+  // 60 minutes before the scheduled start through 90 minutes after — matches
+  // the isLiveNow tail so it stays clickable through the whole session.
+  const msUntilStart = next.dateObj.getTime() - today.getTime();
+  const isJoinable =
+    (msUntilStart <= 60 * 60 * 1000 && msUntilStart > 0) || isLiveNow;
+  const joinLabel = isLiveNow ? "Join Now" : "Join Live Session";
   const dateLine = next.dateObj.toLocaleDateString("en-US", {
     weekday: "long",
     month: "long",
@@ -130,13 +146,31 @@ export default function NextLiveSessionCard({ cohort }) {
               <CalendarPlus className="w-4 h-4 transition-transform duration-200 group-hover:rotate-6" strokeWidth={2} />
               Add to Calendar
             </a>
-            <button
-              className="group inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-ink text-white text-[13.5px] font-heading font-semibold hover:bg-brand-700 transition-all duration-200"
-              onClick={() => alert("Live session link — wire to Zoom/Meet URL once available.")}
-            >
-              {isLiveNow ? "Join Now" : "Join Live Session"}
-              <ArrowRight className="w-4 h-4 transition-transform duration-200 group-hover:translate-x-0.5" strokeWidth={2.5} />
-            </button>
+            {isJoinable && zoomLink ? (
+              <a
+                href={zoomLink}
+                target="_blank"
+                rel="noreferrer noopener"
+                className="group inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-ink text-white text-[13.5px] font-heading font-semibold hover:bg-brand-700 transition-all duration-200"
+              >
+                {joinLabel}
+                <ArrowRight className="w-4 h-4 transition-transform duration-200 group-hover:translate-x-0.5" strokeWidth={2.5} />
+              </a>
+            ) : (
+              <button
+                type="button"
+                disabled
+                title={
+                  !zoomLink
+                    ? "Zoom link isn't set yet — the facilitator will add it before the session."
+                    : "Opens 1 hour before the session starts."
+                }
+                className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-ink/25 text-white/80 text-[13.5px] font-heading font-semibold cursor-not-allowed"
+              >
+                {joinLabel}
+                <ArrowRight className="w-4 h-4 opacity-70" strokeWidth={2.5} />
+              </button>
+            )}
           </div>
         </div>
       </div>
