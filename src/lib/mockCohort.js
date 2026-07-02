@@ -36,14 +36,17 @@ export const HERO_GRADIENT = "linear-gradient(135deg, #1E3A8A 0%, #2563EB 100%)"
 //   `contrast`    — text/icon color readable on top of the gradient
 //   `gradient`    — deep→light pair used on Next Live countdown,
 //                   curriculum number badges, and the Next Milestone card
-//   `needsBorder` — true for very light belts (White, future Gray) so the
-//                   badge gets a thin outline against light card backgrounds
+//   `needsBorder` — true for very light belts (White, Gray) so the badge gets
+//                   a thin outline against light card backgrounds
 //
 // Picking one palette per belt keeps the system consistent regardless of
 // which session is up next.
 export const BELT_COLORS = {
   // Near-white. Needs a border to read on the warm off-white page background.
   White:  { hex: "#FFFFFF", text: "#0A0A0A", contrast: "#0A0A0A", needsBorder: true,  gradient: "linear-gradient(135deg, #E5E7EB 0%, #FFFFFF 100%)" },
+  // Cool slate gray — sits between White and Yellow. Light enough that it also
+  // needs a border to read against the off-white page background.
+  Gray:   { hex: "#94A3B8", text: "#0A0A0A", contrast: "#0A0A0A", needsBorder: true,  gradient: "linear-gradient(135deg, #94A3B8 0%, #E2E8F0 100%)" },
   // Saturated yellow — clearly distinguishable from amber/orange.
   Yellow: { hex: "#FACC15", text: "#0A0A0A", contrast: "#0A0A0A", needsBorder: false, gradient: "linear-gradient(135deg, #EAB308 0%, #FDE047 100%)" },
   // Orange family — bright orange end, deep-orange start (NOT brown).

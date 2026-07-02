@@ -9,7 +9,7 @@ import NavBar from "../../components/NavBar";
 // gradient. Useful for design QA and onboarding new contributors.
 // ---------------------------------------------------------------------------
 
-const BELT_ORDER = ["White", "Yellow", "Orange", "Green", "Blue", "Purple", "Brown", "Black"];
+const BELT_ORDER = ["White", "Gray", "Yellow", "Orange", "Green", "Blue", "Purple", "Brown", "Red", "Black", "Gold"];
 
 export default function BeltsPreview() {
   return (
