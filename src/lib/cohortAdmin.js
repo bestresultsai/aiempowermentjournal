@@ -956,11 +956,6 @@ export async function hydrateCohortsFromSupabase({ force = false } = {}) {
           profilesByUuid[row.id] = profileToFacilitator(row);
         }
       }
-      // Temp diagnostic — how many profiles came back, and how many passed
-      // the facilitator/admin/super filter? If profiles.length is 1 for a
-      // signed-in participant, we know RLS on profiles is the culprit.
-      // eslint-disable-next-line no-console
-      console.info("[HYDRATE DIAG] profiles rows returned:", (facilitatorRows || []).length, "profiles in facilitatorMap:", Object.keys(profilesByUuid).length, "sample rows:", (facilitatorRows || []).map((r) => ({ email: r.email, caps: r.capabilities, archived: r.archived_at })));
 
       // Merge organizations into the overlay. Use legacy-shape id ("org-xxx")
       // so the UI's existing org lookups continue working.
