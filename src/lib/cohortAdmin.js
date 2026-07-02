@@ -672,6 +672,8 @@ export function updateCohort(slug, payload, { orgs, facilitators, program } = {}
     "facilitatorNotes",
     "customHomework",
     "videoUrl",
+    "videoPasscode",
+    "videoDurationSec",
   ];
   cohort.sessions = (cohort.sessions || []).map((s) => {
     const prevMatch = prevSessions.find((p) => p.order === s.order);
@@ -789,6 +791,18 @@ function applySessionPatch(session, patch = {}) {
   if ("videoUrl" in patch) {
     const v = (patch.videoUrl || "").trim();
     next.videoUrl = v || null;
+  }
+  // Passcode + duration are stopgap fields for Zoom cloud recordings —
+  // participants see the passcode next to the Watch button. The full Zoom
+  // integration (spec: docs/zoom-integration-spec.md) will populate these
+  // automatically via the recording.completed webhook.
+  if ("videoPasscode" in patch) {
+    const v = (patch.videoPasscode || "").trim();
+    next.videoPasscode = v || null;
+  }
+  if ("videoDurationSec" in patch) {
+    const n = Number(patch.videoDurationSec);
+    next.videoDurationSec = Number.isFinite(n) && n > 0 ? Math.round(n) : null;
   }
   // Manual availability override — "locked", "unlocked", or null (default
   // 3-day-before-date rule). Without this branch the LockControl saved

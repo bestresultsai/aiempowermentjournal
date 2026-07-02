@@ -9,6 +9,10 @@ import {
   Lock,
   Unlock,
   Clock,
+  KeyRound,
+  Timer,
+  ClipboardPaste,
+  Sparkles,
 } from "lucide-react";
 import {
   getAllCohortsForAdmin,
@@ -33,10 +37,44 @@ import MaterialsEditor, { normalizeMaterials } from "../../components/admin/Mate
 //   - facilitatorNotes — participant-facing notes from the facilitator
 //   - customHomework   — overrides program homework prompt
 //   - videoUrl         — session recording URL
+//   - videoPasscode    — Zoom recording passcode (Zoom recordings require one)
+//   - videoDurationSec — recording length, shown as a chip to participants
+//
+// A "Paste from Zoom" helper accepts Zoom's post-meeting blob
+// (Duration / Shareable link / Passcode) and auto-fills all three so Mike +
+// Lee don't have to hand-copy each field.
 //
 // Everything writes to the cohort overlay; participants on /session/:order
 // see the merged result.
 // ---------------------------------------------------------------------------
+
+// Parse the blob Zoom emails after each cloud recording. Tolerant to
+// missing fields, extra whitespace, and either "Shareable link" or "Link".
+export function parseZoomBlob(text) {
+  if (!text || typeof text !== "string") return {};
+  const out = {};
+  const durationMatch = text.match(/Duration:\s*(?:(\d+):)?(\d+):(\d+)/i);
+  if (durationMatch) {
+    const [, h, m, s] = durationMatch;
+    out.durationSec =
+      (Number(h) || 0) * 3600 + (Number(m) || 0) * 60 + (Number(s) || 0);
+  }
+  const urlMatch = text.match(/(?:Shareable\s+link|Link):\s*(https?:\/\/\S+)/i);
+  if (urlMatch) out.url = urlMatch[1];
+  const passMatch = text.match(/Passcode:\s*(\S+)/i);
+  if (passMatch) out.passcode = passMatch[1];
+  return out;
+}
+
+export function formatDuration(sec) {
+  if (!sec || !Number.isFinite(Number(sec))) return "";
+  const s = Math.max(0, Math.round(Number(sec)));
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  if (h > 0) return `${h}h ${m}m`;
+  if (m > 0) return `${m} min`;
+  return `${s}s`;
+}
 
 export default function AdminCohortSessionEdit() {
   const { slug, order } = useParams();
@@ -70,12 +108,34 @@ export default function AdminCohortSessionEdit() {
   const [facilitatorNotes, setFacilitatorNotes] = useState(session?.facilitatorNotes || "");
   const [customHomework, setCustomHomework] = useState(session?.customHomework || "");
   const [videoUrl, setVideoUrl] = useState(session?.videoUrl || "");
+  const [videoPasscode, setVideoPasscode] = useState(session?.videoPasscode || "");
+  const [videoDurationSec, setVideoDurationSec] = useState(session?.videoDurationSec || null);
+  const [zoomBlob, setZoomBlob] = useState("");
+  const [zoomParseNote, setZoomParseNote] = useState("");
   // Manual lock override — one of null (follow the 3-day-before rule),
   // "locked" (hide for participants regardless of date), or "unlocked"
   // (open early). Persisted through setSessionOverride like any other
   // per-cohort override.
   const [manualLockState, setManualLockState] = useState(session?.manualLockState || null);
   const [saving, setSaving] = useState(false);
+
+  // "Paste from Zoom" helper — extract URL + passcode + duration from Zoom's
+  // post-meeting confirmation blob and drop them into the three fields. If
+  // parsing found nothing useful, tell the user so they don't wonder why
+  // nothing happened.
+  function applyZoomBlob() {
+    const parsed = parseZoomBlob(zoomBlob);
+    const applied = [];
+    if (parsed.url) { setVideoUrl(parsed.url); applied.push("URL"); }
+    if (parsed.passcode) { setVideoPasscode(parsed.passcode); applied.push("passcode"); }
+    if (parsed.durationSec) { setVideoDurationSec(parsed.durationSec); applied.push("duration"); }
+    if (applied.length === 0) {
+      setZoomParseNote("Couldn't find a recording URL, passcode, or duration in that text.");
+      return;
+    }
+    setZoomParseNote(`Filled in ${applied.join(" + ")}.`);
+    setZoomBlob("");
+  }
 
   if (!cohort || !session) {
     return <Navigate to={`/admin/cohorts/${slug || ""}`} replace />;
@@ -91,6 +151,8 @@ export default function AdminCohortSessionEdit() {
       facilitatorNotes,
       customHomework,
       videoUrl,
+      videoPasscode,
+      videoDurationSec,
       manualLockState,
     });
     setSaving(false);
@@ -103,6 +165,8 @@ export default function AdminCohortSessionEdit() {
     else if (field === "facilitatorNotes") setFacilitatorNotes("");
     else if (field === "customHomework") setCustomHomework("");
     else if (field === "videoUrl") setVideoUrl("");
+    else if (field === "videoPasscode") setVideoPasscode("");
+    else if (field === "videoDurationSec") setVideoDurationSec(null);
   }
 
   const belt = BELT_COLORS[session.belt] || BELT_COLORS.White;
@@ -215,15 +279,106 @@ export default function AdminCohortSessionEdit() {
             rows={5}
           />
 
-          <OverrideField
-            label="Recording URL"
-            hint="Paste the recording link once the session has happened. Participants will see it on /session/:order."
-            placeholder="https://…"
-            value={videoUrl}
-            onChange={setVideoUrl}
-            onReset={() => clearOverride("videoUrl")}
-            iconLeft={<Video className="w-4 h-4" strokeWidth={2} />}
-          />
+          {/* Recording block — grouped card because a Zoom recording is three
+              fields (URL + passcode + duration) that only make sense together.
+              The "Paste from Zoom" helper lets Mike/Lee drop the whole
+              post-meeting confirmation blob in and auto-fill all three. */}
+          <div className="rounded-2xl bg-surface-card border border-soft p-4 space-y-4">
+            <div className="flex items-start gap-2">
+              <Video className="w-4 h-4 mt-0.5 text-ink-muted" strokeWidth={2} />
+              <div className="min-w-0">
+                <div className="text-[12px] font-heading font-bold text-ink">
+                  Recording
+                </div>
+                <p className="text-[11.5px] text-ink-muted mt-0.5 leading-relaxed">
+                  Post the recording after the session ends. Participants see a
+                  Watch button + the passcode with a one-click copy.
+                </p>
+              </div>
+            </div>
+
+            {/* Paste helper — accepts Zoom's post-meeting blob. */}
+            <div className="rounded-xl bg-brand-50/40 border border-brand-100 p-3">
+              <label
+                htmlFor="zoom-blob"
+                className="flex items-center gap-1.5 text-[11px] font-heading font-bold uppercase tracking-wider text-brand-700 mb-2"
+              >
+                <Sparkles className="w-3 h-3" strokeWidth={2.5} />
+                Paste from Zoom
+              </label>
+              <textarea
+                id="zoom-blob"
+                value={zoomBlob}
+                onChange={(e) => { setZoomBlob(e.target.value); setZoomParseNote(""); }}
+                placeholder={"Duration: 00:49:24\nShareable link: https://us02web.zoom.us/rec/share/…\nPasscode: 7Hq+bd9#"}
+                rows={3}
+                className="w-full font-mono text-[12px] rounded-lg border border-soft bg-surface-card p-2.5 focus:outline-none focus:ring-2 focus:ring-brand-500/25 focus:border-brand-500 resize-y"
+              />
+              <div className="flex items-center justify-between mt-2 gap-3">
+                <div className="text-[11px] text-ink-muted min-w-0 truncate">
+                  {zoomParseNote || "Drop the whole confirmation and we'll fill in the fields below."}
+                </div>
+                <button
+                  type="button"
+                  onClick={applyZoomBlob}
+                  disabled={!zoomBlob.trim()}
+                  className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-brand-600 text-white text-[12px] font-heading font-bold hover:bg-brand-700 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  <ClipboardPaste className="w-3.5 h-3.5" strokeWidth={2.5} />
+                  Fill fields
+                </button>
+              </div>
+            </div>
+
+            <OverrideField
+              label="Recording URL"
+              hint="Zoom shareable link, Vimeo URL, or YouTube URL — anything embeddable or clickable."
+              placeholder="https://…"
+              value={videoUrl}
+              onChange={setVideoUrl}
+              onReset={() => clearOverride("videoUrl")}
+              iconLeft={<Video className="w-4 h-4" strokeWidth={2} />}
+            />
+
+            <OverrideField
+              label="Recording passcode"
+              hint="Required for Zoom recordings. Shown to participants next to the Watch button with a one-click copy."
+              placeholder="e.g. 7Hq+bd9#"
+              value={videoPasscode}
+              onChange={setVideoPasscode}
+              onReset={() => clearOverride("videoPasscode")}
+              iconLeft={<KeyRound className="w-4 h-4" strokeWidth={2} />}
+              mono
+            />
+
+            <div>
+              <label className="flex items-center gap-1.5 text-[11px] font-heading font-bold uppercase tracking-wider text-ink-muted mb-1.5">
+                <Timer className="w-3 h-3" strokeWidth={2.5} />
+                Duration
+              </label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  value={videoDurationSec == null ? "" : videoDurationSec}
+                  onChange={(e) => {
+                    const v = e.target.value.trim();
+                    setVideoDurationSec(v === "" ? null : Number(v) || null);
+                  }}
+                  placeholder="Seconds — e.g. 2964"
+                  className="flex-1 rounded-lg border border-soft bg-surface-card px-3 py-2 text-[13px] focus:outline-none focus:ring-2 focus:ring-brand-500/25 focus:border-brand-500"
+                />
+                {videoDurationSec ? (
+                  <span className="shrink-0 inline-flex items-center gap-1 px-2 py-1 rounded-md bg-brand-50 border border-brand-100 text-brand-700 text-[11.5px] font-heading font-semibold">
+                    {formatDuration(videoDurationSec)}
+                  </span>
+                ) : null}
+              </div>
+              <p className="text-[11px] text-ink-muted mt-1">
+                Optional. Displayed on the participant page as "45 min recording".
+              </p>
+            </div>
+          </div>
 
           <LockControl
             value={manualLockState}
@@ -324,6 +479,7 @@ function OverrideField({
   multiline = false,
   rows = 3,
   iconLeft,
+  mono = false,
 }) {
   const dirty = !!(value || "").trim();
   return (
@@ -364,7 +520,7 @@ function OverrideField({
             value={value}
             onChange={(e) => onChange(e.target.value)}
             placeholder={placeholder}
-            className={`w-full ${iconLeft ? "pl-9" : "pl-3"} pr-3 py-2 rounded-xl border border-soft bg-surface-card text-ink text-[13px] font-body focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15`}
+            className={`w-full ${iconLeft ? "pl-9" : "pl-3"} pr-3 py-2 rounded-xl border border-soft bg-surface-card text-ink text-[13px] ${mono ? "font-mono" : "font-body"} focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15`}
           />
         )}
       </div>
