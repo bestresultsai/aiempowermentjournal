@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import {
   User, Mail, Phone, Briefcase, Building2, Camera, ArrowRight, Check, GraduationCap,
   Video, Globe, Calendar as CalendarIcon, RefreshCw, Link2Off, Loader2,
+  MessageCircle, Clock, ExternalLink,
 } from "lucide-react";
 import NavBar from "../components/NavBar";
 import Select from "../components/Select";
@@ -11,6 +12,8 @@ import { useUserCohorts } from "../lib/cohortResolution";
 import { groupTimeZones } from "../lib/timeZones";
 import { useGoogleCalendarConnection } from "../lib/googleCalendar";
 import { hasCapability } from "../lib/adminRoles";
+import { initSupabase, isSupabaseEnabled } from "../lib/supabase";
+import { captureError } from "../lib/observability";
 
 // ---------------------------------------------------------------------------
 // SETTINGS PAGE — /settings
@@ -29,20 +32,35 @@ export default function Settings() {
   // page shows what the user filled in via /welcome.
   const [form, setForm] = useState({
     name: user?.name || "",
-    title: user?.title || "",               // captured during onboarding
-    phone: "",                              // not in JWT today; editable
-    organization: user?.organization || "",
+    title: user?.preferences?.title || user?.title || "",  // captured during onboarding
+    phone: user?.phone || "",
+    organization: user?.preferences?.organization || user?.organization || "",
     headshotPreview: user?.headshotUrl || null,
     // Cohort defaults used by the admin cohort form. Facilitators set these
     // so new cohorts come pre-filled with the right time zone + Zoom link.
     defaultTimeZone: user?.defaultTimeZone || "America/New_York",
-    defaultZoomLink: user?.defaultZoomLink || "",
+    defaultZoomLink: user?.preferences?.defaultZoomLink || user?.defaultZoomLink || "",
+    // Facilitator profile — surfaced on the participant CohortLanding
+    // "Your Facilitator" card. Editable by facilitators / admins / super.
+    // Defaults kick in on the read side (buildTrainer in cohortApi.js)
+    // so cards don't look empty when a facilitator hasn't filled these in yet.
+    coachingHeadline: user?.preferences?.coachingHeadline || "",
+    coachingBody: user?.preferences?.coachingBody || "",
+    officeHours: user?.preferences?.officeHours || "",
+    calendlyUrl: user?.preferences?.calendlyUrl || "",
   });
 
   // Show the cohort-defaults section to anyone who could run a cohort —
   // facilitators, org admins, BRAI admins, super admins.
   const showCohortDefaults =
     user?.role && ["super", "admin", "org", "facilitator"].includes(user.role);
+  // Show the facilitator profile section to anyone who could be the
+  // "Your Facilitator" card for a participant — i.e. anyone with facilitator
+  // capability (or the higher admin/super tiers that inherit it).
+  const showFacilitatorProfile =
+    hasCapability(user, "facilitator") ||
+    hasCapability(user, "admin") ||
+    hasCapability(user, "super");
   const [saveState, setSaveState] = useState("idle"); // idle | saving | saved
 
   function update(field, value) {
@@ -60,10 +78,65 @@ export default function Settings() {
   async function handleSave(e) {
     e.preventDefault();
     setSaveState("saving");
-    // Prototype stub. Wire to a real endpoint once the Notion Users DB supports writes.
-    await new Promise((r) => setTimeout(r, 700));
-    setSaveState("saved");
-    setTimeout(() => setSaveState("idle"), 2400);
+    try {
+      if (isSupabaseEnabled()) {
+        const client = await initSupabase();
+        if (client) {
+          const { data: sessionData } = await client.auth.getSession();
+          const authUser = sessionData?.session?.user;
+          if (authUser?.id) {
+            // Read current preferences so we merge instead of clobbering
+            // fields written elsewhere (whyAi, mainGoal, location, etc.).
+            const { data: existing } = await client
+              .from("profiles")
+              .select("preferences")
+              .eq("id", authUser.id)
+              .maybeSingle();
+            const nextPrefs = {
+              ...(existing?.preferences || {}),
+              title: form.title || undefined,
+              organization: form.organization || undefined,
+              defaultZoomLink: form.defaultZoomLink || undefined,
+              // Facilitator profile block. Store empty strings as undefined
+              // so the default template on the read side kicks back in when
+              // a facilitator clears the field.
+              coachingHeadline: form.coachingHeadline || undefined,
+              coachingBody: form.coachingBody || undefined,
+              officeHours: form.officeHours || undefined,
+              calendlyUrl: form.calendlyUrl || undefined,
+            };
+            const update = {
+              preferences: nextPrefs,
+              time_zone: form.defaultTimeZone || undefined,
+              phone: form.phone || null,
+            };
+            if (form.name) update.name = form.name;
+            // Chain .select() so we detect the 0-row silent-success case
+            // that Postgres returns when RLS blocks the update. Without
+            // this the save would appear to succeed while nothing changed.
+            const { data: updated, error } = await client
+              .from("profiles")
+              .update(update)
+              .eq("id", authUser.id)
+              .select("id");
+            if (error) throw new Error(error.message || "Failed to save profile.");
+            if (!updated || updated.length === 0) {
+              throw new Error("Profile save didn't persist (no row updated).");
+            }
+          }
+        }
+      }
+      setSaveState("saved");
+      setTimeout(() => setSaveState("idle"), 2400);
+    } catch (err) {
+      captureError(err, { source: "Settings.handleSave" });
+      // eslint-disable-next-line no-console
+      console.error("[Settings] save failed:", err);
+      setSaveState("idle");
+      // Surface the error to the user. Simple alert for now; nicer toast later.
+      // eslint-disable-next-line no-alert
+      alert(`Save failed: ${err?.message || "Unknown error"}`);
+    }
   }
 
   // Shared hook — falls back to the Supabase direct query when the
@@ -218,6 +291,53 @@ export default function Settings() {
                   placeholder="https://us02web.zoom.us/j/0000000000"
                   hint="Used as the live session join link unless a session overrides it."
                 />
+              </div>
+            </Section>
+          )}
+
+          {/* ============ FACILITATOR PROFILE (coaching card) ============ */}
+          {showFacilitatorProfile && (
+            <Section title="Facilitator profile" icon={MessageCircle}>
+              <p className="text-[12.5px] text-ink-muted leading-relaxed mb-3">
+                This copy shows on your participants' "Your Facilitator" card.
+                Leave any field blank to fall back to the default template.
+              </p>
+              <div className="grid gap-4">
+                <Field
+                  label="Coaching headline"
+                  icon={MessageCircle}
+                  value={form.coachingHeadline}
+                  onChange={(v) => update("coachingHeadline", v)}
+                  placeholder="Feeling stuck?"
+                  hint="The bold hook line. Default: “Feeling stuck?”"
+                />
+                <TextareaField
+                  label="Coaching body"
+                  value={form.coachingBody}
+                  onChange={(v) => update("coachingBody", v)}
+                  rows={3}
+                  placeholder="Bring your hardest workflow to office hours — we'll turn it into something you'll actually use every week."
+                  hint="A sentence or two inviting participants to bring you their hardest problem."
+                />
+                <div className="grid sm:grid-cols-2 gap-4">
+                  <Field
+                    label="Office hours"
+                    icon={Clock}
+                    value={form.officeHours}
+                    onChange={(v) => update("officeHours", v)}
+                    placeholder="Fridays · 11 AM CT"
+                    hint="Freeform text. Shown on the card next to the calendar icon. Leave blank to hide."
+                  />
+                  <Field
+                    label="Booking URL (Calendly, etc.)"
+                    icon={ExternalLink}
+                    value={form.calendlyUrl}
+                    onChange={(v) => update("calendlyUrl", v)}
+                    placeholder="https://calendly.com/yourname/1-1"
+                    hint="Where “Book a 1:1” takes participants. Leave blank to disable the button."
+                    type="url"
+                  />
+                </div>
               </div>
             </Section>
           )}
@@ -490,6 +610,24 @@ function Field({ label, icon: Icon, value, onChange, placeholder, type = "text",
           }
         />
       </div>
+      {hint && <p className="text-[11.5px] text-ink-muted mt-1.5 leading-relaxed">{hint}</p>}
+    </label>
+  );
+}
+
+function TextareaField({ label, value, onChange, placeholder, rows = 3, hint }) {
+  return (
+    <label className="block">
+      <span className="block text-[11.5px] font-heading font-semibold tracking-wider uppercase text-ink-muted mb-1.5">
+        {label}
+      </span>
+      <textarea
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        rows={rows}
+        className="w-full px-4 py-2.5 rounded-xl border border-soft bg-surface-card text-ink text-[14px] font-body placeholder:text-ink-subtle focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 resize-y leading-relaxed transition-all"
+      />
       {hint && <p className="text-[11.5px] text-ink-muted mt-1.5 leading-relaxed">{hint}</p>}
     </label>
   );
