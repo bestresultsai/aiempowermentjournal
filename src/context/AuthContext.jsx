@@ -13,7 +13,6 @@ import {
 import { identifyUser, resetUser } from "../lib/observability";
 import { isSupabaseEnabled } from "../lib/supabase";
 import {
-  getCurrentSession,
   loadProfileForAuthUser,
   subscribeToAuthChanges,
   signOutSupabase,
@@ -112,15 +111,45 @@ export function AuthProvider({ children }) {
     let cancelled = false;
 
     if (isSupabaseEnabled()) {
-      // Initial session check — if the user has a valid Supabase session
-      // (cookie/localStorage from a previous magic-link click), hydrate the
-      // profile from public.profiles and we're signed in.
-      getCurrentSession()
-        .then(async ({ user: authUser }) => {
-          if (cancelled) return;
-          if (authUser) {
+      // Single source of truth for the auth session: onAuthStateChange fires
+      // an INITIAL_SESSION event synchronously on subscribe carrying the
+      // current session (Supabase v2 behavior). That replaces the old
+      // getCurrentSession() pre-fetch — running BOTH caused a visible
+      // double render on every page load (fetch profile twice, setUser
+      // twice), which participants perceived as the app "reloading twice."
+      //
+      // Live updates from other tabs (magic-link clicks, sign-out) flow
+      // through the same handler.
+      //
+      // Skip re-fetching the profile on TOKEN_REFRESHED — Supabase fires
+      // that ~5 minutes after every load when the access token cycles, and
+      // we don't need to re-read profiles just because the JWT changed.
+      unsubscribe = subscribeToAuthChanges(async ({ event, user: authUser }) => {
+        if (cancelled) return;
+        if (event === "SIGNED_OUT" || !authUser) {
+          setUser(null);
+          resetUser();
+          setLoading(false);
+          return;
+        }
+        // Ignore SIGNED_IN / INITIAL_SESSION while a logout is in progress
+        // — otherwise the still-valid Supabase session (signOut hasn't
+        // finished yet) re-populates the user the instant we navigate to
+        // /login.
+        if (signingOutRef.current) {
+          setLoading(false);
+          return;
+        }
+        // TOKEN_REFRESHED = access token cycled; nothing profile-relevant
+        // changed. Skip the network round-trip.
+        if (event === "TOKEN_REFRESHED") {
+          setLoading(false);
+          return;
+        }
+        if (event === "SIGNED_IN" || event === "INITIAL_SESSION") {
+          try {
             const profile = await loadProfileForAuthUser(authUser);
-            if (cancelled) return;
+            if (cancelled || signingOutRef.current) return;
             if (profile) {
               setUser(profile);
               identifyUser(profile);
@@ -128,35 +157,10 @@ export function AuthProvider({ children }) {
               // Auth session but no profile row → sign out to clear stale state.
               await signOutSupabase();
             }
-          }
-        })
-        .catch(() => { /* swallow — non-fatal */ })
-        .finally(() => { if (!cancelled) setLoading(false); });
-
-      // Live updates: when the user clicks a magic link in another tab, or
-      // signs out elsewhere, this fires and we sync state.
-      unsubscribe = subscribeToAuthChanges(async ({ event, user: authUser }) => {
-        if (cancelled) return;
-        if (event === "SIGNED_OUT" || !authUser) {
-          setUser(null);
-          resetUser();
-          return;
-        }
-        // Ignore SIGN_IN / TOKEN_REFRESHED / INITIAL_SESSION while a
-        // logout is in progress — otherwise the still-valid Supabase
-        // session (signOut hasn't finished yet) re-populates the user
-        // the instant we navigate to /login.
-        if (signingOutRef.current) return;
-        if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED" || event === "INITIAL_SESSION") {
-          try {
-            const profile = await loadProfileForAuthUser(authUser);
-            if (cancelled || signingOutRef.current) return;
-            if (profile) {
-              setUser(profile);
-              identifyUser(profile);
-            }
           } catch {
             /* swallow — error already captured */
+          } finally {
+            if (!cancelled) setLoading(false);
           }
         }
       });
