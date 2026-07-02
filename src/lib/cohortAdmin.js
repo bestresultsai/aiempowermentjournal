@@ -357,29 +357,62 @@ export function getCohortForAdmin(slug) {
   return getAllCohortsForAdmin().find((c) => c.slug === slug) || null;
 }
 
-// Return the sessions for a cohort, with cohort-level overrides applied.
+// Fields the cohort owns on a per-session basis. Everything else (belt,
+// title, program summary, order) comes from the live program template so
+// that when a program gains/loses/reorders belts, existing cohorts pick up
+// the new sequence automatically instead of showing a stale snapshot.
+const COHORT_SESSION_OVERRIDE_FIELDS = [
+  "date",
+  "zoomLink",
+  "manualLockState",
+  "customSummary",
+  "customMaterials",
+  "facilitatorNotes",
+  "customHomework",
+  "videoUrl",
+  "videoPasscode",
+  "videoDurationSec",
+];
+
+// Return the sessions for a cohort, with cohort-level overrides applied
+// ON TOP OF the program's current belt/title/order. The program is always
+// the source of truth for what the sequence looks like; the cohort only
+// owns per-session dates, zoom links, and content overrides (see
+// COHORT_SESSION_OVERRIDE_FIELDS).
 //
-// Precedence:
-//   1. Cohort overlay (admin-edited) — explicit sessions[] from cohortOverlays
-//   2. Cohort's program curriculum from programs.js — title/materials/homework
-//   3. AIEW3 fallback (MOCK_SESSIONS already has demo dates baked in) for
-//      cohorts that pre-date the programs catalog
-//
-// In all cases the array length matches the program's sessionsCount, so
-// callers that iterate get the right number of sessions for THIS cohort.
+// This shape is what fixes the "roster shows Black + Black, edit form shows
+// Gray + Black" divergence — both views now project the same program, and
+// the cohort's stored sessions[] is treated as a lookup table for
+// per-order overrides rather than the authoritative sequence.
 export function getSessionsForCohort(slug) {
-  const overlay = cohortOverlays[slug];
-  if (overlay?.sessions) return overlay.sessions;
-  // Find the cohort to look up its program. Cohort overlays + base list both
-  // live in the merged set we already compute below.
   const cohort = getAllCohortsForAdmin().find((c) => c.slug === slug);
   const program = getProgramForCohort(cohort);
-  if (program?.sessions?.length) {
-    // Clone so callers can mutate without breaking the program template.
-    return getSessionsForProgram(program).map((s) => ({ ...s }));
-  }
-  // Legacy fallback for any cohort that doesn't resolve to a program.
-  return MOCK_SESSIONS.map((s) => ({ ...s }));
+  const template = program?.sessions?.length
+    ? program.sessions
+    : MOCK_SESSIONS;
+
+  // Where the per-session cohort overrides live. Prefer the local overlay
+  // (edit hasn't hit Supabase yet), fall back to the cohort's persisted
+  // sessions array from Supabase / seed data.
+  const overlaySessions = cohortOverlays[slug]?.sessions;
+  const storedSessions = Array.isArray(overlaySessions)
+    ? overlaySessions
+    : Array.isArray(cohort?.sessions)
+      ? cohort.sessions
+      : [];
+
+  return template.map((programSession) => {
+    const stored = storedSessions.find((s) => s.order === programSession.order);
+    // Start from the program's shape (belt, title, order, materials/homework
+    // defaults), then splice in only the cohort-owned fields from stored.
+    const merged = { ...programSession };
+    if (stored) {
+      for (const key of COHORT_SESSION_OVERRIDE_FIELDS) {
+        if (stored[key] != null) merged[key] = stored[key];
+      }
+    }
+    return merged;
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -912,11 +945,23 @@ function cohortRowToOverlay(row, { programsByUuid, orgsByUuid, profilesByUuid })
   let sessions = [];
   if (program?.sessions?.length) {
     sessions = program.sessions.map((s) => ({ ...s }));
-    // Apply schedule from session_overrides (admin-edited per-cohort dates).
+    // Apply schedule + per-session overrides from session_overrides.
+    //
+    // IMPORTANT: only spread the fields the cohort actually owns
+    // (COHORT_SESSION_OVERRIDE_FIELDS — date, zoomLink, recording, notes,
+    // etc). If we spread the whole override object we'd re-baked-in the
+    // belt+title from when the cohort was created, which is what caused the
+    // "roster shows 8 White-through-Black, edit form shows 9 Gray-through-
+    // Black" divergence after Gray was added to the program.
     const overrides = Array.isArray(row.session_overrides) ? row.session_overrides : [];
     for (const ov of overrides) {
       const idx = sessions.findIndex((s) => s.order === ov.order);
-      if (idx >= 0) sessions[idx] = { ...sessions[idx], ...ov };
+      if (idx < 0) continue;
+      const patch = {};
+      for (const key of COHORT_SESSION_OVERRIDE_FIELDS) {
+        if (ov[key] != null) patch[key] = ov[key];
+      }
+      sessions[idx] = { ...sessions[idx], ...patch };
     }
   }
 
