@@ -25,6 +25,31 @@ export const USE_MOCK_DATA = true; // flip to false once Notion DBs + functions 
 
 const API_BASE = "";
 
+// Default coaching-card copy shown on the participant FacilitatorCard when a
+// facilitator hasn't filled in their own text yet. Editable per-facilitator
+// via /settings (Facilitator profile section).
+const DEFAULT_COACHING_HEADLINE = "Feeling stuck?";
+const DEFAULT_COACHING_BODY =
+  "Bring your hardest workflow to office hours — we'll turn it into something you'll actually use every week.";
+
+// Normalize a facilitator record (from cohort overlay, getAllFacilitators, or a
+// Supabase-direct profile lookup) into the trainer shape consumed by
+// FacilitatorCard. Applies sensible defaults so a fresh cohort's card doesn't
+// look empty before the facilitator has filled in their preferences.
+function buildTrainer(rec) {
+  if (!rec) return null;
+  return {
+    name: rec.name,
+    title: rec.title || "Facilitator, BestResults.AI",
+    email: rec.email || "",
+    headshotUrl: rec.headshotUrl || null,
+    coachingHeadline: rec.coachingHeadline || DEFAULT_COACHING_HEADLINE,
+    coachingBody: rec.coachingBody || DEFAULT_COACHING_BODY,
+    officeHours: rec.officeHours || null,
+    calendlyUrl: rec.calendlyUrl || rec.calendly || "",
+  };
+}
+
 function getToken() {
   return localStorage.getItem("auth_token");
 }
@@ -194,26 +219,12 @@ async function buildParticipantCohortView(realCohort, slug) {
   let trainer = null;
   const rawFac = realCohort.facilitator;
   if (rawFac && typeof rawFac === "object" && rawFac.name) {
-    trainer = {
-      name: rawFac.name,
-      title: rawFac.title || "Facilitator, BestResults.AI",
-      email: rawFac.email || "",
-      headshotUrl: rawFac.headshotUrl || null,
-      coachingHeadline: "Feeling stuck?",
-      calendlyUrl: rawFac.calendlyUrl || rawFac.calendly || "",
-    };
+    trainer = buildTrainer(rawFac);
   } else if (rawFac) {
     const facId = typeof rawFac === "string" ? rawFac : rawFac.id;
     const facRecord = (getAllFacilitators() || []).find((f) => f.id === facId);
     if (facRecord) {
-      trainer = {
-        name: facRecord.name,
-        title: facRecord.title || "Facilitator, BestResults.AI",
-        email: facRecord.email || "",
-        headshotUrl: facRecord.headshotUrl || null,
-        coachingHeadline: "Feeling stuck?",
-        calendlyUrl: facRecord.calendlyUrl || "",
-      };
+      trainer = buildTrainer(facRecord);
     }
   }
 
@@ -246,14 +257,16 @@ async function buildParticipantCohortView(realCohort, slug) {
             .eq("id", facUuid)
             .maybeSingle();
           if (profileRow?.name) {
-            trainer = {
+            trainer = buildTrainer({
               name: profileRow.name,
-              title: profileRow.preferences?.title || "Facilitator, BestResults.AI",
-              email: profileRow.email || "",
-              headshotUrl: profileRow.avatar_url || null,
-              coachingHeadline: "Feeling stuck?",
-              calendlyUrl: profileRow.preferences?.calendlyUrl || "",
-            };
+              title: profileRow.preferences?.title,
+              email: profileRow.email,
+              headshotUrl: profileRow.avatar_url,
+              coachingHeadline: profileRow.preferences?.coachingHeadline,
+              coachingBody: profileRow.preferences?.coachingBody,
+              officeHours: profileRow.preferences?.officeHours,
+              calendlyUrl: profileRow.preferences?.calendlyUrl,
+            });
           }
         }
       }

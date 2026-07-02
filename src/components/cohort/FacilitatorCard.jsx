@@ -45,20 +45,38 @@ export default function FacilitatorCard({ facilitator, coachingNote }) {
       )}
 
       <div className="mt-auto pt-5 border-t border-soft flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2 text-[13px] min-w-0">
-          <CalendarClock className="w-4 h-4 text-ink-muted shrink-0" strokeWidth={2} />
-          <div className="min-w-0">
-            <div className="text-ink-muted text-[11.5px]">Office Hours</div>
-            <div className="font-heading font-semibold text-ink truncate">Fridays · 11 AM CT</div>
+        {facilitator.officeHours ? (
+          <div className="flex items-center gap-2 text-[13px] min-w-0">
+            <CalendarClock className="w-4 h-4 text-ink-muted shrink-0" strokeWidth={2} />
+            <div className="min-w-0">
+              <div className="text-ink-muted text-[11.5px]">Office Hours</div>
+              <div className="font-heading font-semibold text-ink truncate">{facilitator.officeHours}</div>
+            </div>
           </div>
-        </div>
-        <button
-          className="group inline-flex items-center gap-1.5 px-4 py-2.5 bg-ink text-white rounded-xl text-[13.5px] font-heading font-semibold hover:bg-brand-700 transition-all duration-200 shrink-0"
-          onClick={() => alert("Coaching booking — coming in a later phase.")}
-        >
-          Book a 1:1
-          <ArrowUpRight className="w-4 h-4 transition-transform duration-200 group-hover:-translate-y-0.5 group-hover:translate-x-0.5" strokeWidth={2.5} />
-        </button>
+        ) : (
+          <div />
+        )}
+        {facilitator.calendlyUrl ? (
+          <a
+            href={facilitator.calendlyUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="group inline-flex items-center gap-1.5 px-4 py-2.5 bg-ink text-white rounded-xl text-[13.5px] font-heading font-semibold hover:bg-brand-700 transition-all duration-200 shrink-0"
+          >
+            Book a 1:1
+            <ArrowUpRight className="w-4 h-4 transition-transform duration-200 group-hover:-translate-y-0.5 group-hover:translate-x-0.5" strokeWidth={2.5} />
+          </a>
+        ) : (
+          <button
+            type="button"
+            disabled
+            title="Booking link not set — ask your facilitator to add their Calendly URL in Settings."
+            className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-ink/40 text-white/70 rounded-xl text-[13.5px] font-heading font-semibold shrink-0 cursor-not-allowed"
+          >
+            Book a 1:1
+            <ArrowUpRight className="w-4 h-4" strokeWidth={2.5} />
+          </button>
+        )}
       </div>
     </div>
   );

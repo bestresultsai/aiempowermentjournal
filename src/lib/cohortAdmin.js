@@ -853,6 +853,13 @@ function profileToFacilitator(row) {
     headshotUrl: row.avatar_url || null,
     defaultZoomLink: row.preferences?.defaultZoomLink || null,
     defaultTimeZone: row.time_zone || "America/New_York",
+    // Facilitator-editable coaching card fields (surface on the participant
+    // CohortLanding FacilitatorCard). Null when unset — the read side
+    // supplies a default template so cards don't look empty.
+    coachingHeadline: row.preferences?.coachingHeadline || null,
+    coachingBody: row.preferences?.coachingBody || null,
+    officeHours: row.preferences?.officeHours || null,
+    calendlyUrl: row.preferences?.calendlyUrl || null,
   };
 }
 
