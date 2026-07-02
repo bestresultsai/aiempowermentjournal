@@ -21,6 +21,9 @@ export default function Login() {
   // tries to visit a protected route. Falls back to /home.
   const [searchParams] = useSearchParams();
   const next = safeNext(searchParams.get("next"));
+  // ?expired=1 is set by db.js when a Supabase JWT expires mid-session — the
+  // tab is redirected to /login and this flash tells the user why.
+  const sessionExpired = searchParams.get("expired") === "1";
 
   useEffect(() => {
     try {
@@ -78,6 +81,13 @@ function humanizeAuthError(err) {
   }
   if (status === 400 && /(invalid|not.?found|user.?not.?found)/i.test(rawMsg)) {
     return "We couldn't find an account for that email. Ask your BestResults.AI admin to invite you.";
+  }
+  // Supabase Auth throws this when signups are disabled (they are — the
+  // platform is invite-only) AND the email isn't already a registered user.
+  // Raw message: "Signups not allowed for otp". Translate to something a real
+  // person can act on.
+  if (/signups?\s+not\s+allowed/i.test(rawMsg)) {
+    return "We couldn't find an account for that email. The BestResults.AI Platform is invite-only — reach out to help@bestresults.ai and we'll get you set up.";
   }
   if (looksEmpty) {
     return "Something went wrong sending your link. Please try again in a moment.";
@@ -154,6 +164,13 @@ function humanizeAuthError(err) {
             <div className="lg:hidden flex justify-center mb-8">
               <Logo size="md" />
             </div>
+
+            {sessionExpired && status !== "sent" && (
+              <div className="mb-5 rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 text-[13px] text-amber-900 leading-relaxed">
+                <strong className="font-heading font-bold">Session timed out.</strong>{" "}
+                Sign in again to pick up where you left off.
+              </div>
+            )}
 
             {status === "sent" ? (
               <SentState email={email} onReset={() => { setStatus("idle"); setEmail(""); }} />

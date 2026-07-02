@@ -36,10 +36,53 @@ class DbError extends Error {
   }
 }
 
+// Sentinel thrown when Supabase reports the auth session is dead. Callers
+// generally catch DbError; JwtExpiredError extends it so their handlers still
+// trigger a fallback path (empty list, null, etc). The redirect to /login is
+// already scheduled by handleJwtExpiredIfMatch when this error is constructed.
+// Sentry's ignoreErrors list matches "JWT expired" so this doesn't page.
+export class JwtExpiredError extends DbError {
+  constructor(operation, table) {
+    super(operation, table, new Error("JWT expired"));
+    this.name = "JwtExpiredError";
+  }
+}
+
 async function client() {
   const c = await initSupabase();
   if (!c) throw new SupabaseNotReady();
   return c;
+}
+
+// Supabase throws "JWT expired" (PostgREST code PGRST301) when the access
+// token has expired AND autoRefreshToken couldn't recover it (usually
+// because the refresh token is also dead — tab left open for days). The
+// user-facing recovery is a reload / re-login; the noisy Sentry alert isn't
+// helpful. When we detect this, we sign the user out of Supabase so the
+// AuthContext gate can redirect to /login on the next render, and we swallow
+// the underlying error so it doesn't propagate to Sentry as an unhandled bug.
+let jwtExpiredHandled = false;
+async function handleJwtExpiredIfMatch(err) {
+  const msg = err?.message || "";
+  const code = err?.code || err?.status;
+  if (!/JWT expired|token is expired|PGRST301/i.test(msg) && code !== "PGRST301") {
+    return false;
+  }
+  if (jwtExpiredHandled) return true;
+  jwtExpiredHandled = true;
+  try {
+    const c = await initSupabase();
+    if (c) await c.auth.signOut({ scope: "local" });
+  } catch { /* ignore — we're already in a broken auth state */ }
+  // Nudge the page to re-render through AuthContext's onAuthStateChange
+  // subscription, which will kick the user to /login. Fallback to a hard
+  // reload if the SPA doesn't reroute (e.g. React errored during render).
+  setTimeout(() => {
+    if (window.location.pathname !== "/login") {
+      window.location.assign("/login?expired=1");
+    }
+  }, 250);
+  return true;
 }
 
 /**
@@ -85,6 +128,7 @@ export async function list(table, options = {}) {
     return data || [];
   } catch (err) {
     if (err instanceof SupabaseNotReady) throw err;
+    if (await handleJwtExpiredIfMatch(err)) throw new JwtExpiredError("list", table);
     captureError(err, { source: "db.list", table, options });
     throw new DbError("list", table, err);
   }
@@ -105,6 +149,7 @@ export async function get(table, id, { select = "*" } = {}) {
     return data || null;
   } catch (err) {
     if (err instanceof SupabaseNotReady) throw err;
+    if (await handleJwtExpiredIfMatch(err)) throw new JwtExpiredError("get", table);
     captureError(err, { source: "db.get", table, id });
     throw new DbError("get", table, err);
   }
@@ -126,6 +171,7 @@ export async function upsert(table, record, { onConflict = "id" } = {}) {
     return data;
   } catch (err) {
     if (err instanceof SupabaseNotReady) throw err;
+    if (await handleJwtExpiredIfMatch(err)) throw new JwtExpiredError("upsert", table);
     captureError(err, { source: "db.upsert", table, record });
     throw new DbError("upsert", table, err);
   }
@@ -142,6 +188,7 @@ export async function insert(table, record) {
     return Array.isArray(record) ? data || [] : (data && data[0]) || null;
   } catch (err) {
     if (err instanceof SupabaseNotReady) throw err;
+    if (await handleJwtExpiredIfMatch(err)) throw new JwtExpiredError("insert", table);
     captureError(err, { source: "db.insert", table });
     throw new DbError("insert", table, err);
   }
@@ -163,6 +210,7 @@ export async function update(table, id, patch) {
     return data || null;
   } catch (err) {
     if (err instanceof SupabaseNotReady) throw err;
+    if (await handleJwtExpiredIfMatch(err)) throw new JwtExpiredError("update", table);
     captureError(err, { source: "db.update", table, id });
     throw new DbError("update", table, err);
   }
@@ -187,6 +235,7 @@ export async function remove(table, id) {
     return true;
   } catch (err) {
     if (err instanceof SupabaseNotReady) throw err;
+    if (await handleJwtExpiredIfMatch(err)) throw new JwtExpiredError("remove", table);
     captureError(err, { source: "db.remove", table, id });
     throw new DbError("remove", table, err);
   }

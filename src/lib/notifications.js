@@ -1,7 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
-import { getEffectiveParticipants, getHomeworkRows } from "./adminMockData";
+import {
+  getEffectiveParticipants,
+  getHomeworkRows,
+  useParticipantVersion,
+} from "./adminMockData";
 import { getAccessibleCohorts } from "./adminRoles";
-import { getAllCohortsForAdmin } from "./cohortAdmin";
+import { getAllCohortsForAdmin, useCohortVersion } from "./cohortAdmin";
 import { getFeedbacksInScope } from "./feedbacks";
 import { isSupabaseEnabled } from "./supabase";
 import { db, SupabaseNotReady } from "./db";
@@ -257,6 +261,13 @@ async function mirrorNotificationReadToSupabase(profileId, notification) {
 // ---------------------------------------------------------------------------
 export function useNotifications(user) {
   const readIds = useReadIds();
+  // Subscribe to hydration + cohort mutations so the bell re-derives after
+  // Supabase finishes loading. Without these hooks the first render captures
+  // the empty pre-hydrate snapshot (0 homework rows, 0 journal entries) and
+  // never refreshes — the bug you hit where notifications only appeared
+  // after a full page reload.
+  const pVersion = useParticipantVersion();
+  const cVersion = useCohortVersion();
 
   // When the user is Supabase-sourced, fetch their per-user notification
   // read state on mount and merge into the local set. Cross-device sync.
@@ -269,11 +280,13 @@ export function useNotifications(user) {
   const cohortSlugs = useMemo(() => {
     if (!user) return [];
     return getAccessibleCohorts(user, getAllCohortsForAdmin()).map((c) => c.slug);
-  }, [user]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, cVersion]);
 
   const notifications = useMemo(
     () => deriveNotifications(cohortSlugs),
-    [cohortSlugs],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [cohortSlugs, pVersion, cVersion],
   );
 
   const decorated = useMemo(

@@ -76,6 +76,18 @@ export function initObservability() {
           // loses connectivity or Supabase burps.
           "TypeError: Load failed",
           "DbError:",
+          // Supabase Auth throws this when signups are disabled (the platform
+          // is invite-only) and the email isn't already registered. It's a
+          // user-facing "you're not invited" case, handled by
+          // humanizeAuthError in Login.jsx with a friendly message pointing
+          // at help@bestresults.ai. Not a bug.
+          "Signups not allowed",
+          // Supabase JWT expired mid-session. `autoRefreshToken: true` on
+          // the client handles the happy path, but if a tab has been idle
+          // long enough that both access + refresh tokens are dead, the
+          // next data call throws this. Reload recovers — not worth a
+          // Sentry alert every time.
+          "JWT expired",
         ],
         integrations: [Sentry.browserTracingIntegration()],
       });
