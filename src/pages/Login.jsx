@@ -66,6 +66,16 @@ function humanizeAuthError(err) {
   if (status === 429 || /rate.?limit/i.test(rawMsg)) {
     return "Too many attempts. Wait a minute before trying again.";
   }
+  // Supabase's built-in "You just requested a link" security rate limit.
+  // Message format: "For security purposes, you can only request this after N seconds."
+  // Extract N so we can tell the user exactly how long to wait.
+  const secondsMatch = /request this after (\d+) seconds?/i.exec(rawMsg);
+  if (secondsMatch || /for security purposes/i.test(rawMsg)) {
+    const secs = secondsMatch ? Number(secondsMatch[1]) : null;
+    return secs
+      ? `You just requested a magic link. Please wait ${secs} seconds before trying again — check your inbox for the link we sent.`
+      : "You just requested a magic link. Please wait a moment before trying again — check your inbox for the link we sent.";
+  }
   if (status === 400 && /(invalid|not.?found|user.?not.?found)/i.test(rawMsg)) {
     return "We couldn't find an account for that email. Ask your BestResults.AI admin to invite you.";
   }

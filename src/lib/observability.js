@@ -65,6 +65,11 @@ export function initObservability() {
           // in Login.jsx).
           "AuthRetryableFetchError",
           "AuthApiError: fetch failed",
+          // Supabase Auth's built-in rate limit on repeated OTP/magic-link
+          // requests. Fires when a user re-clicks "Send me a link" within
+          // ~60s. Expected behavior — the login form catches it and shows
+          // the user a friendly countdown — not something to alert on.
+          "For security purposes, you can only request this",
           // Safari's phrasing for a network fetch that failed. Same class
           // of transient upstream issue — user retry / hydration re-run
           // covers it. Not worth a Sentry alert every time someone briefly
