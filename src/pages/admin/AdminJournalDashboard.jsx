@@ -6,10 +6,10 @@ import {
 } from "lucide-react";
 import Modal from "../../components/admin/Modal";
 import JournalEntryDetail from "../../components/admin/JournalEntryDetail";
-import { getParticipantById } from "../../lib/adminMockData";
+import { getParticipantById, useParticipantVersion } from "../../lib/adminMockData";
 import { useAuth } from "../../context/AuthContext";
 import { useScopeFilters } from "../../lib/useScopeFilters";
-import { getAllCohortsForAdmin } from "../../lib/cohortAdmin";
+import { getAllCohortsForAdmin, useCohortVersion } from "../../lib/cohortAdmin";
 import {
   ADMIN_MOCK_PARTICIPANTS,
   getCohortJournalStats,
@@ -49,6 +49,13 @@ import CohortLeaderboard from "../../components/cohort/CohortLeaderboard";
 // ---------------------------------------------------------------------------
 
 export default function AdminJournalDashboard() {
+  // Subscribe to activity + cohort mutations so this page re-renders
+  // when hydrateActivityFromSupabase or cohort mirrors emit. Without
+  // this the initial render captures the pre-hydrate empty snapshot
+  // (0 journal entries, 0 homework, etc.) and never refreshes.
+  useParticipantVersion();
+  useCohortVersion();
+
   const { user } = useAuth();
   const scope = useScopeFilters(user, getAllCohortsForAdmin());
   const { cohorts, effectiveCohorts, effectiveSlugs: cohortSlugs, orgs, facilitators } = scope;

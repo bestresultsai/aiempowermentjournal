@@ -14,11 +14,12 @@ import {
   canAssignRoles,
   canGradeHomework,
 } from "../../lib/adminRoles";
-import { setupParticipantRealtime } from "../../lib/adminMockData";
+import { setupParticipantRealtime, useParticipantVersion } from "../../lib/adminMockData";
 import { APP_CONFIG } from "../../lib/appConfig";
 import { useViewAs, VIEW_AS_LABELS } from "../../lib/viewAs";
 import Logo from "../../components/Logo";
 import NotificationBell from "../../components/admin/NotificationBell";
+import { useCohortVersion } from "../../lib/cohortAdmin";
 
 // ---------------------------------------------------------------------------
 // AdminLayout — the shell every /admin/* page lives inside.
@@ -79,6 +80,13 @@ function navAllowed(item, user) {
 }
 
 export default function AdminLayout() {
+  // Subscribe to activity + cohort mutations so this page re-renders
+  // when hydrateActivityFromSupabase or cohort mirrors emit. Without
+  // this the initial render captures the pre-hydrate empty snapshot
+  // (0 journal entries, 0 homework, etc.) and never refreshes.
+  useParticipantVersion();
+  useCohortVersion();
+
   const { user, logout } = useAuth();
   const { pathname } = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);

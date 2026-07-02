@@ -11,20 +11,8 @@ import Modal, { ModalHeader } from "../../components/admin/Modal";
 import JournalEntryDetail from "../../components/admin/JournalEntryDetail";
 import SubmissionDetail from "../../components/admin/SubmissionDetail";
 import { useCohortLeader } from "../../hooks/useCohortLeader";
-import { getAllCohortsForAdmin } from "../../lib/cohortAdmin";
-import {
-  getParticipantsForCohort,
-  getCohortJournalStats,
-  totalTimeSaved,
-  formatMinutes,
-  getParticipantHomeworkStats,
-  getParticipantCurrentSession,
-  getParticipantJournalStat,
-  getJournalEntriesForParticipant,
-  getSubmissionsForParticipant,
-  getProductionMethodMix,
-  timeSavedFor,
-} from "../../lib/adminMockData";
+import { getAllCohortsForAdmin, useCohortVersion } from "../../lib/cohortAdmin";
+import { getParticipantsForCohort, getCohortJournalStats, totalTimeSaved, formatMinutes, getParticipantHomeworkStats, getParticipantCurrentSession, getParticipantJournalStat, getJournalEntriesForParticipant, getSubmissionsForParticipant, getProductionMethodMix, timeSavedFor, useParticipantVersion } from "../../lib/adminMockData";
 import { MOCK_SESSIONS, BELT_COLORS } from "../../lib/mockCohort";
 import { getSessionsCountForCohort, getBadgesForCohort } from "../../lib/programs";
 import { leveragePerWeek } from "../../lib/journalConstants";
@@ -53,6 +41,13 @@ import CohortLeaderboard from "../../components/cohort/CohortLeaderboard";
 // Read-only by design — observation, not action.
 // ---------------------------------------------------------------------------
 export default function CohortLeaderDashboard() {
+  // Subscribe to activity + cohort mutations so this page re-renders
+  // when hydrateActivityFromSupabase or cohort mirrors emit. Without
+  // this the initial render captures the pre-hydrate empty snapshot
+  // (0 journal entries, 0 homework, etc.) and never refreshes.
+  useParticipantVersion();
+  useCohortVersion();
+
   const { isLeader, participant, cohortSlug } = useCohortLeader();
 
   // Always compute these before any conditional returns to keep hook order stable.

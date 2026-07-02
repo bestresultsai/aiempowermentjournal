@@ -7,19 +7,10 @@ import {
 import { useAuth } from "../../context/AuthContext";
 import { useScopeFilters } from "../../lib/useScopeFilters";
 import { canAccessAdmin, hasGlobalScope } from "../../lib/adminRoles";
-import { getAllCohortsForAdmin } from "../../lib/cohortAdmin";
+import { getAllCohortsForAdmin, useCohortVersion } from "../../lib/cohortAdmin";
 import ScopeFilterBar from "../../components/admin/ScopeFilterBar";
 import Select from "../../components/Select";
-import {
-  ADMIN_MOCK_PARTICIPANTS,
-  getEngagementBucket,
-  getParticipantJournalStat,
-  getParticipantCurrentSession,
-  getParticipantHomeworkStats,
-  assignParticipantsToCohort,
-  totalTimeSaved,
-  formatMinutes,
-} from "../../lib/adminMockData";
+import { ADMIN_MOCK_PARTICIPANTS, getEngagementBucket, getParticipantJournalStat, getParticipantCurrentSession, getParticipantHomeworkStats, assignParticipantsToCohort, totalTimeSaved, formatMinutes, useParticipantVersion } from "../../lib/adminMockData";
 import { MOCK_SESSIONS, BELT_COLORS } from "../../lib/mockCohort";
 import { getProgramByCode } from "../../lib/programs";
 
@@ -51,6 +42,13 @@ function bucketForFilter(p) {
 // search box and a cohort filter (All / IAHE / Mayo / UCLA — only those the
 // admin can see).
 export default function AdminParticipants() {
+  // Subscribe to activity + cohort mutations so this page re-renders
+  // when hydrateActivityFromSupabase or cohort mirrors emit. Without
+  // this the initial render captures the pre-hydrate empty snapshot
+  // (0 journal entries, 0 homework, etc.) and never refreshes.
+  useParticipantVersion();
+  useCohortVersion();
+
   const { user } = useAuth();
   const scope = useScopeFilters(user, getAllCohortsForAdmin());
   const { cohorts, effectiveSlugs: cohortSlugs, orgs, facilitators } = scope;

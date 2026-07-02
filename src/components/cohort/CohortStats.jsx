@@ -11,8 +11,17 @@ import {
   formatPercent,
 } from "../../lib/calculations";
 import { getBadgesForCohort } from "../../lib/programs";
+import { useParticipantVersion } from "../../lib/adminMockData";
+import { useCohortVersion } from "../../lib/cohortAdmin";
 
 export default function CohortStats({ cohort, entries = [], currentUserEmail, loading, error }) {
+  // Subscribe to activity + cohort mutations so this page re-renders
+  // when hydrateActivityFromSupabase or cohort mirrors emit. Without
+  // this the initial render captures the pre-hydrate empty snapshot
+  // (0 journal entries, 0 homework, etc.) and never refreshes.
+  useParticipantVersion();
+  useCohortVersion();
+
   const [tab, setTab] = useState("summary"); // summary | details
 
   const metrics = useMemo(() => calcAggregateMetrics(entries), [entries]);

@@ -4,6 +4,8 @@ import {
   Flame, NotebookPen, Trophy, ArrowRight, Clock, Lightbulb,
   Sprout, Repeat, Rocket, Crown, Target, Sparkles,
 } from "lucide-react";
+import { useParticipantVersion } from "../../lib/adminMockData";
+import { useCohortVersion } from "../../lib/cohortAdmin";
 import {
   calculateStreakWeeks,
   earnedBadges,
@@ -26,6 +28,13 @@ const BADGE_ICONS = {
 const FALLBACK_ICON = Sparkles;
 
 export default function JournalGameCard({ entries = [], currentUserEmail, badges }) {
+  // Subscribe to activity + cohort mutations so this page re-renders
+  // when hydrateActivityFromSupabase or cohort mirrors emit. Without
+  // this the initial render captures the pre-hydrate empty snapshot
+  // (0 journal entries, 0 homework, etc.) and never refreshes.
+  useParticipantVersion();
+  useCohortVersion();
+
   const myEntries = useMemo(
     () =>
       currentUserEmail

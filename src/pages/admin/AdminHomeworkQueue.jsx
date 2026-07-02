@@ -7,14 +7,9 @@ import {
 import { useAuth } from "../../context/AuthContext";
 import { canGradeHomework } from "../../lib/adminRoles";
 import { useScopeFilters } from "../../lib/useScopeFilters";
-import { getAllCohortsForAdmin } from "../../lib/cohortAdmin";
+import { getAllCohortsForAdmin, useCohortVersion } from "../../lib/cohortAdmin";
 import { MOCK_SESSIONS, BELT_COLORS } from "../../lib/mockCohort";
-import {
-  getHomeworkRows,
-  markHomeworkReviewed,
-  unmarkHomeworkReviewed,
-  getParticipantById,
-} from "../../lib/adminMockData";
+import { getHomeworkRows, markHomeworkReviewed, unmarkHomeworkReviewed, getParticipantById, useParticipantVersion } from "../../lib/adminMockData";
 import ScopeFilterBar from "../../components/admin/ScopeFilterBar";
 import SelectChip from "../../components/admin/SelectChip";
 import Modal from "../../components/admin/Modal";
@@ -36,6 +31,13 @@ const TABS = [
 ];
 
 export default function AdminHomeworkQueue() {
+  // Subscribe to activity + cohort mutations so this page re-renders
+  // when hydrateActivityFromSupabase or cohort mirrors emit. Without
+  // this the initial render captures the pre-hydrate empty snapshot
+  // (0 journal entries, 0 homework, etc.) and never refreshes.
+  useParticipantVersion();
+  useCohortVersion();
+
   const { user } = useAuth();
   // Homework grading is super + admin + facilitator territory. Org admins
   // see homework status on the cohort roster but don't manage the queue.

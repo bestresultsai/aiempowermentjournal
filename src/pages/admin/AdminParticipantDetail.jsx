@@ -9,26 +9,14 @@ import {
 import { formatLocation } from "../../lib/locationToTimeZone";
 import { useAuth } from "../../context/AuthContext";
 import { getAccessibleCohortSlugs } from "../../lib/adminRoles";
-import { getAllCohortsForAdmin } from "../../lib/cohortAdmin";
+import { getAllCohortsForAdmin, useCohortVersion } from "../../lib/cohortAdmin";
 import { MOCK_SESSIONS, BELT_COLORS } from "../../lib/mockCohort";
 import { getSessionsCountForCohort } from "../../lib/programs";
 import Modal from "../../components/admin/Modal";
 import JournalEntryDetail from "../../components/admin/JournalEntryDetail";
 import SubmissionDetail from "../../components/admin/SubmissionDetail";
 import { getProductionMethod, leveragePerWeek } from "../../lib/journalConstants";
-import {
-  getParticipantById,
-  getSubmissionsForParticipant,
-  getJournalEntriesForParticipant,
-  getFacilitatorNote,
-  setFacilitatorNote,
-  setParticipantCapabilities,
-  setParticipantHeadshot,
-  sendMagicLinkForParticipant,
-  totalTimeSaved,
-  timeSavedFor,
-  formatMinutes,
-} from "../../lib/adminMockData";
+import { getParticipantById, getSubmissionsForParticipant, getJournalEntriesForParticipant, getFacilitatorNote, setFacilitatorNote, setParticipantCapabilities, setParticipantHeadshot, sendMagicLinkForParticipant, totalTimeSaved, timeSavedFor, formatMinutes, useParticipantVersion } from "../../lib/adminMockData";
 import { isSupabaseEnabled } from "../../lib/supabase";
 import { canAssignRoles, hasGlobalScope } from "../../lib/adminRoles";
 import HeadshotUpload from "../../components/HeadshotUpload";
@@ -36,6 +24,13 @@ import HeadshotUpload from "../../components/HeadshotUpload";
 // /admin/users/:id — drill-in on a single participant.
 // Read-only this round.
 export default function AdminParticipantDetail() {
+  // Subscribe to activity + cohort mutations so this page re-renders
+  // when hydrateActivityFromSupabase or cohort mirrors emit. Without
+  // this the initial render captures the pre-hydrate empty snapshot
+  // (0 journal entries, 0 homework, etc.) and never refreshes.
+  useParticipantVersion();
+  useCohortVersion();
+
   const { id } = useParams();
   const { user } = useAuth();
   const p = getParticipantById(id);

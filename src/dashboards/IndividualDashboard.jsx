@@ -7,6 +7,8 @@ import { calcAggregateMetrics, formatCurrency, formatHours, formatPercent } from
 import { MOCK_COHORT } from "../lib/mockCohort";
 import { getCohortBySlug } from "../lib/cohortApi";
 import { useQuery } from "@tanstack/react-query";
+import { useParticipantVersion } from "../lib/adminMockData";
+import { useCohortVersion } from "../lib/cohortAdmin";
 
 // Mock-mode: every cohort name maps to the same prototype cohort.
 // Live mode: look up the cohort slug from Notion by name (Cohort.Slug).
@@ -17,6 +19,13 @@ function cohortNameToSlug(_name) {
 }
 
 export default function IndividualDashboard({ entries, allEntries, cohorts, email }) {
+  // Subscribe to activity + cohort mutations so this page re-renders
+  // when hydrateActivityFromSupabase or cohort mirrors emit. Without
+  // this the initial render captures the pre-hydrate empty snapshot
+  // (0 journal entries, 0 homework, etc.) and never refreshes.
+  useParticipantVersion();
+  useCohortVersion();
+
   const [tab, setTab] = useState("mine"); // mine | cohort
   const participantName = entries[0]?.participantName || email;
 

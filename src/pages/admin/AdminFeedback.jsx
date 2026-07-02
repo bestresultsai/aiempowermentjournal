@@ -5,12 +5,13 @@ import {
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { useScopeFilters } from "../../lib/useScopeFilters";
-import { getAllCohortsForAdmin, getSessionsForCohort } from "../../lib/cohortAdmin";
+import { getAllCohortsForAdmin, getSessionsForCohort, useCohortVersion } from "../../lib/cohortAdmin";
 import {
   getFeedbacksBySessionInScope,
   useFeedbackVersion,
 } from "../../lib/feedbacks";
 import ScopeFilterBar from "../../components/admin/ScopeFilterBar";
+import { useParticipantVersion } from "../../lib/adminMockData";
 
 // ---------------------------------------------------------------------------
 // /admin/feedback — facilitator + admin view of session feedback.
@@ -26,6 +27,13 @@ import ScopeFilterBar from "../../components/admin/ScopeFilterBar";
 // ---------------------------------------------------------------------------
 
 export default function AdminFeedback() {
+  // Subscribe to activity + cohort mutations so this page re-renders
+  // when hydrateActivityFromSupabase or cohort mirrors emit. Without
+  // this the initial render captures the pre-hydrate empty snapshot
+  // (0 journal entries, 0 homework, etc.) and never refreshes.
+  useParticipantVersion();
+  useCohortVersion();
+
   const { user } = useAuth();
   useFeedbackVersion(); // re-render on writes
 

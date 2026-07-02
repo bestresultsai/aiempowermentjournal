@@ -16,14 +16,7 @@ import {
   getAllCohortsForAdmin,
   useCohortVersion,
 } from "../../lib/cohortAdmin";
-import {
-  getCohortJournalStats,
-  getRecentEntriesInScope,
-  getScopeJournalStats,
-  getProductionMethodMix,
-  getParticipantById,
-  formatMinutes,
-} from "../../lib/adminMockData";
+import { getCohortJournalStats, getRecentEntriesInScope, getScopeJournalStats, getProductionMethodMix, getParticipantById, formatMinutes, useParticipantVersion } from "../../lib/adminMockData";
 
 // ---------------------------------------------------------------------------
 // /org/journal — the Org Admin's read of journal activity across every
@@ -32,6 +25,13 @@ import {
 // ---------------------------------------------------------------------------
 
 export default function OrgAdminJournal() {
+  // Subscribe to activity + cohort mutations so this page re-renders
+  // when hydrateActivityFromSupabase or cohort mirrors emit. Without
+  // this the initial render captures the pre-hydrate empty snapshot
+  // (0 journal entries, 0 homework, etc.) and never refreshes.
+  useParticipantVersion();
+  useCohortVersion();
+
   const { user } = useAuth();
   const version = useCohortVersion();
 

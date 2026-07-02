@@ -14,12 +14,7 @@ import {
   getAccessibleCohorts, getAccessibleOrgs,
 } from "../../lib/adminRoles";
 import { getAllCohortsForAdmin, useCohortVersion } from "../../lib/cohortAdmin";
-import {
-  ADMIN_MOCK_PARTICIPANTS,
-  getParticipantHomeworkStats,
-  timeSavedFor,
-  formatMinutes,
-} from "../../lib/adminMockData";
+import { ADMIN_MOCK_PARTICIPANTS, getParticipantHomeworkStats, timeSavedFor, formatMinutes, useParticipantVersion } from "../../lib/adminMockData";
 import { getSessionsCountForCohort } from "../../lib/programs";
 import { primaryEffectiveRole, useViewAs } from "../../lib/viewAs";
 
@@ -38,6 +33,13 @@ const ORG_FILTER_KEY = "brai_org_admin_org_filter";
 // ---------------------------------------------------------------------------
 
 export default function OrgAdminHome() {
+  // Subscribe to activity + cohort mutations so this page re-renders
+  // when hydrateActivityFromSupabase or cohort mirrors emit. Without
+  // this the initial render captures the pre-hydrate empty snapshot
+  // (0 journal entries, 0 homework, etc.) and never refreshes.
+  useParticipantVersion();
+  useCohortVersion();
+
   // All hooks must run in the same order every render. Compute first, then
   // decide if we redirect.
   const { user } = useAuth();

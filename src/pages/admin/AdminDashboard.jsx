@@ -7,28 +7,9 @@ import {
 import { useAuth } from "../../context/AuthContext";
 import { hasGlobalScope, getRoleLabel } from "../../lib/adminRoles";
 import { useScopeFilters } from "../../lib/useScopeFilters";
-import {
-  getAllCohortsForAdmin,
-  getSessionsForCohort,
-  getUpcomingSessionsInScope,
-} from "../../lib/cohortAdmin";
+import { getAllCohortsForAdmin, getSessionsForCohort, getUpcomingSessionsInScope, useCohortVersion } from "../../lib/cohortAdmin";
 import { BELT_COLORS } from "../../lib/mockCohort";
-import {
-  ADMIN_MOCK_PARTICIPANTS,
-  getParticipantsForCohort,
-  getPendingHomework,
-  getScopeJournalStats,
-  getRecentEntriesInScope,
-  getAtRiskParticipants,
-  getBiggestWinsInScope,
-  getInnovationsInScope,
-  getDeltaStats,
-  getActivityStream,
-  getCohortSparkline,
-  formatMinutes,
-  timeSavedFor,
-  totalTimeSaved,
-} from "../../lib/adminMockData";
+import { ADMIN_MOCK_PARTICIPANTS, getParticipantsForCohort, getPendingHomework, getScopeJournalStats, getRecentEntriesInScope, getAtRiskParticipants, getBiggestWinsInScope, getInnovationsInScope, getDeltaStats, getActivityStream, getCohortSparkline, formatMinutes, timeSavedFor, totalTimeSaved, useParticipantVersion } from "../../lib/adminMockData";
 import { downloadCSV } from "../../lib/csvExport";
 import Sparkline from "../../components/admin/Sparkline";
 import DeltaBadge from "../../components/admin/DeltaBadge";
@@ -86,6 +67,13 @@ function formatShortDate(iso) {
 }
 
 export default function AdminDashboard() {
+  // Subscribe to activity + cohort mutations so this page re-renders
+  // when hydrateActivityFromSupabase or cohort mirrors emit. Without
+  // this the initial render captures the pre-hydrate empty snapshot
+  // (0 journal entries, 0 homework, etc.) and never refreshes.
+  useParticipantVersion();
+  useCohortVersion();
+
   const { user } = useAuth();
   const scope = useScopeFilters(user, getAllCohortsForAdmin());
   const { cohorts, effectiveCohorts, effectiveSlugs: cohortSlugs, orgs, facilitators } = scope;

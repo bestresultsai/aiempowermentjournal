@@ -9,16 +9,8 @@ import SegmentedControl from "../../components/admin/SegmentedControl";
 import ScopeFilterBar from "../../components/admin/ScopeFilterBar";
 import { useAuth } from "../../context/AuthContext";
 import { useScopeFilters } from "../../lib/useScopeFilters";
-import {
-  getAllCohortsForAdmin,
-} from "../../lib/cohortAdmin";
-import {
-  getInnovationsInScope,
-  getParticipantById,
-  DATE_RANGES,
-  getSinceMs,
-  formatMinutes,
-} from "../../lib/adminMockData";
+import { getAllCohortsForAdmin, useCohortVersion } from "../../lib/cohortAdmin";
+import { getInnovationsInScope, getParticipantById, DATE_RANGES, getSinceMs, formatMinutes, useParticipantVersion } from "../../lib/adminMockData";
 import { downloadCSV } from "../../lib/csvExport";
 
 // ---------------------------------------------------------------------------
@@ -43,6 +35,13 @@ const SORT_OPTIONS = [
 ];
 
 export default function AdminInnovations() {
+  // Subscribe to activity + cohort mutations so this page re-renders
+  // when hydrateActivityFromSupabase or cohort mirrors emit. Without
+  // this the initial render captures the pre-hydrate empty snapshot
+  // (0 journal entries, 0 homework, etc.) and never refreshes.
+  useParticipantVersion();
+  useCohortVersion();
+
   const { user } = useAuth();
   const scope = useScopeFilters(user, getAllCohortsForAdmin());
   const { cohorts, effectiveCohorts, effectiveSlugs: cohortSlugs, orgs, facilitators } = scope;

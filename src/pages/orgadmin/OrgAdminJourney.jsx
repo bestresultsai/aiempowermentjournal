@@ -13,6 +13,7 @@ import {
   getSessionsForCohort,
   useCohortVersion,
 } from "../../lib/cohortAdmin";
+import { useParticipantVersion } from "../../lib/adminMockData";
 import {
   getProgramForCohort,
   getBeltsForProgram,
@@ -28,6 +29,13 @@ import {
 // ---------------------------------------------------------------------------
 
 export default function OrgAdminJourney() {
+  // Subscribe to activity + cohort mutations so this page re-renders
+  // when hydrateActivityFromSupabase or cohort mirrors emit. Without
+  // this the initial render captures the pre-hydrate empty snapshot
+  // (0 journal entries, 0 homework, etc.) and never refreshes.
+  useParticipantVersion();
+  useCohortVersion();
+
   const { user } = useAuth();
   const version = useCohortVersion();
 

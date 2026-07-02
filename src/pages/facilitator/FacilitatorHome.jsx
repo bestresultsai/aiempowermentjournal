@@ -10,11 +10,7 @@ import CohortMiniStrip from "../../components/cohort/CohortMiniStrip";
 import { useAuth } from "../../context/AuthContext";
 import { getAccessibleCohorts } from "../../lib/adminRoles";
 import { getAllCohortsForAdmin, useCohortVersion } from "../../lib/cohortAdmin";
-import {
-  ADMIN_MOCK_PARTICIPANTS,
-  getHomeworkRows,
-  getParticipantHomeworkStats,
-} from "../../lib/adminMockData";
+import { ADMIN_MOCK_PARTICIPANTS, getHomeworkRows, getParticipantHomeworkStats, useParticipantVersion } from "../../lib/adminMockData";
 import { getSessionsCountForCohort } from "../../lib/programs";
 import { getSessionState, SESSION_STATES } from "../../lib/sessionState";
 import { useGoogleCalendarConnection } from "../../lib/googleCalendar";
@@ -32,6 +28,13 @@ import { primaryEffectiveRole, useViewAs } from "../../lib/viewAs";
 // ---------------------------------------------------------------------------
 
 export default function FacilitatorHome() {
+  // Subscribe to activity + cohort mutations so this page re-renders
+  // when hydrateActivityFromSupabase or cohort mirrors emit. Without
+  // this the initial render captures the pre-hydrate empty snapshot
+  // (0 journal entries, 0 homework, etc.) and never refreshes.
+  useParticipantVersion();
+  useCohortVersion();
+
   // All hooks must run in the same order every render — even when the user
   // is about to be redirected. Compute everything first, then decide if we
   // redirect.

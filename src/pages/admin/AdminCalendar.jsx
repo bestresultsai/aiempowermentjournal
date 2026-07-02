@@ -6,14 +6,12 @@ import {
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { useScopeFilters } from "../../lib/useScopeFilters";
-import {
-  getAllCohortsForAdmin,
-  getFacilitatorScheduleByDay,
-} from "../../lib/cohortAdmin";
+import { getAllCohortsForAdmin, getFacilitatorScheduleByDay, useCohortVersion } from "../../lib/cohortAdmin";
 import { BELT_COLORS } from "../../lib/mockCohort";
 import { useGoogleCalendarConnection } from "../../lib/googleCalendar";
 import ScopeFilterBar from "../../components/admin/ScopeFilterBar";
 import SegmentedControl from "../../components/admin/SegmentedControl";
+import { useParticipantVersion } from "../../lib/adminMockData";
 
 // ---------------------------------------------------------------------------
 // /admin/calendar — Facilitator availability calendar.
@@ -34,6 +32,13 @@ const HORIZONS = [
 ];
 
 export default function AdminCalendar() {
+  // Subscribe to activity + cohort mutations so this page re-renders
+  // when hydrateActivityFromSupabase or cohort mirrors emit. Without
+  // this the initial render captures the pre-hydrate empty snapshot
+  // (0 journal entries, 0 homework, etc.) and never refreshes.
+  useParticipantVersion();
+  useCohortVersion();
+
   const { user } = useAuth();
   const scope = useScopeFilters(user, getAllCohortsForAdmin());
   const { cohorts, effectiveCohorts, effectiveSlugs: cohortSlugs, orgs, facilitators } = scope;
