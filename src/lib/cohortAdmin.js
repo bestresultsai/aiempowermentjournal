@@ -602,9 +602,15 @@ function buildCohort(payload, { orgs, facilitators, program }) {
     ? null
     : orgs.find((o) => o.id === payload.organizationId) || null;
   const facilitator = facilitators.find((f) => f.id === payload.facilitatorId) || null;
-  const sessions = MOCK_SESSIONS.map((s, i) => ({
+  // Session shape comes from the LIVE program (belt/title/order). If the
+  // program has no sessions array yet, fall back to MOCK_SESSIONS. This
+  // used to be hardcoded MOCK_SESSIONS, which broke when a program grew or
+  // shrank — the payload had N dates but the cohort was built with 8
+  // sessions, silently dropping any extras and leaving orphan-date rows.
+  const templateSessions = (program?.sessions?.length ? program.sessions : MOCK_SESSIONS);
+  const sessions = templateSessions.map((s, i) => ({
     ...s,
-    date: payload.sessionDates[i],
+    date: payload.sessionDates[i] || null,
     // Per-session Zoom override. Empty string means "use cohort default".
     zoomLink: (payload.sessionZoomLinks?.[i] || "").trim() || null,
   }));

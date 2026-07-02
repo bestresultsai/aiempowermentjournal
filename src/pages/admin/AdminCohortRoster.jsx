@@ -863,6 +863,15 @@ function SessionsCustomizationCard({ cohortSlug, sessions }) {
                         {lockPill.label}
                       </span>
                     )}
+                    {/* Recording uploaded — surfaces at a glance whether the
+                        session has a playable recording. Non-clickable, the
+                        "Watch" button on the right handles playback. */}
+                    {s.videoUrl && (
+                      <span className="inline-flex items-center gap-1 px-1.5 py-0 rounded-md bg-emerald-50 text-emerald-700 text-[9.5px] font-heading font-bold uppercase border border-emerald-200">
+                        <Video className="w-2.5 h-2.5" strokeWidth={2.5} />
+                        Recorded
+                      </span>
+                    )}
                     {/* Custom content indicator */}
                     {hasOverride && (
                       <span className="inline-flex items-center gap-1 px-1.5 py-0 rounded-md bg-brand-50 text-brand-700 text-[9.5px] font-heading font-bold uppercase border border-brand-100">
@@ -871,10 +880,25 @@ function SessionsCustomizationCard({ cohortSlug, sessions }) {
                     )}
                   </div>
                 </div>
-                <span className="inline-flex items-center gap-1 text-[11.5px] font-heading font-bold text-brand-700 group-hover:text-brand-800 shrink-0">
-                  <Pencil className="w-3 h-3" strokeWidth={2.5} />
-                  Edit
-                </span>
+                <div className="flex items-center gap-3 shrink-0">
+                  {s.videoUrl && (
+                    <a
+                      href={s.videoUrl}
+                      target="_blank"
+                      rel="noreferrer noopener"
+                      onClick={(e) => e.stopPropagation()}
+                      title="Open the recording in a new tab"
+                      className="inline-flex items-center gap-1 text-[11.5px] font-heading font-bold text-emerald-700 hover:text-emerald-800"
+                    >
+                      <Video className="w-3 h-3" strokeWidth={2.5} />
+                      Watch
+                    </a>
+                  )}
+                  <span className="inline-flex items-center gap-1 text-[11.5px] font-heading font-bold text-brand-700 group-hover:text-brand-800">
+                    <Pencil className="w-3 h-3" strokeWidth={2.5} />
+                    Edit
+                  </span>
+                </div>
               </Link>
             </li>
           );

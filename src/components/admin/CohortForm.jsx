@@ -109,6 +109,17 @@ export default function CohortForm({ mode, initial = null, orgs: passedOrgs, fac
     () => orgs.find((o) => o.id === form.organizationId),
     [orgs, form.organizationId],
   );
+  // The single source of truth for how many sessions this cohort has, and
+  // what belt/title each one is. Comes from the LIVE program (so if an admin
+  // adds a belt to AIEW3 in Programs, this form immediately expands to
+  // include it — no more MOCK_SESSIONS drift). Falls back to MOCK_SESSIONS
+  // for legacy programs with no sessions array.
+  const programSessions = useMemo(() => {
+    const list = selectedProgram?.sessions;
+    if (Array.isArray(list) && list.length) return list;
+    return MOCK_SESSIONS;
+  }, [selectedProgram]);
+  const programSessionCount = programSessions.length;
 
   // ---- Derived: auto-name ----
   // For closed cohorts, suffix depends on existing cohorts at the same org+program.
@@ -155,23 +166,48 @@ export default function CohortForm({ mode, initial = null, orgs: passedOrgs, fac
 
   // ---- Auto-fill session schedule from start datetime + cadence ----
   // Custom cadence (0) populates only session 1 and leaves the rest for the
-  // user to set by hand. Other cadences populate all 8.
+  // user to set by hand. Other cadences populate every session using the
+  // program's actual session count (was hardcoded 8, broke when AIEW3 grew
+  // to 9 belts).
   useEffect(() => {
     if (!form.startDateTime) return;
     setForm((f) => {
       if (f.cadenceDays === 0) {
-        // Set session 1 to startDateTime; preserve any existing later dates.
-        const dates = [...(f.sessionDates.length ? f.sessionDates : Array(8).fill(""))];
+        const dates = [...(f.sessionDates.length ? f.sessionDates : Array(programSessionCount).fill(""))];
         dates[0] = f.startDateTime;
         return { ...f, sessionDates: dates };
       }
       return {
         ...f,
-        sessionDates: defaultSessionSchedule(f.startDateTime, f.cadenceDays, 8),
+        sessionDates: defaultSessionSchedule(f.startDateTime, f.cadenceDays, programSessionCount),
       };
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [form.startDateTime, form.cadenceDays]);
+  }, [form.startDateTime, form.cadenceDays, programSessionCount]);
+
+  // ---- Keep session arrays sized to the program ----
+  // If the program's session count changes underneath us — either because
+  // the user switched programs in the picker, or an admin added a belt to
+  // the program while this form was open — grow/shrink sessionDates and
+  // sessionZoomLinks so the render below always has an entry per session.
+  useEffect(() => {
+    setForm((f) => {
+      const dates = [...f.sessionDates];
+      const links = [...f.sessionZoomLinks];
+      let changed = false;
+      if (dates.length !== programSessionCount) {
+        dates.length = programSessionCount;
+        for (let i = 0; i < programSessionCount; i++) if (dates[i] == null) dates[i] = "";
+        changed = true;
+      }
+      if (links.length !== programSessionCount) {
+        links.length = programSessionCount;
+        for (let i = 0; i < programSessionCount; i++) if (links[i] == null) links[i] = "";
+        changed = true;
+      }
+      return changed ? { ...f, sessionDates: dates, sessionZoomLinks: links } : f;
+    });
+  }, [programSessionCount]);
 
   // ---- Helpers ----
   function set(field, value) {
@@ -500,7 +536,7 @@ export default function CohortForm({ mode, initial = null, orgs: passedOrgs, fac
         </div>
 
         <div className="space-y-2">
-          {MOCK_SESSIONS.map((s, i) => (
+          {programSessions.map((s, i) => (
             <SessionRow
               key={s.order}
               session={s}

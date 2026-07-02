@@ -40,6 +40,56 @@ const COMPLETION_CRITERIA_OPTIONS = [
 
 const BELT_OPTIONS = Object.keys(BELT_COLORS);
 
+// Immutable splice-and-reinsert used by both belts and sessions to support
+// drag-and-drop reordering. Returns a NEW array; safe to hand straight to
+// setBelts / setSessions.
+function reorderArray(arr, from, to) {
+  if (from === to || from < 0 || to < 0 || from >= arr.length || to >= arr.length) return arr;
+  const next = arr.slice();
+  const [item] = next.splice(from, 1);
+  next.splice(to, 0, item);
+  return next;
+}
+
+// Build HTML5 drag-and-drop props for one row in an ordered list. Pairs
+// the dragged row's index in the drag data channel with a `kind` tag so
+// dropping a belt onto a session (or vice versa) is silently ignored.
+function buildDragProps(index, dragState, setDragState, onReorder, kind) {
+  return {
+    draggable: true,
+    onDragStart: (e) => {
+      e.dataTransfer.effectAllowed = "move";
+      e.dataTransfer.setData("text/plain", `${kind}:${index}`);
+      setDragState({ kind, from: index, over: null });
+    },
+    onDragOver: (e) => {
+      if (dragState?.kind !== kind) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = "move";
+      if (dragState.over !== index) setDragState({ ...dragState, over: index });
+    },
+    onDragLeave: () => {
+      if (dragState?.kind === kind && dragState.over === index) {
+        setDragState({ ...dragState, over: null });
+      }
+    },
+    onDrop: (e) => {
+      e.preventDefault();
+      const raw = e.dataTransfer.getData("text/plain") || "";
+      const [dragKind, fromStr] = raw.split(":");
+      const from = Number(fromStr);
+      setDragState(null);
+      if (dragKind !== kind || Number.isNaN(from)) return;
+      onReorder(from, index);
+    },
+    onDragEnd: () => setDragState(null),
+    "data-drag-over":
+      dragState?.kind === kind && dragState.over === index && dragState.from !== index
+        ? "true"
+        : undefined,
+  };
+}
+
 const EMPTY_SESSION = {
   belt: "",
   title: "",
@@ -65,6 +115,11 @@ export default function ProgramForm({
     String(initial?.sessionDurationMinutes || 75),
   );
   const [belts, setBelts] = useState(() => initial?.belts || []);
+  // Drag-and-drop reorder state. Shared between the belts list and the
+  // sessions list — only one drag can be active at a time, and the `kind`
+  // tag on the payload prevents cross-list drops. `null` when idle.
+  //   { kind: "belt"|"session", from: number, over: number|null }
+  const [dragState, setDragState] = useState(null);
   const [sessions, setSessions] = useState(() =>
     (initial?.sessions || []).map((s) => ({
       belt: s.belt || "",
@@ -177,6 +232,17 @@ export default function ProgramForm({
       return next;
     });
   }
+  // Drag-and-drop reorder. Called with the source index (dragged item) and
+  // target index (dropped-on item); we splice the source out and reinsert
+  // at the target. Used by both the belts list and the sessions list.
+  function reorderSessions(from, to) {
+    if (from === to || from < 0 || to < 0) return;
+    setSessions((arr) => reorderArray(arr, from, to));
+  }
+  function reorderBelts(from, to) {
+    if (from === to || from < 0 || to < 0) return;
+    setBelts((arr) => reorderArray(arr, from, to));
+  }
   function updateSession(idx, patch) {
     setSessions((arr) =>
       arr.map((s, i) => (i === idx ? { ...s, ...patch } : s)),
@@ -266,22 +332,42 @@ export default function ProgramForm({
           description="Ordered belt awarded after each session. Leave empty to use plain numbers."
         />
         <div className="space-y-2">
-          {belts.map((b, idx) => (
-            <div key={idx} className="flex items-center gap-2">
-              <span className="text-[11.5px] text-ink-muted font-heading font-bold w-6 tabular-nums text-right">
-                {idx + 1}.
-              </span>
-              <BeltSelect value={b} onChange={(v) => setBeltAt(idx, v)} />
-              <button
-                type="button"
-                onClick={() => removeBelt(idx)}
-                className="p-1.5 rounded-lg text-ink-muted hover:text-rose-700 hover:bg-rose-50"
-                title="Remove belt"
+          {belts.map((b, idx) => {
+            const dragProps = buildDragProps(idx, dragState, setDragState, reorderBelts, "belt");
+            const isDragging = dragState?.kind === "belt" && dragState.from === idx;
+            return (
+              <div
+                key={idx}
+                {...dragProps}
+                className={
+                  "flex items-center gap-2 rounded-lg border transition-all " +
+                  (dragProps["data-drag-over"] === "true"
+                    ? "border-brand-500 bg-brand-50/40"
+                    : "border-transparent") +
+                  (isDragging ? " opacity-40" : "")
+                }
               >
-                <Trash2 className="w-3.5 h-3.5" strokeWidth={2.5} />
-              </button>
-            </div>
-          ))}
+                <span
+                  className="cursor-grab active:cursor-grabbing text-ink-muted hover:text-ink pl-1 py-2 shrink-0"
+                  title="Drag to reorder"
+                >
+                  <GripVertical className="w-3.5 h-3.5" strokeWidth={2.5} />
+                </span>
+                <span className="text-[11.5px] text-ink-muted font-heading font-bold w-6 tabular-nums text-right">
+                  {idx + 1}.
+                </span>
+                <BeltSelect value={b} onChange={(v) => setBeltAt(idx, v)} />
+                <button
+                  type="button"
+                  onClick={() => removeBelt(idx)}
+                  className="p-1.5 rounded-lg text-ink-muted hover:text-rose-700 hover:bg-rose-50"
+                  title="Remove belt"
+                >
+                  <Trash2 className="w-3.5 h-3.5" strokeWidth={2.5} />
+                </button>
+              </div>
+            );
+          })}
           <button
             type="button"
             onClick={addBelt}
@@ -311,6 +397,8 @@ export default function ProgramForm({
               onRemove={() => removeSession(idx)}
               onMoveUp={() => moveSession(idx, -1)}
               onMoveDown={() => moveSession(idx, 1)}
+              dragProps={buildDragProps(idx, dragState, setDragState, reorderSessions, "session")}
+              isDragging={dragState?.kind === "session" && dragState.from === idx}
             />
           ))}
         </ol>
@@ -372,6 +460,8 @@ function SessionRow({
   onRemove,
   onMoveUp,
   onMoveDown,
+  dragProps,
+  isDragging,
 }) {
   const [open, setOpen] = useState(false);
 
@@ -386,10 +476,22 @@ function SessionRow({
   );
 
   return (
-    <li className="rounded-xl border border-soft bg-surface-soft/40 overflow-hidden">
+    <li
+      {...(dragProps || {})}
+      className={
+        "rounded-xl border bg-surface-soft/40 overflow-hidden transition-all " +
+        (dragProps && dragProps["data-drag-over"] === "true"
+          ? "border-brand-500 ring-2 ring-brand-500/20"
+          : "border-soft") +
+        (isDragging ? " opacity-40" : "")
+      }
+    >
       {/* Collapsed header */}
       <div className="flex items-center gap-2 px-3 py-2.5">
-        <span className="text-ink-muted">
+        <span
+          className="text-ink-muted cursor-grab active:cursor-grabbing hover:text-ink"
+          title="Drag to reorder"
+        >
           <GripVertical className="w-3.5 h-3.5" strokeWidth={2.5} />
         </span>
         <span className="font-heading font-bold text-[11.5px] uppercase tracking-wider text-ink-muted shrink-0 w-12">
