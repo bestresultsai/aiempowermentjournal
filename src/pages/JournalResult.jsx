@@ -6,7 +6,7 @@ import {
 import NavBar from "../components/NavBar";
 import {
   calcTimeSaved,
-  calcPercentSaved,
+  calcPercentSavedHours,
   calcAnnualTimeSaved,
   calcAnnualValue,
   formatCurrency,
@@ -28,7 +28,7 @@ export default function JournalResult() {
   const hoursWithout = parseFloat(state.hoursWithoutAI);
   const hoursWith = parseFloat(state.hoursWithAI);
   const timeSaved = calcTimeSaved(hoursWithout, hoursWith);
-  const percentSaved = calcPercentSaved(hoursWithout, hoursWith);
+  const percentSaved = calcPercentSavedHours(hoursWithout, hoursWith);
   const annualTime = calcAnnualTimeSaved(hoursWithout, hoursWith, state.frequency);
   const annualValue = calcAnnualValue(hoursWithout, hoursWith, state.frequency);
 
